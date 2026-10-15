@@ -124,9 +124,9 @@ This is an active fork, and some important checks are still open. In brief:
 
 The full evidence lives in the [profile guide](docs/profiles.md), the [build guide](docs/BUILD.md) and the [team ledger](docs/integration/TEAM-LEDGER-2026-10-15.md).
 
-## Planned (approved, not yet built)
+## Planned and in development
 
-These workflow additions are agreed and on the roadmap but **not built yet**. Source, component or build checks are not device, provider or rendered-output acceptance. Some work builds on tools RapidRAW already has, such as the collage maker, JPEG editing and export.
+These workflow additions are agreed but **not available as completed features yet**. Drive foundation work has begun; the remaining additions are queued. Source, component or build checks are not device, provider or rendered-output acceptance. Some work builds on tools RapidRAW already has, such as the collage maker, JPEG editing and export.
 
 - **Priority — Google Drive workspace:** sync settings, saved edits, named checkpoints, adjustment presets and selected, legitimately user-imported profile libraries between desktop and Android for the same account. Photos are fetched on demand; original uploads remain explicit. This sync is not working yet, provider/cross-client behavior and distribution-policy fit are unverified, and this is not full automatic photo backup.
 - **Save copy & Share** for single photos and 2–4-image collages, with Android's share sheet.
@@ -136,6 +136,8 @@ These workflow additions are agreed and on the roadmap but **not built yet**. So
 - **Saved searches** in the library.
 - **Point Colour eyedropper:** a planned sampled hue/saturation/luminance (H/S/L) adjustment; this control set is a working assumption and its behavior is not finalized.
 - **Lens correction improvements:** build on the existing Lensfun Auto correction using camera and lens metadata; no new lens-correction engine is proposed.
+
+Drive's internal revision format and conflict graph have passed local tests and independent review. They are not connected to the editor or a Google account. Google sign-in, photo transfers and cross-device sync remain unavailable; see the [Drive contract](docs/drive/contract.md) for the implementation and acceptance gates.
 
 Full Lightroom preset compatibility and exact reproduction of Fujifilm film simulations or recipes are not promised. Full automatic photo backup is not planned.
 
