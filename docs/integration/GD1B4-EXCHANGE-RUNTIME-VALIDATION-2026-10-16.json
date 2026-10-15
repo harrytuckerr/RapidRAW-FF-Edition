@@ -1,0 +1,397 @@
+{
+  "task_id": "01a14019-8673-7a60-8250-73a3ab2d5d74",
+  "model": "gpt-6.1-sol (live Team roster verified)",
+  "host": "macOS-26.5.2-arm64-arm-64bit",
+  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review",
+  "head": "ec1d032efe7dd321e7a99d1931730b654b922ec3",
+  "status": "Pass \u2014 bounded independent native exchange validation; root acceptance/import remains separate",
+  "checks": {
+    "exchange-focused": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--lib",
+        "drive_auth::exchange",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b4-exchange-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T15:16:18.263410+00:00",
+      "free_bytes_before": 18158059520,
+      "exit": 0,
+      "elapsed_seconds": 54.787494125,
+      "completed_utc": "2026-10-15T15:17:13.052168+00:00",
+      "free_bytes_after": 18158321664,
+      "test_summaries": [
+        "test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 302 filtered out; finished in 1.79s"
+      ],
+      "binaries": [
+        {
+          "path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-b8c68747df43d7c8",
+          "bytes": 39211744,
+          "sha256": "330106f2373825e45f7cc8486d8fcf3c02a6a21eae70714184c283fd37ea9b30"
+        }
+      ],
+      "runtime_download_skipped": true
+    },
+    "fmt": {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b4-exchange-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T15:18:17.524078+00:00",
+      "free_bytes_before": 18114707456,
+      "exit": 0,
+      "elapsed_seconds": 0.602740834,
+      "completed_utc": "2026-10-15T15:18:18.127413+00:00",
+      "free_bytes_after": 18114691072,
+      "test_summaries": [],
+      "binaries": [],
+      "runtime_download_skipped": false
+    },
+    "clippy-all-targets": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b4-exchange-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T15:18:36.870767+00:00",
+      "free_bytes_before": 18114453504,
+      "exit": 0,
+      "elapsed_seconds": 12.812571792,
+      "completed_utc": "2026-10-15T15:18:49.684096+00:00",
+      "free_bytes_after": 18114412544,
+      "test_summaries": [],
+      "binaries": [],
+      "runtime_download_skipped": true
+    }
+  },
+  "owned_file_preformat": {
+    "command": [
+      "rustfmt",
+      "--edition",
+      "2024",
+      "--config",
+      "skip_children=true",
+      "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri/src/drive_auth/exchange_independent_tests.rs"
+    ],
+    "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
+    "environment_overrides": {
+      "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+      "CARGO_PROFILE_DEV_DEBUG": "0",
+      "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+      "CARGO_PROFILE_TEST_DEBUG": "0",
+      "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+      "CARGO_INCREMENTAL": "0",
+      "RUSTUP_TOOLCHAIN": "1.98",
+      "CARGO_NET_OFFLINE": "true",
+      "TMPDIR": "/private/tmp/rapidraw-gd1b4-exchange-validation-20261016/tmp/",
+      "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+      "ORT_SKIP_DOWNLOAD": "1",
+      "GIT_OPTIONAL_LOCKS": "0"
+    },
+    "cleared_inherited_env_names": [],
+    "compiler_process_preflight": [],
+    "started_utc": "2026-10-15T15:15:26.630966+00:00",
+    "free_bytes_before": 18158157824,
+    "exit": 0,
+    "elapsed_seconds": 0.23686812499999998,
+    "completed_utc": "2026-10-15T15:15:26.868630+00:00",
+    "free_bytes_after": 18158141440,
+    "test_summaries": [],
+    "binaries": [],
+    "runtime_download_skipped": false
+  },
+  "definition_execution": {
+    "defined_author": 13,
+    "defined_independent": 9,
+    "executed": {
+      "author": [
+        "actual_post_has_exact_fields_privacy_and_partial_scope",
+        "exact_response_cap_and_overflow_with_or_without_length",
+        "final_gate_checks_cancel_deadline_expiry_and_metadata_handoff",
+        "fixed_chunked_and_close_delimited_bodies_use_actual_parser",
+        "form_encoding_has_fixed_utf8_answers_and_hard_bound",
+        "header_and_body_stalls_and_drips_obey_deadlines",
+        "header_count_bytes_length_and_duplicates_have_explicit_bounds",
+        "mid_body_signal_and_sender_drop_cancel_owned_future",
+        "pre_signaled_or_closed_cancellation_prevents_dispatch",
+        "redirect_does_not_forward_and_disconnect_does_not_replay",
+        "response_header_and_encoding_policy_is_enforced_over_transport",
+        "truncated_and_invalid_chunk_framing_never_parse_prefix",
+        "typed_provider_errors_and_transport_policy_do_not_echo_secrets"
+      ],
+      "independent": [
+        "independent_all_body_framings_have_exact_cap_success_and_overflow_failure",
+        "independent_continuous_body_progress_cannot_renew_absolute_deadline",
+        "independent_duplicate_metadata_and_content_encoding_are_not_normalized_away",
+        "independent_positive_header_count_and_byte_boundaries_cross_actual_transport",
+        "independent_post_has_exact_native_values_five_fields_and_partial_capability",
+        "independent_preclosed_and_midstream_cancellation_do_not_return_tokens",
+        "independent_redirect_capture_and_post_receipt_disconnect_cannot_replay",
+        "independent_status_scope_and_redaction_use_actual_response_parser",
+        "independent_truncated_framing_and_duplicate_json_never_accept_valid_prefix"
+      ]
+    },
+    "actual_total_pass": 22,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_out": 302,
+    "timing_messages": [
+      "independent exchange absolute deadline observed in 303ms"
+    ]
+  },
+  "counting_boundary": "Exactly one focused exchange command:13 original author definitions plus9 independent definitions=22 passed;302 filtered,0ignored. Table rows are not extra test functions. No separate author13, full317, CLI or combined subset rerun.",
+  "existing_input_count": 607,
+  "all_existing_input_bytes_unchanged": true,
+  "author_prefix": {
+    "bytes": 41333,
+    "sha256": "a53690ccfc7a5c0bcb4d5bef6aa2d8c71c02764a7a7cc2249b6bdbaa36eb849b"
+  },
+  "root_test_include_footer": {
+    "bytes": 79,
+    "sha256": "cee2ebd61f53f442459751c449bc11518e2d1050107a870eba601655cbcd444f"
+  },
+  "author_prefix_and_footer_unchanged": true,
+  "protected_manifest_sha256": "e6c1db621719e6de5c5806caf7714a67c8e7e1b3d918223c56273c44697755ec",
+  "source_records": {
+    "src-tauri/src/drive_auth/exchange.rs": {
+      "bytes": 41412,
+      "sha256": "f8ac7bf6843ccf101610ceef93a0b0b9454203d1da09807ee3ba6e3f1877d408"
+    },
+    "src-tauri/src/drive_auth/mod.rs": {
+      "bytes": 225,
+      "sha256": "bc7e526d8ec1082ce55e51c28a3f60ef4e1cf0519d7577daa1178df055e6ef3d"
+    },
+    "src-tauri/src/lib.rs": {
+      "bytes": 94764,
+      "sha256": "8c71f74aec49a6635a5ab2f959472adeea78e0b48eaabaf9b22c2f0f679e4963"
+    },
+    "src-tauri/src/drive_auth/pkce.rs": {
+      "bytes": 34111,
+      "sha256": "85bd9b4882a9fb45d54c63231b22bf962c322d884f9aa84ca67f866e551e7dd8"
+    },
+    "src-tauri/src/drive_auth/loopback.rs": {
+      "bytes": 31837,
+      "sha256": "ee3b4ccbd31ff154a2aed9b51723d533c7ee944460a165b14375b42ed7678c41"
+    },
+    "src-tauri/src/drive_auth/token_response.rs": {
+      "bytes": 33825,
+      "sha256": "7543548a508ae0e1355f3358d6f182543b623d49544533f26be4fe01fee25886"
+    },
+    "src-tauri/Cargo.toml": {
+      "bytes": 4681,
+      "sha256": "454aa558d0b4e0ac2a645b0d67a3b82f33689af9a2036465e05343ec00a272d2"
+    },
+    "src-tauri/Cargo.lock": {
+      "bytes": 219072,
+      "sha256": "7ddd491af60c07c0d0a0983ab77c6f81409961831ed679b7b444103a6d765def"
+    },
+    "README.md": {
+      "bytes": 26274,
+      "sha256": "5123ae73a000001ce4dfa7488e29355640bc260a6507c76a287b8b2629bedf54"
+    },
+    "docs/integration/GD1B4-EXCHANGE-CONTRACT-2026-10-16.md": {
+      "bytes": 19643,
+      "sha256": "2682a642039bfb9a974fc583c4602ef325f176a71e9176aeb3098244e2fe1779"
+    },
+    "docs/integration/GD1B4-EXCHANGE-RECEIPT-2026-10-16.md": {
+      "bytes": 12000,
+      "sha256": "56633c4b23df58d299841b23c1e367e6f338e92fdc343cf0b4cc76e1c0253c50"
+    },
+    "docs/integration/GD1B4-EXCHANGE-INDEPENDENT-REVIEW-2026-10-16.md": {
+      "bytes": 5800,
+      "sha256": "77d5a97a4d33800a61cff748312b1cf52e74f72f4a9aa52f3c7aa10caa23c674"
+    }
+  },
+  "owned_child": {
+    "utc": "2026-10-15T15:16:09.668677+00:00",
+    "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri/src/drive_auth/exchange_independent_tests.rs",
+    "record": {
+      "bytes": 24729,
+      "sha256": "ca224e53c259aa1efd7c3ee71f15c9919a79a35792311db7683ba3682f91d434"
+    },
+    "defined_independent_tests": [
+      "independent_post_has_exact_native_values_five_fields_and_partial_capability",
+      "independent_positive_header_count_and_byte_boundaries_cross_actual_transport",
+      "independent_all_body_framings_have_exact_cap_success_and_overflow_failure",
+      "independent_truncated_framing_and_duplicate_json_never_accept_valid_prefix",
+      "independent_duplicate_metadata_and_content_encoding_are_not_normalized_away",
+      "independent_redirect_capture_and_post_receipt_disconnect_cannot_replay",
+      "independent_preclosed_and_midstream_cancellation_do_not_return_tokens",
+      "independent_continuous_body_progress_cannot_renew_absolute_deadline",
+      "independent_status_scope_and_redaction_use_actual_response_parser"
+    ],
+    "independent_definition_count": 9,
+    "author_definition_count": 13,
+    "source_expectations_frozen_before_first_test": true,
+    "keep_file_for_permanent_regressions": true,
+    "own_fixture_not_author_server": true,
+    "all_existing607_inputs_unchanged": true
+  },
+  "new_child_kept_intact_for_permanent_regressions": true,
+  "new_child_patch": {
+    "path": "/private/tmp/rapidraw-gd1b4-exchange-validation-20261016/exchange-independent.patch",
+    "bytes": 25495,
+    "sha256": "6adc2321a6978d03cfa6761434aec247b1b644d256f059d8496b2969c3488b58"
+  },
+  "no_source_predicate_or_expectation_changes_after_first_test": true,
+  "no_existing_source_helper_parser_test_readme_dependency_lock_git_mutations": true,
+  "no_test_cleanup_or_removal": true,
+  "binary": {
+    "actual_cargo_path_at_execution": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-b8c68747df43d7c8",
+    "preserved_path": "/private/tmp/rapidraw-gd1b4-exchange-validation-20261016/binaries/exchange-focused",
+    "bytes": 39211744,
+    "sha256": "330106f2373825e45f7cc8486d8fcf3c02a6a21eae70714184c283fd37ea9b30"
+  },
+  "fixture_limits": {
+    "own_fixture_not_author_Server": true,
+    "literal_ipv4_ephemeral_only": true,
+    "worker_lifetime_seconds": 4,
+    "max_accepted_connections": 4,
+    "max_captured_request_bytes_each": 16384,
+    "max_scheduled_response_bytes": 262144,
+    "stop_aware_nonblocking_io": true,
+    "joined_Drop_even_on_unwind_by_construction": true,
+    "forced_fixture_panic_cleanup_not_exercised": true
+  },
+  "coverage": [
+    "Fixed5-field POST actual grant values/manual escaped answer; no URL/header secrets, client_secret/scope/Authorization/Cookie/DPoP; exact UUID/generation and partial File approval",
+    "Actual transport64/65 header fields and16384/16385 summed name/value bytes; success boundary preserved",
+    "Fixed/chunked/close-delimited exact65536 body success and65537 rejection; truncated fixed/chunked/invalid chunks and duplicate JSON reject complete-looking prefix",
+    "Duplicate Content-Type/Content-Length/Content-Encoding, unsupported encodings/media/charset; valid quoted UTF8/identity success",
+    "Separate redirect capture remains0 and post-receipt disconnect remains1 request; no local forwarding/replay observed",
+    "Pre-signaled/sender-dropped cancellation prevents connection; midstream send/drop returns Cancelled without tokens",
+    "Continuous25ms body progress cannot renew private300ms absolute budget; observed303ms",
+    "Actual accepted parser produces typed non200/provider/unrequested/broad-scope failures; Display/Debug do not reflect markers"
+  ],
+  "transport_and_policy_boundary": [
+    "Shared private execution and actual accepted parser used, no token-success stub or author Server reused",
+    "Only cfg(test) Loopback target and private shorter Limits selected; no production endpoint/client/TLS/certificate policy edit",
+    "Header limits are post-HTTP-parse metadata and body limit is accumulated application bytes, not total transport/process RAM",
+    "Observed local timing and future cancellation are cooperative, not hard abort or remote rollback/unused-code proof",
+    "Returned UUID/generation metadata does not implement future controller atomic adoption or account identity"
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+    "rustfmt": "rustfmt 1.9.0-stable (48a229ceae 2026-09-01)",
+    "cargo-clippy": "clippy 0.1.98 (48a229ceae 2026-09-01)"
+  },
+  "runtime": {
+    "destination": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri/resources/libonnxruntime.dylib",
+    "existed_before": false,
+    "download": false,
+    "copied_from": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri/resources/libonnxruntime.dylib",
+    "record": {
+      "bytes": 33481272,
+      "sha256": "2b885992d3d6fa4130d39ec84a80d7504ff52750027c547bb22c86165f19406a"
+    }
+  },
+  "runtime_download_skipped": true,
+  "ignored_schemas_before": {},
+  "ignored_schemas_after": {
+    "src-tauri/gen/schemas/acl-manifests.json": {
+      "bytes": 159131,
+      "sha256": "6f0efc2715df76e5fff982745e7769cf596341469350a41ce704c9cd41236fda"
+    },
+    "src-tauri/gen/schemas/capabilities.json": {
+      "bytes": 750,
+      "sha256": "edc9164e4dd0bae9494409226133d868ee7c73f5f98447e2833b87b93b73e58c"
+    },
+    "src-tauri/gen/schemas/desktop-schema.json": {
+      "bytes": 449912,
+      "sha256": "bf0a423fdb72773a8e50f759fbd18b924aeae295d106e813f65b0d89f3021de2"
+    },
+    "src-tauri/gen/schemas/macOS-schema.json": {
+      "bytes": 449912,
+      "sha256": "bf0a423fdb72773a8e50f759fbd18b924aeae295d106e813f65b0d89f3021de2"
+    }
+  },
+  "pass": [
+    "Focused22 native exchange tests",
+    "Whole-crate fmt --check without writes",
+    "Strict all-target Clippy -D warnings including new child",
+    "All607 pre-existing inputs and author prefix/footer preserved; child retained"
+  ],
+  "fail": [],
+  "not_exercised": [
+    "Full/canonical combined suite after this new exchange/test source",
+    "Live Google/provider/TLS/registration/client-secret omission compatibility, external network or proxy-only reachability",
+    "Remote issuance/rollback/unused-code status, every possible protocol retry mode, hard abort/scheduling guarantees",
+    "Actual account/grant/identity/controller atomic adoption",
+    "Credential store/token refresh/revocation/Drive sync",
+    "Browser/Tauri/UI/Android/device/ignored/GPU/vendor tests",
+    "TotalRAM bound, guaranteed zeroization, forced fixture panic cleanup or complete security audit"
+  ],
+  "evidence_directory": "/private/tmp/rapidraw-gd1b4-exchange-validation-20261016",
+  "cache_release": {
+    "cache": "/private/tmp/rapidraw-integration-20261015/target",
+    "released": true,
+    "released_utc": "2026-10-15T15:20:29.460730+00:00",
+    "compiler_processes": [],
+    "free_bytes": 18110513152,
+    "no_further_build_commands": true
+  }
+}
