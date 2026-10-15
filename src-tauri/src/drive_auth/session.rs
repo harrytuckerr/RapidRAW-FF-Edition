@@ -1,6 +1,7 @@
 //! One native authorization owner: legacy pending or configured verification.
 //!
-//! Configured first/same-account success retains a native session with expiry.
+//! Configured success retains a native session with expiry. A different account
+//! requires one exact, expiring native consent decision before replacement.
 //! No browser/IPC, persistence, refresh, credential lease or Drive readiness.
 //! Run `begin`/`shutdown` on a native async runtime. Socket binding and pumping
 //! run on one owned blocking worker. Cancellation is cooperative: the slot stays
@@ -29,6 +30,7 @@ const ATTEMPT_LIFETIME: Duration = Duration::from_secs(300);
 const STARTUP_LIFETIME: Duration = Duration::from_secs(5);
 const HANDOFF_LIFETIME: Duration = Duration::from_secs(10);
 const CONNECTION_RETENTION: Duration = Duration::from_secs(3600);
+const SWITCH_CONFIRMATION: Duration = Duration::from_secs(60);
 
 /// Trusted native configuration, not authenticated project/account membership.
 /// It cannot carry a caller-supplied authorization URL, token or endpoint.
@@ -127,6 +129,7 @@ pub enum Phase {
     Exchanging,
     AccountVerificationPending,
     VerifyingAccount,
+    AwaitingSwitch,
     Draining,
     Closed,
 }
@@ -165,7 +168,7 @@ pub struct AuthSnapshot {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VerificationOutcome {
     AdoptedSessionOnly,
-    SwitchRequired,
+    Declined,
     Cancelled,
     TimedOut,
     Closed,
@@ -183,6 +186,7 @@ pub struct VerificationTerminalRecord {
 pub enum VerificationPhase {
     Idle,
     Running,
+    AwaitingSwitch,
     Draining,
     Closed,
 }
@@ -211,6 +215,50 @@ pub struct ConnectionSnapshot {
     pub epoch: u64,
     pub account_key: Option<AccountKey>,
     pub granted_scopes: Vec<ApprovedScope>,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SwitchDecision {
+    Accept,
+    Decline,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SwitchDisposition {
+    AdoptedSessionOnly,
+    Declined,
+    Stale,
+    AlreadyResolved,
+}
+/// Bounded personal metadata, not transferable proof or an account-key approval.
+/// Deliberately no Debug, Clone, Display or serde; no credential or URL access.
+pub struct SwitchProposalSnapshot {
+    pub attempt_id: Uuid,
+    pub generation: u64,
+    pub decision_id: Uuid,
+    pub candidate_account: AccountKey,
+    pub incumbent_account: AccountKey,
+    pub registration_id: String,
+    pub actual_grants: Vec<ApprovedScope>,
+    pub baseline_connection_epoch: u64,
+    pub deadline: Instant,
+}
+struct SwitchRecord {
+    id: Uuid,
+    // None is a consumed marker, retained only until the original Slot reaps.
+    proposal: Option<SwitchProposal>,
+}
+struct SwitchProposal {
+    candidate: VerifiedAccountCandidate,
+    incumbent: AccountKey,
+    epoch: u64,
+    proposed: Instant,
+    deadline: Instant,
+}
+enum VerificationCommit {
+    Finished,
+    AwaitingSwitch {
+        decision_id: Uuid,
+        deadline: Instant,
+    },
 }
 struct ConnectedOwner {
     candidate: VerifiedAccountCandidate,
@@ -267,6 +315,7 @@ struct Slot {
     stop: watch::Sender<bool>,
     listener: Option<Cancellation>,
     pending: Option<Pending>,
+    switch: Option<SwitchRecord>,
 }
 struct State {
     closed: bool,
@@ -455,6 +504,8 @@ impl SessionController {
             VerificationPhase::Draining
         } else if state.closed {
             VerificationPhase::Closed
+        } else if slot.is_some_and(|slot| slot.phase == Phase::AwaitingSwitch) {
+            VerificationPhase::AwaitingSwitch
         } else if slot.is_some_and(|slot| slot.verification == VerificationState::Running) {
             VerificationPhase::Running
         } else {
@@ -474,7 +525,8 @@ impl SessionController {
     }
 
     pub fn connection_snapshot(&self) -> Result<ConnectionSnapshot, ControllerError> {
-        let state = self.inner.lock()?; // Shared expiry check precedes observation.
+        let mut state = self.inner.lock()?; // Shared connected expiry precedes observation.
+        expire_verification(&mut state, Instant::now());
         let status = if state.closed {
             ConnectionStatus::Closed
         } else if state.connected.is_some() {
@@ -494,6 +546,55 @@ impl SessionController {
                 .as_ref()
                 .map_or_else(Vec::new, |owner| owner.candidate.granted_scopes().to_vec()),
         })
+    }
+
+    /// Returns only the current unexpired proposal. Observation never renews it.
+    pub fn switch_proposal(&self) -> Result<Option<SwitchProposalSnapshot>, ControllerError> {
+        let mut state = self.inner.lock()?;
+        expire_verification(&mut state, Instant::now());
+        let Some(slot) = state.slot.as_ref() else {
+            return Ok(None);
+        };
+        let Some(record) = &slot.switch else {
+            return Ok(None);
+        };
+        let Some(proposal) = &record.proposal else {
+            return Ok(None);
+        };
+        Ok(Some(SwitchProposalSnapshot {
+            attempt_id: slot.key.id,
+            generation: slot.key.generation,
+            decision_id: record.id,
+            candidate_account: proposal.candidate.account_key().clone(),
+            incumbent_account: proposal.incumbent.clone(),
+            registration_id: slot.registration.registration_id.clone(),
+            actual_grants: proposal.candidate.granted_scopes().to_vec(),
+            baseline_connection_epoch: proposal.epoch,
+            deadline: proposal.deadline,
+        }))
+    }
+
+    /// One decision on the exact native proposal. No account-key-only consent.
+    /// Consumed tuple is AlreadyResolved until Slot reap, then Stale; no history.
+    pub fn decide_switch(
+        &self,
+        attempt_id: Uuid,
+        generation: u64,
+        decision_id: Uuid,
+        decision: SwitchDecision,
+    ) -> Result<SwitchDisposition, ControllerError> {
+        // Randomness never runs under the commit mutex, including on a replay.
+        let connection_id = Uuid::new_v4();
+        self.inner.decide_switch_at(
+            Key {
+                id: attempt_id,
+                generation,
+            },
+            decision_id,
+            decision,
+            connection_id,
+            Instant::now(),
+        )
     }
 
     pub fn cancel(&self, attempt_id: Uuid) -> Result<CancelDisposition, ControllerError> {
@@ -730,6 +831,7 @@ impl Inner {
             stop,
             listener: None,
             pending: None,
+            switch: None,
         });
         self.changed.send_replace(());
         Ok(Work {
@@ -935,7 +1037,7 @@ impl Inner {
 
     fn verification_failed(&self, key: Key, outcome: VerificationOutcome, now: Instant) {
         if let Ok(mut state) = self.lock()
-            && verification_owned(&state, key)
+            && verification_in_flight(&state, key)
         {
             let outcome = if state
                 .slot
@@ -951,18 +1053,24 @@ impl Inner {
         }
     }
 
-    fn verification_completed(&self, key: Key, candidate: VerifiedAccountCandidate, now: Instant) {
+    fn verification_completed(
+        &self,
+        key: Key,
+        candidate: VerifiedAccountCandidate,
+        now: Instant,
+    ) -> VerificationCommit {
         // Entropy acquisition is outside the shared commit lock.
         let connection_id = Uuid::new_v4();
+        let decision_id = Uuid::new_v4();
         let Ok(mut state) = self.lock() else {
-            return;
+            return VerificationCommit::Finished;
         };
-        if !verification_owned(&state, key) {
-            return;
+        if !verification_in_flight(&state, key) {
+            return VerificationCommit::Finished;
         }
         if state.watcher != WatcherState::Running {
             fault(&mut state, ControllerError::WatcherFailure);
-            return;
+            return VerificationCommit::Finished;
         }
         let decision = if !verification_current(&state, key) {
             Err(VerificationOutcome::BindingMismatch)
@@ -986,12 +1094,12 @@ impl Inner {
                     Some(end) => Ok((now, end.min(candidate.credential_expires_at()))),
                     None => {
                         fault(&mut state, ControllerError::CounterExhausted);
-                        return;
+                        return VerificationCommit::Finished;
                     }
                 }
             }
         } else {
-            return;
+            return VerificationCommit::Finished;
         };
         let outcome = match decision {
             Err(outcome) => {
@@ -1004,11 +1112,51 @@ impl Inner {
                     .as_ref()
                     .is_some_and(|stamp| &stamp.key != candidate.account_key())
                 {
-                    drop(candidate);
-                    VerificationOutcome::SwitchRequired
+                    let confirmation = SWITCH_CONFIRMATION;
+                    #[cfg(test)]
+                    let confirmation = state.watcher_test.confirmation.unwrap_or(confirmation);
+                    let Some(cap) = adopted.checked_add(confirmation) else {
+                        fault(&mut state, ControllerError::CounterExhausted);
+                        return VerificationCommit::Finished;
+                    };
+                    // The sealed candidate supplies key/grants/context; Slot retains
+                    // its original catalog selection and admission binding.
+                    let Some(incumbent) = state.identity.as_ref().map(|s| s.key.clone()) else {
+                        return VerificationCommit::Finished;
+                    };
+                    let epoch = state.connection_epoch;
+                    let Some(slot) = state.slot.as_mut() else {
+                        return VerificationCommit::Finished;
+                    };
+                    let deadline = slot
+                        .deadline
+                        .min(candidate.credential_expires_at())
+                        .min(cap);
+                    if adopted >= deadline {
+                        drop(candidate);
+                        finish_verification(&mut state, VerificationOutcome::TimedOut);
+                        self.changed.send_replace(());
+                        return VerificationCommit::Finished;
+                    }
+                    slot.switch = Some(SwitchRecord {
+                        id: decision_id,
+                        proposal: Some(SwitchProposal {
+                            candidate,
+                            incumbent,
+                            epoch,
+                            proposed: adopted,
+                            deadline,
+                        }),
+                    });
+                    slot.phase = Phase::AwaitingSwitch;
+                    self.changed.send_replace(());
+                    return VerificationCommit::AwaitingSwitch {
+                        decision_id,
+                        deadline,
+                    };
                 } else {
                     if advance_connection(&mut state).is_err() {
-                        return;
+                        return VerificationCommit::Finished;
                     }
                     let key = candidate.account_key().clone();
                     let epoch = state.connection_epoch;
@@ -1032,6 +1180,153 @@ impl Inner {
         };
         finish_verification(&mut state, outcome);
         self.changed.send_replace(());
+        VerificationCommit::Finished
+    }
+
+    fn switch_binding(
+        &self,
+        state: &State,
+        key: Key,
+        decision_id: Uuid,
+        now: Instant,
+    ) -> Result<Instant, VerificationOutcome> {
+        if !verification_owned(state, key) {
+            return Err(VerificationOutcome::BindingMismatch);
+        }
+        let slot = state
+            .slot
+            .as_ref()
+            .ok_or(VerificationOutcome::BindingMismatch)?;
+        let record = slot
+            .switch
+            .as_ref()
+            .filter(|r| r.id == decision_id)
+            .ok_or(VerificationOutcome::BindingMismatch)?;
+        let proposal = record
+            .proposal
+            .as_ref()
+            .ok_or(VerificationOutcome::BindingMismatch)?;
+        if slot.phase != Phase::AwaitingSwitch
+            || slot.terminal != Some(AuthorizationOutcome::CompletedPendingVerification)
+            || slot.expected_connection_epoch != state.connection_epoch
+            || proposal.epoch != state.connection_epoch
+            || state
+                .identity
+                .as_ref()
+                .is_none_or(|stamp| stamp.key != proposal.incumbent)
+            || proposal.candidate.account_key() == &proposal.incumbent
+        {
+            return Err(VerificationOutcome::BindingMismatch);
+        }
+        if now < slot.admitted
+            || now >= slot.deadline
+            || now < proposal.proposed
+            || now >= proposal.deadline
+            || !proposal.candidate.credentials_usable_at(now)
+        {
+            return Err(VerificationOutcome::TimedOut);
+        }
+        let context = self
+            .configured_context(slot)
+            .map_err(|_| VerificationOutcome::BindingMismatch)?;
+        // Mapping construction may consume time. Refresh the linearization
+        // clock under the same mutex before issuing the commit permission.
+        let now = now.max(Instant::now());
+        if now < slot.admitted
+            || now >= slot.deadline
+            || now < proposal.proposed
+            || now >= proposal.deadline
+            || !proposal.candidate.credentials_usable_at(now)
+        {
+            return Err(VerificationOutcome::TimedOut);
+        }
+        if !proposal.candidate.matches_native_attempt(&context, now) {
+            return Err(VerificationOutcome::BindingMismatch);
+        }
+        Ok(now)
+    }
+
+    fn decide_switch_at(
+        &self,
+        key: Key,
+        decision_id: Uuid,
+        decision: SwitchDecision,
+        connection_id: Uuid,
+        now: Instant,
+    ) -> Result<SwitchDisposition, ControllerError> {
+        let mut state = self.lock()?;
+        if state.closed {
+            return Err(ControllerError::Closed);
+        }
+        let now = now.max(Instant::now());
+        expire_verification(&mut state, now);
+        let Some(record) = state
+            .slot
+            .as_ref()
+            .filter(|s| s.key == key)
+            .and_then(|slot| slot.switch.as_ref())
+            .filter(|r| r.id == decision_id)
+        else {
+            return Ok(SwitchDisposition::Stale);
+        };
+        // Deliberately before current generation: cancellation advances it while
+        // the exact consumed marker remains owned by the same draining Slot.
+        if record.proposal.is_none() {
+            return Ok(SwitchDisposition::AlreadyResolved);
+        }
+        if state.watcher != WatcherState::Running {
+            fault(&mut state, ControllerError::WatcherFailure);
+            return Err(ControllerError::WatcherFailure);
+        }
+        let now = match self.switch_binding(&state, key, decision_id, now) {
+            Ok(now) => now,
+            Err(outcome) => {
+                finish_verification(&mut state, outcome);
+                self.changed.send_replace(());
+                return Ok(SwitchDisposition::Stale);
+            }
+        };
+        if decision == SwitchDecision::Decline {
+            finish_verification(&mut state, VerificationOutcome::Declined);
+            self.changed.send_replace(());
+            return Ok(SwitchDisposition::Declined);
+        }
+        let retention = CONNECTION_RETENTION;
+        #[cfg(test)]
+        let retention = state.watcher_test.retention.unwrap_or(retention);
+        let Some(cap) = now.checked_add(retention) else {
+            fault(&mut state, ControllerError::CounterExhausted);
+            return Err(ControllerError::CounterExhausted);
+        };
+        advance_connection(&mut state)?;
+        // Binding was checked while continuously holding this same mutex.
+        let proposal = state
+            .slot
+            .as_mut()
+            .and_then(|s| s.switch.as_mut())
+            .and_then(|r| r.proposal.take());
+        let Some(proposal) = proposal else {
+            fault(&mut state, ControllerError::WatcherFailure);
+            return Err(ControllerError::WatcherFailure);
+        };
+        let account_key = proposal.candidate.account_key().clone();
+        let deadline = cap.min(proposal.candidate.credential_expires_at());
+        state.connected = Some(ConnectedOwner {
+            candidate: proposal.candidate,
+            timer: ConnectionTimer {
+                id: connection_id,
+                epoch: state.connection_epoch,
+                deadline,
+            },
+            adopted: now,
+        });
+        state.identity = Some(IdentityStamp {
+            key: account_key,
+            id: connection_id,
+        });
+        finish_verification(&mut state, VerificationOutcome::AdoptedSessionOnly);
+        self.changed.send_replace(());
+        Ok(SwitchDisposition::AdoptedSessionOnly)
     }
 
     fn prepare_watcher(
@@ -1290,6 +1585,9 @@ fn terminate(state: &mut State, outcome: AuthorizationOutcome) {
             });
         }
         slot.pending = None;
+        if let Some(record) = &mut slot.switch {
+            record.proposal = None;
+        }
         slot.phase = Phase::Draining;
         slot.stop.send_replace(true);
         if let Some(cancel) = &slot.listener {
@@ -1303,6 +1601,13 @@ fn verification_owned(state: &State, key: Key) -> bool {
             .slot
             .as_ref()
             .is_some_and(|slot| slot.verification == VerificationState::Running)
+}
+fn verification_in_flight(state: &State, key: Key) -> bool {
+    verification_owned(state, key)
+        && state
+            .slot
+            .as_ref()
+            .is_some_and(|slot| slot.phase == Phase::VerifyingAccount)
 }
 fn verification_current(state: &State, key: Key) -> bool {
     verification_owned(state, key)
@@ -1332,11 +1637,19 @@ fn finish_verification(state: &mut State, outcome: VerificationOutcome) {
     terminate(state, AuthorizationOutcome::CompletedPendingVerification);
 }
 fn expire_verification(state: &mut State, now: Instant) {
-    if state
-        .slot
-        .as_ref()
-        .is_some_and(|slot| slot.verification == VerificationState::Running && now >= slot.deadline)
-    {
+    if state.slot.as_ref().is_some_and(|slot| {
+        slot.verification == VerificationState::Running
+            && (now >= slot.deadline
+                || slot
+                    .switch
+                    .as_ref()
+                    .and_then(|r| r.proposal.as_ref())
+                    .is_some_and(|p| {
+                        now < p.proposed
+                            || now >= p.deadline
+                            || !p.candidate.credentials_usable_at(now)
+                    }))
+    }) {
         terminate(state, AuthorizationOutcome::TimedOut);
     }
 }
@@ -1548,6 +1861,7 @@ struct WatcherTestHooks {
     fail_start: bool,
     panic_next: bool,
     retention: Option<Duration>,
+    confirmation: Option<Duration>,
     starts: u32,
 }
 #[cfg(test)]
@@ -1849,13 +2163,74 @@ async fn continue_configured(
         }
         result = operation => result,
     };
+    // Subscribe before guarded publication so even an immediate decision cannot
+    // be missed. The original supervisor owns this entire continuation.
+    let mut changed = inner.changed.subscribe();
     match result {
-        Ok(candidate) => inner.verification_completed(key, candidate, Instant::now()),
+        Ok(candidate) => {
+            if let VerificationCommit::AwaitingSwitch {
+                decision_id,
+                deadline,
+            } = inner.verification_completed(key, candidate, Instant::now())
+            {
+                await_switch(inner, key, decision_id, deadline, stop, &mut changed).await?;
+            }
+        }
         Err(error) => {
             inner.verification_failed(key, VerificationOutcome::Failed(error), Instant::now())
         }
     }
     Ok(())
+}
+
+async fn await_switch(
+    inner: &Inner,
+    key: Key,
+    decision_id: Uuid,
+    deadline: Instant,
+    stop: &mut watch::Receiver<bool>,
+    changed: &mut watch::Receiver<()>,
+) -> Result<(), AuthorizationOutcome> {
+    loop {
+        {
+            let mut state = inner.lock().map_err(|_| AuthorizationOutcome::Closed)?;
+            let now = Instant::now();
+            expire_verification(&mut state, now);
+            let pending = state
+                .slot
+                .as_ref()
+                .filter(|s| s.key == key)
+                .and_then(|s| s.switch.as_ref())
+                .filter(|r| r.id == decision_id)
+                .and_then(|r| r.proposal.as_ref());
+            let Some(pending) = pending else {
+                return Ok(());
+            };
+            if state.watcher != WatcherState::Running {
+                fault(&mut state, ControllerError::WatcherFailure);
+                return Err(AuthorizationOutcome::WorkerFailure);
+            }
+            let binding = if pending.deadline != deadline {
+                Err(VerificationOutcome::BindingMismatch)
+            } else {
+                inner.switch_binding(&state, key, decision_id, now)
+            };
+            if let Err(outcome) = binding {
+                finish_verification(&mut state, outcome);
+                inner.changed.send_replace(());
+                return Ok(());
+            }
+        }
+        tokio::select! {
+            biased;
+            _ = stopped(stop) => { inner.finish(key, AuthorizationOutcome::Cancelled); return Ok(()); }
+            _ = until(deadline) => {} // Re-read exact current proposal under the lock.
+            result = changed.changed() => if result.is_err() {
+                inner.finish(key, AuthorizationOutcome::WorkerFailure);
+                return Err(AuthorizationOutcome::WorkerFailure);
+            },
+        }
+    }
 }
 
 async fn continue_pending(
@@ -3818,7 +4193,14 @@ mod configured_tests {
                 owner
                     .inner
                     .verification_completed(work.key, value, Instant::now());
-                assert_eq!(terminal(&owner), VerificationOutcome::SwitchRequired);
+                let proposal = owner
+                    .switch_proposal()
+                    .unwrap()
+                    .expect("different identity awaits consent");
+                assert_eq!(
+                    owner.verification_snapshot().unwrap().phase,
+                    VerificationPhase::AwaitingSwitch
+                );
                 let snapshot = owner.connection_snapshot().unwrap();
                 assert_eq!(snapshot.connection_id, Some(original.id));
                 assert_eq!(
@@ -3829,6 +4211,16 @@ mod configured_tests {
                         ConnectionStatus::ConnectedSessionOnly
                     }
                 );
+                assert_eq!(
+                    owner.decide_switch(
+                        proposal.attempt_id,
+                        proposal.generation,
+                        proposal.decision_id,
+                        SwitchDecision::Decline
+                    ),
+                    Ok(SwitchDisposition::Declined)
+                );
+                assert_eq!(terminal(&owner), VerificationOutcome::Declined);
                 owner.inner.reaped(work.key);
             }
             let mut project = owner
@@ -3853,7 +4245,33 @@ mod configured_tests {
             owner
                 .inner
                 .verification_completed(project.key, value, Instant::now());
-            assert_eq!(terminal(&owner), VerificationOutcome::SwitchRequired);
+            let proposal = owner
+                .switch_proposal()
+                .unwrap()
+                .expect("different identity awaits consent");
+            assert_eq!(
+                owner.verification_snapshot().unwrap().phase,
+                VerificationPhase::AwaitingSwitch
+            );
+            assert_eq!(
+                owner.connection_snapshot().unwrap().connection_id,
+                Some(original.id)
+            );
+            assert_eq!(owner.connection_snapshot().unwrap().epoch, original.epoch);
+            assert_eq!(
+                owner.connection_snapshot().unwrap().status,
+                ConnectionStatus::Expired
+            );
+            assert_eq!(
+                owner.decide_switch(
+                    proposal.attempt_id,
+                    proposal.generation,
+                    proposal.decision_id,
+                    SwitchDecision::Decline
+                ),
+                Ok(SwitchDisposition::Declined)
+            );
+            assert_eq!(terminal(&owner), VerificationOutcome::Declined);
             owner.inner.reaped(project.key);
             owner.invalidate(DisconnectOrSwitch::SwitchAccount).unwrap();
             assert_eq!(
@@ -4351,6 +4769,717 @@ mod configured_tests {
             .await
             .expect("no owner-reference cycle after finalization");
         }
+        mod switch_tests {
+            use super::*;
+
+            async fn proposed(
+                owner: &SessionController,
+                scopes: &[ApprovedScope],
+                seconds: u64,
+            ) -> (Work, SwitchProposalSnapshot) {
+                let work = next(owner).await;
+                let peer = Peer::new(SyntheticLabel::B, false);
+                let value = proof(owner, &work, &peer, SyntheticLabel::B, scopes, seconds).await;
+                assert!(matches!(
+                    owner
+                        .inner
+                        .verification_completed(work.key, value, Instant::now()),
+                    VerificationCommit::AwaitingSwitch { .. }
+                ));
+                assert!(peer.request().contains("Bearer synthetic-session-B\r\n"));
+                (work, owner.switch_proposal().unwrap().unwrap())
+            }
+            fn decide(
+                owner: &SessionController,
+                p: &SwitchProposalSnapshot,
+                choice: SwitchDecision,
+            ) -> Result<SwitchDisposition, ControllerError> {
+                owner.decide_switch(p.attempt_id, p.generation, p.decision_id, choice)
+            }
+            fn preserved(
+                owner: &SessionController,
+                old: ConnectionTimer,
+                scopes: &[ApprovedScope],
+            ) {
+                let value = owner.connection_snapshot().unwrap();
+                assert_eq!(value.connection_id, Some(old.id));
+                assert_eq!(value.epoch, old.epoch);
+                assert_eq!(value.granted_scopes, scopes);
+                assert_auth_once(owner);
+            }
+
+            #[tokio::test]
+            async fn exact_consent_is_nonterminal_until_accept_and_replaces_actual_subset() {
+                let (owner, old) = initial(&[ApprovedScope::File, ApprovedScope::AppData]).await;
+                let previous = owner.verification_snapshot().unwrap().last_terminal;
+                let (work, p) = proposed(&owner, &[ApprovedScope::AppData], 7200).await;
+                assert_eq!(
+                    p.candidate_account.drive_permission_id.as_str(),
+                    "fixture_B"
+                );
+                assert_eq!(
+                    p.incumbent_account.drive_permission_id.as_str(),
+                    "fixture_A"
+                );
+                assert_eq!(p.actual_grants, vec![ApprovedScope::AppData]);
+                assert_eq!(p.baseline_connection_epoch, old.epoch);
+                assert_eq!(p.attempt_id, work.key.id);
+                assert_eq!(p.generation, work.key.generation);
+                assert_eq!(p.registration_id, selection().id());
+                assert_eq!(owner.snapshot().unwrap().phase, Phase::AwaitingSwitch);
+                assert_eq!(
+                    owner.verification_snapshot().unwrap().phase,
+                    VerificationPhase::AwaitingSwitch
+                );
+                assert_eq!(
+                    owner.verification_snapshot().unwrap().last_terminal,
+                    previous
+                );
+                preserved(&owner, old, &[ApprovedScope::File, ApprovedScope::AppData]);
+                assert_eq!(
+                    owner
+                        .inner
+                        .reserve_configured(selection(), Instant::now())
+                        .err(),
+                    Some(StartError::Busy)
+                );
+                for wrong in 0..3 {
+                    assert_eq!(
+                        owner.decide_switch(
+                            if wrong == 0 {
+                                Uuid::nil()
+                            } else {
+                                p.attempt_id
+                            },
+                            if wrong == 1 {
+                                p.generation + 1
+                            } else {
+                                p.generation
+                            },
+                            if wrong == 2 {
+                                Uuid::nil()
+                            } else {
+                                p.decision_id
+                            },
+                            SwitchDecision::Accept,
+                        ),
+                        Ok(SwitchDisposition::Stale)
+                    );
+                    assert_eq!(
+                        owner.switch_proposal().unwrap().unwrap().decision_id,
+                        p.decision_id
+                    );
+                }
+                let before = Instant::now();
+                assert_eq!(
+                    decide(&owner, &p, SwitchDecision::Accept),
+                    Ok(SwitchDisposition::AdoptedSessionOnly)
+                );
+                {
+                    let state = owner.inner.state.lock().unwrap();
+                    let held = state.connected.as_ref().unwrap();
+                    assert_eq!(held.candidate.account_key(), &p.candidate_account);
+                    assert_eq!(held.candidate.granted_scopes(), &[ApprovedScope::AppData]);
+                    assert!(held.adopted >= before);
+                    assert_eq!(
+                        held.timer.deadline,
+                        held.candidate
+                            .credential_expires_at()
+                            .min(held.adopted + Duration::from_secs(3600))
+                    );
+                    assert_eq!(held.timer.epoch, old.epoch + 1);
+                    assert_ne!(held.timer.id, old.id);
+                }
+                assert!(owner.switch_proposal().unwrap().is_none());
+                assert_eq!(terminal(&owner), VerificationOutcome::AdoptedSessionOnly);
+                assert_eq!(
+                    owner.cancel(work.key.id),
+                    Ok(CancelDisposition::AlreadyTerminal)
+                );
+                assert_eq!(
+                    decide(&owner, &p, SwitchDecision::Decline),
+                    Ok(SwitchDisposition::AlreadyResolved)
+                );
+                owner.inner.reaped(work.key); // Reducer reservation only; not supervisor evidence.
+                assert_eq!(
+                    decide(&owner, &p, SwitchDecision::Accept),
+                    Ok(SwitchDisposition::Stale)
+                );
+                close_fixture(&owner, work.key).await;
+            }
+
+            #[tokio::test]
+            async fn decline_cancel_and_expiry_preserve_incumbent_and_consumed_marker() {
+                for mode in 0..3 {
+                    let (owner, old) = initial(&[ApprovedScope::File]).await;
+                    let (work, p) = proposed(&owner, &[ApprovedScope::AppData], 60).await;
+                    let auth = owner.snapshot().unwrap().last_authorization;
+                    match mode {
+                        0 => assert_eq!(
+                            decide(&owner, &p, SwitchDecision::Decline),
+                            Ok(SwitchDisposition::Declined)
+                        ),
+                        1 => {
+                            assert_eq!(owner.cancel(work.key.id), Ok(CancelDisposition::Cancelled))
+                        }
+                        _ => assert_eq!(
+                            owner.inner.decide_switch_at(
+                                work.key,
+                                p.decision_id,
+                                SwitchDecision::Accept,
+                                Uuid::new_v4(),
+                                p.deadline
+                            ),
+                            Ok(SwitchDisposition::AlreadyResolved)
+                        ),
+                    }
+                    assert_eq!(
+                        terminal(&owner),
+                        match mode {
+                            0 => VerificationOutcome::Declined,
+                            1 => VerificationOutcome::Cancelled,
+                            _ => VerificationOutcome::TimedOut,
+                        }
+                    );
+                    preserved(&owner, old, &[ApprovedScope::File]);
+                    assert_eq!(owner.snapshot().unwrap().last_authorization, auth);
+                    assert!(owner.switch_proposal().unwrap().is_none());
+                    assert_eq!(
+                        decide(&owner, &p, SwitchDecision::Accept),
+                        Ok(SwitchDisposition::AlreadyResolved)
+                    );
+                    let last = owner.verification_snapshot().unwrap().last_terminal;
+                    owner
+                        .inner
+                        .finish(work.key, AuthorizationOutcome::WorkerFailure);
+                    assert_eq!(owner.verification_snapshot().unwrap().last_terminal, last);
+                    owner.inner.reaped(work.key);
+                    assert_eq!(
+                        decide(&owner, &p, SwitchDecision::Accept),
+                        Ok(SwitchDisposition::Stale)
+                    );
+                    close_fixture(&owner, work.key).await;
+                }
+            }
+
+            #[tokio::test]
+            async fn exact_deadline_minimum_no_observation_renewal_and_backwards_clock() {
+                const {
+                    assert!(SWITCH_CONFIRMATION.as_secs() == 60);
+                }
+                for mode in 0..4 {
+                    let (owner, old) = initial(&[ApprovedScope::File]).await;
+                    let mut work = next(&owner).await;
+                    if mode == 0 {
+                        work.deadline = Instant::now() + Duration::from_secs(20);
+                        owner
+                            .inner
+                            .state
+                            .lock()
+                            .unwrap()
+                            .slot
+                            .as_mut()
+                            .unwrap()
+                            .deadline = work.deadline;
+                    }
+                    let peer = Peer::new(SyntheticLabel::B, false);
+                    let value = proof(
+                        &owner,
+                        &work,
+                        &peer,
+                        SyntheticLabel::B,
+                        &[ApprovedScope::File],
+                        if mode == 1 { 30 } else { 7200 },
+                    )
+                    .await;
+                    let token_end = value.credential_expires_at();
+                    owner
+                        .inner
+                        .verification_completed(work.key, value, Instant::now());
+                    let p = owner.switch_proposal().unwrap().unwrap();
+                    let proposed = {
+                        let state = owner.inner.state.lock().unwrap();
+                        state
+                            .slot
+                            .as_ref()
+                            .unwrap()
+                            .switch
+                            .as_ref()
+                            .unwrap()
+                            .proposal
+                            .as_ref()
+                            .unwrap()
+                            .proposed
+                    };
+                    let expected = work
+                        .deadline
+                        .min(token_end)
+                        .min(proposed + Duration::from_secs(60));
+                    assert_eq!(p.deadline, expected);
+                    assert_eq!(
+                        expected,
+                        match mode {
+                            0 => work.deadline,
+                            1 => token_end,
+                            _ => proposed + Duration::from_secs(60),
+                        }
+                    );
+                    for _ in 0..3 {
+                        assert_eq!(owner.switch_proposal().unwrap().unwrap().deadline, expected);
+                    }
+                    {
+                        let mut state = owner.inner.state.lock().unwrap();
+                        expire_verification(&mut state, expected - Duration::from_nanos(1));
+                        assert!(
+                            state
+                                .slot
+                                .as_ref()
+                                .unwrap()
+                                .switch
+                                .as_ref()
+                                .unwrap()
+                                .proposal
+                                .is_some()
+                        );
+                        expire_verification(
+                            &mut state,
+                            if mode == 3 {
+                                proposed - Duration::from_nanos(1)
+                            } else {
+                                expected
+                            },
+                        );
+                        assert!(
+                            state
+                                .slot
+                                .as_ref()
+                                .unwrap()
+                                .switch
+                                .as_ref()
+                                .unwrap()
+                                .proposal
+                                .is_none()
+                        );
+                    }
+                    assert_eq!(terminal(&owner), VerificationOutcome::TimedOut);
+                    assert_eq!(
+                        decide(&owner, &p, SwitchDecision::Accept),
+                        Ok(SwitchDisposition::AlreadyResolved)
+                    );
+                    preserved(&owner, old, &[ApprovedScope::File]);
+                    close_fixture(&owner, work.key).await;
+                }
+            }
+
+            #[tokio::test]
+            async fn expired_stamp_still_requires_exact_consent_and_late_completion_is_inert() {
+                let (owner, old) = initial(&[ApprovedScope::File]).await;
+                let work = next(&owner).await;
+                let peer = Peer::new(SyntheticLabel::B, false);
+                let value = proof(
+                    &owner,
+                    &work,
+                    &peer,
+                    SyntheticLabel::B,
+                    &[ApprovedScope::AppData],
+                    60,
+                )
+                .await;
+                // A second genuine sealed response for the same attempt, generated
+                // before publication, challenges late verifier completion handling.
+                let peer2 = Peer::new(SyntheticLabel::B, false);
+                let input2 = input(
+                    work.key,
+                    peer2.address,
+                    SyntheticLabel::B,
+                    &[ApprovedScope::AppData],
+                    Instant::now(),
+                    60,
+                );
+                let context = {
+                    let state = owner.inner.state.lock().unwrap();
+                    owner
+                        .inner
+                        .configured_context(state.slot.as_ref().unwrap())
+                        .unwrap()
+                };
+                let (keep, cancel) = oneshot::channel();
+                let late = input2.verify(context, cancel).await.unwrap();
+                drop(keep);
+                owner
+                    .inner
+                    .verification_completed(work.key, value, Instant::now());
+                let p = owner.switch_proposal().unwrap().unwrap();
+                let last = owner.verification_snapshot().unwrap().last_terminal;
+                owner
+                    .inner
+                    .verification_completed(work.key, late, Instant::now());
+                owner.inner.verification_failed(
+                    work.key,
+                    VerificationOutcome::Failed(AccountError::TokenExpired),
+                    Instant::now(),
+                );
+                assert_eq!(
+                    owner.switch_proposal().unwrap().unwrap().decision_id,
+                    p.decision_id
+                );
+                assert_eq!(owner.verification_snapshot().unwrap().last_terminal, last);
+                expire_connection(&mut owner.inner.state.lock().unwrap(), old.deadline);
+                assert_eq!(
+                    owner.connection_snapshot().unwrap().status,
+                    ConnectionStatus::Expired
+                );
+                assert_eq!(owner.connection_snapshot().unwrap().epoch, old.epoch);
+                assert_eq!(
+                    owner.switch_proposal().unwrap().unwrap().incumbent_account,
+                    p.incumbent_account
+                );
+                assert_eq!(
+                    decide(&owner, &p, SwitchDecision::Accept),
+                    Ok(SwitchDisposition::AdoptedSessionOnly)
+                );
+                assert_eq!(
+                    owner.connection_snapshot().unwrap().account_key.unwrap(),
+                    p.candidate_account
+                );
+                close_fixture(&owner, work.key).await;
+            }
+
+            #[tokio::test]
+            async fn exact_binding_corruption_cannot_retarget_a_proposal() {
+                for defect in 0..5 {
+                    let (owner, old) = initial(&[ApprovedScope::File]).await;
+                    let (work, p) = proposed(&owner, &[ApprovedScope::File], 60).await;
+                    {
+                        let mut state = owner.inner.state.lock().unwrap();
+                        match defect {
+                            0 => state.connection_epoch += 1,
+                            1 => state.generation += 1,
+                            2 => {
+                                state.slot.as_mut().unwrap().registration.project_number =
+                                    "8".into()
+                            }
+                            3 => state.slot.as_mut().unwrap().configured_selection = None,
+                            _ => {
+                                state.slot.as_mut().unwrap().registration.scopes =
+                                    vec![ApprovedScope::File]
+                            }
+                        }
+                    }
+                    assert_eq!(
+                        decide(&owner, &p, SwitchDecision::Accept),
+                        Ok(SwitchDisposition::Stale)
+                    );
+                    assert_eq!(terminal(&owner), VerificationOutcome::BindingMismatch);
+                    assert_eq!(
+                        decide(&owner, &p, SwitchDecision::Decline),
+                        Ok(SwitchDisposition::AlreadyResolved)
+                    );
+                    assert_eq!(
+                        owner.connection_snapshot().unwrap().connection_id,
+                        Some(old.id)
+                    );
+                    assert_eq!(
+                        owner.connection_snapshot().unwrap().granted_scopes,
+                        vec![ApprovedScope::File]
+                    );
+                    close_fixture(&owner, work.key).await;
+                }
+            }
+
+            #[tokio::test]
+            async fn accept_cancel_disconnect_and_close_have_serialized_winners() {
+                for mode in 0..6 {
+                    let (owner, old) = initial(&[ApprovedScope::File]).await;
+                    let (work, p) = proposed(&owner, &[ApprovedScope::AppData], 60).await;
+                    if mode == 0 {
+                        owner.cancel(work.key.id).unwrap();
+                    }
+                    if mode == 2 {
+                        owner.invalidate(DisconnectOrSwitch::Disconnect).unwrap();
+                    }
+                    if mode == 4 {
+                        owner.inner.close();
+                    }
+                    let accepted = decide(&owner, &p, SwitchDecision::Accept);
+                    assert_eq!(
+                        accepted,
+                        match mode {
+                            0 | 2 => Ok(SwitchDisposition::AlreadyResolved),
+                            4 => Err(ControllerError::Closed),
+                            _ => Ok(SwitchDisposition::AdoptedSessionOnly),
+                        }
+                    );
+                    match mode {
+                        1 => assert_eq!(
+                            owner.cancel(work.key.id),
+                            Ok(CancelDisposition::AlreadyTerminal)
+                        ),
+                        3 => owner.invalidate(DisconnectOrSwitch::SwitchAccount).unwrap(),
+                        5 => owner.inner.close(),
+                        _ => {}
+                    }
+                    if mode == 0 {
+                        preserved(&owner, old, &[ApprovedScope::File]);
+                    } else if mode == 1 {
+                        assert_ne!(
+                            owner.connection_snapshot().unwrap().connection_id,
+                            Some(old.id)
+                        );
+                        assert_eq!(
+                            owner.connection_snapshot().unwrap().granted_scopes,
+                            vec![ApprovedScope::AppData]
+                        );
+                    } else {
+                        let state = owner.inner.state.lock().unwrap();
+                        assert!(state.connected.is_none() && state.identity.is_none());
+                    }
+                    close_fixture(&owner, work.key).await;
+                }
+                let (owner, old) = initial(&[ApprovedScope::File]).await;
+                let (work, p) = proposed(&owner, &[ApprovedScope::AppData], 60).await;
+                let barrier = Barrier::new(3);
+                let (accepted, cancelled) = thread::scope(|threads| {
+                    let a = threads.spawn(|| {
+                        barrier.wait();
+                        decide(&owner, &p, SwitchDecision::Accept).unwrap()
+                    });
+                    let c = threads.spawn(|| {
+                        barrier.wait();
+                        owner.cancel(work.key.id).unwrap()
+                    });
+                    barrier.wait();
+                    (a.join().unwrap(), c.join().unwrap())
+                });
+                match (accepted, cancelled) {
+                    (SwitchDisposition::AdoptedSessionOnly, CancelDisposition::AlreadyTerminal) => {
+                        assert_eq!(
+                            owner.connection_snapshot().unwrap().granted_scopes,
+                            vec![ApprovedScope::AppData]
+                        );
+                    }
+                    (SwitchDisposition::AlreadyResolved, CancelDisposition::Cancelled) => {
+                        preserved(&owner, old, &[ApprovedScope::File])
+                    }
+                    _ => panic!("one mutex winner required"),
+                }
+                close_fixture(&owner, work.key).await;
+            }
+
+            #[tokio::test]
+            async fn faults_erase_both_owners_without_wrapping_or_reopening() {
+                for mode in 0..4 {
+                    let (owner, _) = initial(&[ApprovedScope::File]).await;
+                    let (work, p) = proposed(&owner, &[ApprovedScope::File], 60).await;
+                    let expected = match mode {
+                        0 => {
+                            let mut state = owner.inner.state.lock().unwrap();
+                            state.connection_epoch = u64::MAX;
+                            let slot = state.slot.as_mut().unwrap();
+                            slot.expected_connection_epoch = u64::MAX;
+                            slot.switch
+                                .as_mut()
+                                .unwrap()
+                                .proposal
+                                .as_mut()
+                                .unwrap()
+                                .epoch = u64::MAX;
+                            ControllerError::CounterExhausted
+                        }
+                        1 => {
+                            owner.inner.state.lock().unwrap().generation = u64::MAX;
+                            ControllerError::CounterExhausted
+                        }
+                        2 => {
+                            let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                                let _held = owner.inner.state.lock().unwrap();
+                                panic!("synthetic switch poison");
+                            }));
+                            ControllerError::Poisoned
+                        }
+                        _ => {
+                            let mut state = owner.inner.state.lock().unwrap();
+                            state.watcher_test.panic_next = true;
+                            state.lifecycle_changed.send_replace(());
+                            ControllerError::WatcherFailure
+                        }
+                    };
+                    if mode == 1 {
+                        assert_eq!(owner.cancel(work.key.id), Err(expected));
+                    } else if mode == 3 {
+                        watch_state(&owner.inner, WatcherState::Stopped).await;
+                    } else {
+                        assert_eq!(decide(&owner, &p, SwitchDecision::Accept), Err(expected));
+                    }
+                    {
+                        let state = owner.inner.state.lock().unwrap_or_else(|e| e.into_inner());
+                        assert!(
+                            state.closed && state.connected.is_none() && state.identity.is_none()
+                        );
+                        assert!(
+                            state
+                                .slot
+                                .as_ref()
+                                .unwrap()
+                                .switch
+                                .as_ref()
+                                .unwrap()
+                                .proposal
+                                .is_none()
+                        );
+                        assert_eq!(state.fault, Some(expected));
+                    }
+                    owner.inner.reaped(work.key); // Synthetic reducer reservation only.
+                    assert_eq!(
+                        tokio::time::timeout(Duration::from_secs(3), owner.shutdown())
+                            .await
+                            .unwrap(),
+                        Err(expected)
+                    );
+                }
+            }
+
+            #[tokio::test]
+            async fn original_continuation_waits_for_decision_or_scheduled_expiry() {
+                for accept in [true, false] {
+                    let (owner, old) = initial(&[ApprovedScope::File]).await;
+                    owner.inner.state.lock().unwrap().watcher_test.confirmation =
+                        Some(Duration::from_millis(150));
+                    let mut work = next(&owner).await;
+                    let peer = Peer::new(SyntheticLabel::B, false);
+                    let value = input(
+                        work.key,
+                        peer.address,
+                        SyntheticLabel::B,
+                        &[ApprovedScope::AppData],
+                        Instant::now(),
+                        60,
+                    );
+                    let mut operation = Box::pin(continue_configured(
+                        &owner.inner,
+                        work.key,
+                        value,
+                        &mut work.stop,
+                    ));
+                    let mut changed = owner.inner.changed.subscribe();
+                    let p = tokio::time::timeout(Duration::from_secs(2), async {
+                        loop {
+                            if let Some(p) = owner.switch_proposal().unwrap() { break p; }
+                            tokio::select! { biased;
+                                _ = &mut operation => panic!("continuation ended before decision publication"),
+                                _ = changed.changed() => {},
+                            }
+                        }
+                    }).await.unwrap();
+                    assert_eq!(
+                        owner
+                            .inner
+                            .reserve_configured(selection(), Instant::now())
+                            .err(),
+                        Some(StartError::Busy)
+                    );
+                    preserved(&owner, old, &[ApprovedScope::File]);
+                    if accept {
+                        assert_eq!(
+                            decide(&owner, &p, SwitchDecision::Accept),
+                            Ok(SwitchDisposition::AdoptedSessionOnly)
+                        );
+                    }
+                    tokio::time::timeout(Duration::from_secs(2), operation)
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    // Observe raw State BEFORE getters: expiry was owned by the
+                    // production continuation, not a snapshot's lazy expiry.
+                    {
+                        let state = owner.inner.state.lock().unwrap();
+                        assert!(
+                            state
+                                .slot
+                                .as_ref()
+                                .unwrap()
+                                .switch
+                                .as_ref()
+                                .unwrap()
+                                .proposal
+                                .is_none()
+                        );
+                        assert_eq!(state.slot.as_ref().unwrap().phase, Phase::Draining);
+                        assert_eq!(
+                            state.last_verification.unwrap().outcome,
+                            if accept {
+                                VerificationOutcome::AdoptedSessionOnly
+                            } else {
+                                VerificationOutcome::TimedOut
+                            }
+                        );
+                        assert_eq!(state.watcher_test.starts, 1);
+                    }
+                    owner.inner.reaped(work.key); // Only after this actual continuation ended; no listener in fixture.
+                    close_fixture(&owner, work.key).await;
+                }
+            }
+
+            #[tokio::test]
+            async fn drop_and_unwind_discard_proposal_before_actual_watcher_finalization() {
+                for mode in 0..3 {
+                    let (owner, _) = initial(&[ApprovedScope::File]).await;
+                    let (work, p) = proposed(&owner, &[ApprovedScope::File], 60).await;
+                    let inner = Arc::clone(&owner.inner);
+                    let weak = Arc::downgrade(&inner);
+                    if mode == 1 {
+                        assert_eq!(
+                            decide(&owner, &p, SwitchDecision::Accept),
+                            Ok(SwitchDisposition::AdoptedSessionOnly)
+                        );
+                    }
+                    if mode == 2 {
+                        // Exact supervisor unwind terminal handler; this is a
+                        // reducer assertion, not a claim to panic a full OAuth chain.
+                        inner.finish(work.key, AuthorizationOutcome::WorkerFailure);
+                        assert_eq!(terminal(&owner), VerificationOutcome::WorkerFailure);
+                        assert!(owner.switch_proposal().unwrap().is_none());
+                    }
+                    let (cleanup, entered, release) = gate();
+                    inner.state.lock().unwrap().watcher_test.cleanup = Some(cleanup);
+                    drop(owner);
+                    tokio::time::timeout(Duration::from_secs(2), entered)
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    {
+                        let state = inner.state.lock().unwrap();
+                        assert!(
+                            state.connected.is_none() && state.identity.is_none() && state.closed
+                        );
+                        assert!(
+                            state
+                                .slot
+                                .as_ref()
+                                .unwrap()
+                                .switch
+                                .as_ref()
+                                .unwrap()
+                                .proposal
+                                .is_none()
+                        );
+                        assert!(state.watcher == WatcherState::Finishing);
+                    }
+                    inner.reaped(work.key); // Synthetic Slot, no listener/supervisor existed.
+                    assert!(!watcher_finished(&inner.state.lock().unwrap()));
+                    release.send(()).unwrap();
+                    watch_state(&inner, WatcherState::Stopped).await;
+                    drop(inner);
+                    tokio::time::timeout(Duration::from_secs(1), async {
+                        while weak.upgrade().is_some() {
+                            tokio::task::yield_now().await;
+                        }
+                    })
+                    .await
+                    .expect("no retained owner cycle");
+                }
+            }
+        }
     }
 }
 
@@ -4365,3 +5494,7 @@ mod configured_verification_independent_tests;
 #[cfg(test)]
 #[path = "connected_lifecycle_independent_tests.rs"]
 mod connected_lifecycle_independent_tests;
+
+#[cfg(test)]
+#[path = "switch_decision_independent_tests.rs"]
+mod switch_decision_independent_tests;

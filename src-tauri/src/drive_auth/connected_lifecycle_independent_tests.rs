@@ -532,10 +532,93 @@ async fn independent_different_and_expired_identity_require_explicit_disconnect(
             SyntheticLabel::B
         };
         let proof = candidate(&owner, &work, label, FILE, Instant::now(), 60).await;
+        let credential_expiry = proof.credential_expires_at();
+        let authorization = owner.snapshot().unwrap().last_authorization;
+        assert_eq!(
+            authorization,
+            Some(TerminalRecord {
+                attempt_id: work.key.id,
+                generation: work.key.generation,
+                outcome: AuthorizationOutcome::CompletedPendingVerification,
+            })
+        );
+        let previous_verification = owner.verification_snapshot().unwrap().last_terminal;
+        assert_eq!(
+            previous_verification.unwrap().outcome,
+            VerificationOutcome::AdoptedSessionOnly
+        );
+        let publication_started = Instant::now();
         owner
             .inner
             .verification_completed(work.key, proof, Instant::now());
-        assert_eq!(verification(&owner), VerificationOutcome::SwitchRequired);
+        let publication_finished = Instant::now();
+        let proposal = owner
+            .switch_proposal()
+            .unwrap()
+            .expect("exact pending switch");
+        let auth_pending = owner.snapshot().unwrap();
+        assert_eq!(auth_pending.phase, Phase::AwaitingSwitch);
+        assert_eq!(auth_pending.attempt_id, Some(work.key.id));
+        assert_eq!(auth_pending.generation, work.key.generation);
+        assert_eq!(auth_pending.last_authorization, authorization);
+        let verification_pending = owner.verification_snapshot().unwrap();
+        assert_eq!(
+            verification_pending.phase,
+            VerificationPhase::AwaitingSwitch
+        );
+        assert_eq!(verification_pending.attempt_id, Some(work.key.id));
+        assert_eq!(verification_pending.generation, work.key.generation);
+        assert_eq!(verification_pending.last_terminal, previous_verification);
+        assert_eq!(proposal.attempt_id, work.key.id);
+        assert_eq!(proposal.generation, work.key.generation);
+        assert!(!proposal.decision_id.is_nil());
+        assert_eq!(
+            proposal.registration_id,
+            if mode == 1 {
+                "other-project"
+            } else {
+                "primary"
+            }
+        );
+        assert_eq!(
+            proposal.candidate_account.project_number.value(),
+            if mode == 1 { 654 } else { 987 }
+        );
+        assert_eq!(
+            proposal.candidate_account.drive_permission_id.as_str(),
+            if mode == 1 {
+                "c3_independent_A"
+            } else {
+                "c3_independent_B"
+            }
+        );
+        assert_eq!(proposal.incumbent_account, incumbent.key);
+        assert_eq!(proposal.incumbent_account.project_number.value(), 987);
+        assert_eq!(
+            proposal.incumbent_account.drive_permission_id.as_str(),
+            "c3_independent_A"
+        );
+        assert_ne!(proposal.candidate_account, proposal.incumbent_account);
+        assert_eq!(proposal.actual_grants, FILE);
+        assert_eq!(proposal.baseline_connection_epoch, incumbent.epoch);
+        // This fixture issued a 60s credential BEFORE publication. Its original
+        // expiry therefore caps the proposal before publication's own 60s cap.
+        assert!(credential_expiry <= publication_started + Duration::from_secs(60));
+        assert_eq!(proposal.deadline, work.deadline.min(credential_expiry));
+        assert!(proposal.deadline <= publication_finished + Duration::from_secs(60));
+        let observed_again = owner.switch_proposal().unwrap().unwrap();
+        assert_eq!(observed_again.attempt_id, proposal.attempt_id);
+        assert_eq!(observed_again.generation, proposal.generation);
+        assert_eq!(observed_again.decision_id, proposal.decision_id);
+        assert_eq!(observed_again.candidate_account, proposal.candidate_account);
+        assert_eq!(observed_again.incumbent_account, proposal.incumbent_account);
+        assert_eq!(observed_again.registration_id, proposal.registration_id);
+        assert_eq!(observed_again.actual_grants, proposal.actual_grants);
+        assert_eq!(
+            observed_again.baseline_connection_epoch,
+            proposal.baseline_connection_epoch
+        );
+        assert_eq!(observed_again.deadline, proposal.deadline);
         {
             let state = raw(&owner.inner);
             let stamp = state.identity.as_ref().unwrap();
@@ -544,6 +627,63 @@ async fn independent_different_and_expired_identity_require_explicit_disconnect(
         }
         if mode != 2 {
             assert!(metadata(&owner.inner).as_ref() == Some(&incumbent));
+        } else {
+            assert!(metadata(&owner.inner).is_none());
+            assert_eq!(
+                owner.connection_snapshot().unwrap().status,
+                ConnectionStatus::Expired
+            );
+        }
+        assert_eq!(raw(&owner.inner).connection_epoch, incumbent.epoch);
+        assert_eq!(
+            owner.decide_switch(
+                proposal.attempt_id,
+                proposal.generation,
+                proposal.decision_id,
+                SwitchDecision::Decline,
+            ),
+            Ok(SwitchDisposition::Declined)
+        );
+        let declined = Some(VerificationTerminalRecord {
+            attempt_id: work.key.id,
+            generation: work.key.generation,
+            outcome: VerificationOutcome::Declined,
+        });
+        assert_eq!(
+            owner.verification_snapshot().unwrap().last_terminal,
+            declined
+        );
+        assert!(owner.switch_proposal().unwrap().is_none());
+        assert_eq!(owner.snapshot().unwrap().last_authorization, authorization);
+        assert_eq!(
+            owner.decide_switch(
+                proposal.attempt_id,
+                proposal.generation,
+                proposal.decision_id,
+                SwitchDecision::Decline,
+            ),
+            Ok(SwitchDisposition::AlreadyResolved)
+        );
+        assert_eq!(
+            owner.verification_snapshot().unwrap().last_terminal,
+            declined
+        );
+        assert_eq!(owner.snapshot().unwrap().last_authorization, authorization);
+        {
+            let state = raw(&owner.inner);
+            let stamp = state.identity.as_ref().unwrap();
+            assert_eq!(stamp.key, incumbent.key);
+            assert_eq!(stamp.id, incumbent.id);
+            assert_eq!(state.connection_epoch, incumbent.epoch);
+        }
+        if mode != 2 {
+            assert!(metadata(&owner.inner).as_ref() == Some(&incumbent));
+        } else {
+            assert!(metadata(&owner.inner).is_none());
+            assert_eq!(
+                owner.connection_snapshot().unwrap().status,
+                ConnectionStatus::Expired
+            );
         }
         owner.inner.reaped(work.key);
         let old_epoch = raw(&owner.inner).connection_epoch;
