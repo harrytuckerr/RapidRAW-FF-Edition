@@ -1,0 +1,88 @@
+{
+  "package": "H2b1 canonical statistics integration with R1/R2a",
+  "created_utc": "2026-10-15T07:17:06.593262+00:00",
+  "source_checkout": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+  "code_freeze_parent": "05dd25e74256bf0318cf43e6462cfd778bb4de53",
+  "commit_predecessor": "efd5311b43ce07401476322692e9f8d5db0e03d5",
+  "source_sha256": {
+    "src-tauri/src/dcp/delta_e.rs": "70f57e66d3b4d95f8038cc6c698a39203f1eb41f8d8ccf993408f4c24dc0e296",
+    "src-tauri/src/dcp/validation.rs": "1ec1913bd9575eca24b767925df00d0a27b0298a9bbf7ab1116793983da660cc",
+    "src-tauri/src/formats.rs": "66134f6ce2183036fb35798cfb7eefc9d7ef512d72cbb2d873b762c9b4f2e5bf",
+    "src-tauri/src/image_loader.rs": "fcf43150b241ee0cfdf0d2be1983ac91bfc837059b38dfdf91e1c11177f31cf5",
+    "src-tauri/src/file_management.rs": "e66dceb65c983721abbd8f806eb402e6eb5a5fcced0421cd7b58c75ca92979f7",
+    "src-tauri/Cargo.lock": "7ddd491af60c07c0d0a0983ab77c6f81409961831ed679b7b444103a6d765def"
+  },
+  "reviewed_input_sha256": "6d58fe2ce868944234e6508b287b9f4c6837d10ede5b327e0932f735522d1d1b",
+  "reviewed_input_to_final": "Root exact reversal verifies only a test-local type alias changed. Numerical prefix and every oracle initializer byte unchanged. No source writes during builds. README-only commit occurred during final compilation.",
+  "receipt_sha256": {
+    "H2B1-REVISION-RECEIPT-2026-10-15.md": "e53ade8142599a4366ef727aa483c17ceafc4fbb1b85a4c950f6e545b6952251",
+    "H2B1-REVISION-INDEPENDENT-REVIEW-2026-10-15.md": "f20ebf94772893813ce86334335d646d2f9f9d974aea67fe8891096959e0bce7",
+    "H2B1-TEST-LINT-RECEIPT-2026-10-15.md": "3e2c2000ae4847028472a6bdd01ba4e4d503f79cf033d6feddbe176ae269a9ba",
+    "H2B2-ORACLE-INDEPENDENT-REVIEW-2026-10-15.md": "7d64cd842c6deb2349bb7e59a407e5759fd5b0c4a323e338b971b17fdaf6fbe8"
+  },
+  "checks": [
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit": 0,
+      "log": "fmt-corrected.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": "cargo test --locked --lib --bin validate_dcp",
+      "exit": 0,
+      "log": "corrected-tests.log",
+      "sha256": "df43cc5e1687650eaff0c7277545fcf13da1e2f4d11577784623e0dc58614ab0",
+      "library_passed": 181,
+      "library_ignored": 14,
+      "CLI_passed": 2
+    },
+    {
+      "command": "cargo clippy --locked --all-targets -- -D warnings",
+      "exit": 0,
+      "log": "clippy-corrected.log",
+      "sha256": "d17fa2086cdfebcdd3b327d354e886f1d76fc3a7011d61c46994672a0ccd7acb"
+    },
+    {
+      "command": "canonical binary image_loader::tests --ignored --nocapture (explicit R1 env)",
+      "exit": 0,
+      "log": "r1-controls-corrected.log",
+      "sha256": "c56539a4f4676a2329f2d64cb149926ccaac8aa0885cb0776e5fa2bc003e4f36",
+      "passed": 3
+    },
+    {
+      "command": "canonical binary file_management::tests --ignored --nocapture (explicit R2a env)",
+      "exit": 0,
+      "log": "r2a-controls-corrected.log",
+      "sha256": "b5c65561f6e90817983e868c3f0e31068a66cd27446e45ecbce62e793e4c8729",
+      "passed": 2
+    }
+  ],
+  "private_evidence": "/private/tmp/rapidraw-h2b1-canonical-20261015",
+  "preserved_test_binary_sha256": "332703de674f306dbe0d202df0ef62c053acfe7afb13bcd3fbb1dd533282f302",
+  "environment": {
+    "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+    "CARGO_INCREMENTAL": "0",
+    "platform": "macOS26.5.2(25F84),arm64",
+    "rustc": "1.98.1(48a229cea2026-09-01)",
+    "cargo": "1.98.1(797e8a9bc2026-08-05)"
+  },
+  "inputs": {
+    "synthetic_camera_dng_sha256": "b2116c8ba983cca8a183a904fb12217307f2c6c9aa0fa76d7be02f30be20b53f",
+    "native_xpro2_raf_sha256": "e736b4af4d80fa12418f92c018ac99b5c5c96d8e772ce3a34fc2cb9c2a4619b1",
+    "failed_staged_payload_sha256": "82bd1e04633c491824b90cc31486b5c3ff0770a6dc712edf95d74c691bc958c6"
+  },
+  "limits": [
+    "First canonical strict lint failed test tuple type_complexity; exact failure preserved separately, not erased.",
+    "Default14ignored not counted. Only3R1+2R2controls explicitly invoked; nine historical ignored acceptance gates remain Not exercised.",
+    "Native open control is same-build exact f32 value equality and dimensions, not bit identity. Import controls establish file-byte equality.",
+    "Known-answer arithmetic review accepted, no H2b2 Rust conversion implemented yet.",
+    "validate_dcp compare still unavailable; no Adobe or real matched commercial pair comparison.",
+    "No Android cfg/provider/Fold/newAPK/nativeX-T5/Minolta/performance/cross-route/all-features/platform acceptance. R2b and R3 remain open.",
+    "Ignored ONNX runtime was already present/validated, no download in these canonical logs; no vendor profiles or photo bytes committed.",
+    "Local integration only, no push/merge/release/device action."
+  ]
+}
