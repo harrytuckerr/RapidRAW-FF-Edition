@@ -1,0 +1,15 @@
+{
+  "package": "R2a lead worker-artifact verification",
+  "source_sha256": "dff9be3dec3f5376b74ecd4a61ca8bb6388c3d8aab158c1193a4efe8cb1f3188",
+  "worker_receipt_sha256": "38529accc831cc3ffad016e2151600e5ce8150d9ebabd079326469578a15892b",
+  "preserved_binary": "/private/tmp/rapidraw-r2a-20261015/rapidraw-r2a-test-binary",
+  "binary_sha256": "1f736a0627c7796cb7395cbdaec69d24640cd743a5e17310d61a4b9e5937cab2",
+  "executed": {
+    "filter": "file_management::tests --nocapture",
+    "passed": 9,
+    "failed": 0,
+    "ignored": 2,
+    "exit": 0
+  },
+  "scope": "Independent rerun of verified worker artifact only. No canonical source import/rebuild, Android cfg compile, Fold/provider/picker or complete import-repair acceptance."
+}
