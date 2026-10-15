@@ -1,0 +1,363 @@
+{
+  "task_id": "01a1407d-4bb9-7fa3-b293-64f307f659ca",
+  "model": "gpt-6.1-sol (live Team roster verified)",
+  "host": "macOS-26.5.2-arm64-arm-64bit",
+  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration",
+  "head": "bd7f2d00a498315f48898c88ed99fbb225fa1113",
+  "branch": "codex/drive-sync-foundation-2026-10-15",
+  "status": "Pass",
+  "scope": "Canonical imported native source validation only; root owns acceptance and commit.",
+  "checks": {
+    "combined-native": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--lib",
+        "--bin",
+        "validate_dcp",
+        "--test",
+        "drive_auth_pkce",
+        "--test",
+        "drive_auth_loopback",
+        "--test",
+        "drive_auth_token_response",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b5-account-canonical-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T16:56:30.842592+00:00",
+      "completed_utc": "2026-10-15T16:58:33.076221+00:00",
+      "exit": 0,
+      "elapsed_seconds": 122.232231,
+      "free_bytes_before": 19383914496,
+      "free_bytes_after": 19378216960,
+      "test_summaries": [
+        "test result: ok. 367 passed; 0 failed; 14 ignored; 0 measured; 0 filtered out; finished in 7.74s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.60s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "runtime_download_skipped": true
+    },
+    "fmt": {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b5-account-canonical-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T16:58:40.679311+00:00",
+      "completed_utc": "2026-10-15T16:58:41.296050+00:00",
+      "exit": 0,
+      "elapsed_seconds": 0.61623275,
+      "free_bytes_before": 19329462272,
+      "free_bytes_after": 19329527808,
+      "test_summaries": [],
+      "runtime_download_skipped": false
+    },
+    "clippy-all-targets": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b5-account-canonical-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T16:58:44.993760+00:00",
+      "completed_utc": "2026-10-15T16:58:56.691690+00:00",
+      "exit": 0,
+      "elapsed_seconds": 11.697099332999999,
+      "free_bytes_before": 19373015040,
+      "free_bytes_after": 19373277184,
+      "test_summaries": [],
+      "runtime_download_skipped": true
+    }
+  },
+  "counts": {
+    "exactly_five_disjoint_targets": true,
+    "single_cargo_test_invocation": true,
+    "executed_pass": 396,
+    "failed": 0,
+    "ignored": 14,
+    "targets": {
+      "lib": {
+        "passed": 367,
+        "failed": 0,
+        "ignored": 14,
+        "filtered": 0,
+        "test_elapsed": "7.74s",
+        "actual_cargo_binary_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-b8c68747df43d7c8",
+        "preserved_binary_path": "/private/tmp/rapidraw-gd1b5-account-canonical-validation-20261016/binaries/lib",
+        "bytes": 39956864,
+        "sha256": "92261700251d1b48faada2a92b2812b4a0f3590a03fefea9e28b52502b11a1f3"
+      },
+      "validate_dcp": {
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0,
+        "test_elapsed": "0.00s",
+        "actual_cargo_binary_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/validate_dcp-aaf6c834ccbd4fa4",
+        "preserved_binary_path": "/private/tmp/rapidraw-gd1b5-account-canonical-validation-20261016/binaries/validate_dcp",
+        "bytes": 1859696,
+        "sha256": "bc7b04cec829a2d7dc63c29af0f44c0f69430bb295922618834eb7f6c31c6769"
+      },
+      "drive_auth_loopback": {
+        "passed": 10,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0,
+        "test_elapsed": "4.60s",
+        "actual_cargo_binary_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_loopback-de1ab6349ec47422",
+        "preserved_binary_path": "/private/tmp/rapidraw-gd1b5-account-canonical-validation-20261016/binaries/drive_auth_loopback",
+        "bytes": 2451168,
+        "sha256": "c3797d7f8b5bb58876c6ab15add0dcdf3c5d624ae9a258ac9556e1f821f24289"
+      },
+      "drive_auth_pkce": {
+        "passed": 7,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0,
+        "test_elapsed": "0.00s",
+        "actual_cargo_binary_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_pkce-97c5e096468cf54b",
+        "preserved_binary_path": "/private/tmp/rapidraw-gd1b5-account-canonical-validation-20261016/binaries/drive_auth_pkce",
+        "bytes": 2325968,
+        "sha256": "a764e68827da4ea0a432b1284285430026d103f32b2a43223fbc6811721edccb"
+      },
+      "drive_auth_token_response": {
+        "passed": 10,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0,
+        "test_elapsed": "0.00s",
+        "actual_cargo_binary_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_token_response-4b032fc39aaf6fa3",
+        "preserved_binary_path": "/private/tmp/rapidraw-gd1b5-account-canonical-validation-20261016/binaries/drive_auth_token_response",
+        "bytes": 2027968,
+        "sha256": "c622a06dfd7528e039f5d62339eaa8aee730816ea82d6862cce908683c17a311"
+      }
+    },
+    "accounting": "Actual five target summaries only. Account/session/exchange author and independent tests are included in lib; no earlier focused28/combined368 or overlapping subset counts added."
+  },
+  "frozen_inputs": {
+    "count": 630,
+    "all_hashes_and_exact_inventory_match_before_and_after": true,
+    "root_manifest": "/private/tmp/rapidraw-gd1b5-account-canonical-import-20261016/combined-inputs.json",
+    "root_manifest_sha256": "8c5cb5f3c539807f1541064ab3ec1ccb18eed9f188b639c74808ce1f7bd0516b",
+    "source_before": {
+      "bytes": 102529,
+      "sha256": "3e5874442141441c272929d2c645d290a9ab9058ef384ea5955960abadff061a"
+    },
+    "source_after": {
+      "bytes": 102561,
+      "sha256": "f53ed3874fb7a006af9ebc13e1b776b3cfa700e47eca5d1e1b18be5eaa059fe1"
+    },
+    "key_records": {
+      "src-tauri/src/drive_auth/account.rs": {
+        "bytes": 68249,
+        "sha256": "5fe87ede9dc5eee57f5f3ffce719fe6650d91618faa74e7b5125aea211eaa75b"
+      },
+      "src-tauri/src/drive_auth/account_independent_tests.rs": {
+        "bytes": 39510,
+        "sha256": "b1fca07977b32648f4de8b2192abaeadb7c7a899b6b62e668e1e5af1f6e899f8"
+      },
+      "src-tauri/src/drive_auth/session.rs": {
+        "bytes": 65426,
+        "sha256": "17ed9fec0d126895db683ae89fa9e056673e0fbae0dcc2119129369a1b2d6638"
+      },
+      "src-tauri/src/drive_auth/session_independent_tests.rs": {
+        "bytes": 25401,
+        "sha256": "7129423f99b35f724aa82d4ad301bb5708660983a7ba49cabcf0b1084ad2f82b"
+      },
+      "src-tauri/src/drive_auth/exchange.rs": {
+        "bytes": 41412,
+        "sha256": "f8ac7bf6843ccf101610ceef93a0b0b9454203d1da09807ee3ba6e3f1877d408"
+      },
+      "src-tauri/src/drive_auth/exchange_independent_tests.rs": {
+        "bytes": 24729,
+        "sha256": "ca224e53c259aa1efd7c3ee71f15c9919a79a35792311db7683ba3682f91d434"
+      },
+      "src-tauri/src/drive_auth/mod.rs": {
+        "bytes": 413,
+        "sha256": "a2e83b21989a031ad035b8e80ff1dbaa44713aecefb29835950d92610ca37810"
+      },
+      "src-tauri/src/lib.rs": {
+        "bytes": 94764,
+        "sha256": "8c71f74aec49a6635a5ab2f959472adeea78e0b48eaabaf9b22c2f0f679e4963"
+      },
+      "src-tauri/tests/drive_auth_pkce.rs": {
+        "bytes": 11730,
+        "sha256": "32b8bc2a4833a9f580e20128efface34ad082b961b92c927857653840c02b994"
+      },
+      "src-tauri/tests/drive_auth_loopback.rs": {
+        "bytes": 17349,
+        "sha256": "33fce63c46907357993c07cacbe8cd56c3b8be593d366fc23f9bb13c77056b72"
+      },
+      "src-tauri/tests/drive_auth_token_response.rs": {
+        "bytes": 17297,
+        "sha256": "749c353e5f3462112d12283aa0219ae37983604733f32f2a74624e6ee44779c9"
+      },
+      "README.md": {
+        "bytes": 26597,
+        "sha256": "542c6d20dd41faddae26063055941426ff2d32ef6998341a0f361fd559e98113"
+      },
+      "src-tauri/Cargo.toml": {
+        "bytes": 4681,
+        "sha256": "454aa558d0b4e0ac2a645b0d67a3b82f33689af9a2036465e05343ec00a272d2"
+      },
+      "src-tauri/Cargo.lock": {
+        "bytes": 219072,
+        "sha256": "7ddd491af60c07c0d0a0983ab77c6f81409961831ed679b7b444103a6d765def"
+      }
+    },
+    "all_permanent_account_session_exchange_children_and_three_integration_tests_unchanged_and_intact": true,
+    "post_hash_and_inventory_check_before_report_added": true,
+    "source_mutations": [],
+    "new_source_inventory_only": "docs/integration/GD1B5-S2-CANONICAL-VALIDATION-2026-10-16.json"
+  },
+  "toolchain": {
+    "host": "macOS-26.5.2-arm64-arm-64bit",
+    "utc": "2026-10-15T16:56:07.941509+00:00",
+    "commands": [
+      {
+        "argv": [
+          "rustc",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "stderr": "",
+        "free_bytes": 19384844288,
+        "compiler_processes": []
+      },
+      {
+        "argv": [
+          "cargo",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "stderr": "",
+        "free_bytes": 19384844288,
+        "compiler_processes": []
+      },
+      {
+        "argv": [
+          "rustfmt",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "rustfmt 1.9.0-stable (48a229ceae 2026-09-01)",
+        "stderr": "",
+        "free_bytes": 19384844288,
+        "compiler_processes": []
+      },
+      {
+        "argv": [
+          "cargo-clippy",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "clippy 0.1.98 (48a229ceae 2026-09-01)",
+        "stderr": "",
+        "free_bytes": 19384844288,
+        "compiler_processes": []
+      }
+    ]
+  },
+  "runtime": {
+    "destination": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/resources/libonnxruntime.dylib",
+    "existed_before": true,
+    "copied_from": null,
+    "bytes": 33481272,
+    "sha256": "2b885992d3d6fa4130d39ec84a80d7504ff52750027c547bb22c86165f19406a",
+    "download": false
+  },
+  "runtime_download_skipped": true,
+  "ignored_outputs": "Existing ORT reused and generated ignored schema records preserved before/after; not tracked source edits.",
+  "pass": [
+    "Single combined native invocation and five preserved actual target binaries",
+    "Whole-crate fmt check",
+    "Strict all-target Clippy including permanent account/session/exchange children and integration tests",
+    "All630 protected input bytes and exact source inventory preserved"
+  ],
+  "fail": [],
+  "not_exercised": [
+    "External network/Google/provider/live TLS or OAuth registration/remote issuance acceptance",
+    "Real ExchangeResult adoption/account identity/provider flow/secure storage/refresh/revocation/Drive sync",
+    "Browser/Tauri/IPC/UI/Android/device/product activation",
+    "Ignored/vendor/GPU tests, new probes or complete security audit"
+  ],
+  "boundaries": [
+    "Existing localhost socket regressions only; no new probes or endpoint changes.",
+    "Local cancellation/deadline/redirect observations do not prove remote rollback, all protocol behavior or hard abort. Account final-gate tests directly exercise negative reducers, not an observed live final-cancel/return race; A/B synthetic mappings establish fixture custody, not provider authenticity. S3 live-current-generation/configuration/adoption remains Not exercised.",
+    "Historical independent failures remain frozen in existing reports; this Pass validates only the current imported bytes."
+  ],
+  "evidence_directory": "/private/tmp/rapidraw-gd1b5-account-canonical-validation-20261016",
+  "artifact_manifest": "/private/tmp/rapidraw-gd1b5-account-canonical-validation-20261016/artifact-hashes.json",
+  "cache_release": {
+    "cache": "/private/tmp/rapidraw-integration-20261015/target",
+    "released": true,
+    "released_utc": "2026-10-15T16:59:17.176882+00:00",
+    "compiler_processes": [],
+    "free_bytes": 19368153088,
+    "no_further_build_commands": true
+  }
+}

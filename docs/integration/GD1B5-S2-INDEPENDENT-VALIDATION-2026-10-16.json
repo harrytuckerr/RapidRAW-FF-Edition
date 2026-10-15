@@ -1,0 +1,415 @@
+{
+  "task_id": "01a14072-12bb-7cf3-9163-c59fb641f87f",
+  "model": "gpt-6.1-sol (live Team roster)",
+  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-review",
+  "head": "bd7f2d00a498315f48898c88ed99fbb225fa1113",
+  "status": "Pass",
+  "scope": "Bounded independent source/native/synthetic localhost validation; root alone accepts/imports.",
+  "checks": {
+    "account-focused": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--lib",
+        "drive_auth::account",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-review/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b5-account-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T16:50:19.790305+00:00",
+      "free_bytes_before": 19415048192,
+      "exit": 0,
+      "elapsed_seconds": 54.016883125,
+      "completed_utc": "2026-10-15T16:51:13.812361+00:00",
+      "free_bytes_after": 19416694784,
+      "test_summaries": [
+        "test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 353 filtered out; finished in 1.05s"
+      ],
+      "binaries": [
+        {
+          "path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-b8c68747df43d7c8",
+          "bytes": 39956864,
+          "sha256": "b107a128e59d1c2b34745027caa1fc844da3130f70cb587ac09b9107071a947c"
+        }
+      ],
+      "runtime_download_skipped": true
+    },
+    "fmt": {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-review/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b5-account-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T16:51:25.214004+00:00",
+      "free_bytes_before": 19386597376,
+      "exit": 0,
+      "elapsed_seconds": 0.615374833,
+      "completed_utc": "2026-10-15T16:51:25.829989+00:00",
+      "free_bytes_after": 19386593280,
+      "test_summaries": [],
+      "binaries": [],
+      "runtime_download_skipped": false
+    },
+    "clippy-all-targets": {
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-review/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b5-account-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T16:51:29.298362+00:00",
+      "free_bytes_before": 19386564608,
+      "exit": 0,
+      "elapsed_seconds": 12.0458695,
+      "completed_utc": "2026-10-15T16:51:41.344912+00:00",
+      "free_bytes_after": 19386441728,
+      "test_summaries": [],
+      "binaries": [],
+      "runtime_download_skipped": true
+    }
+  },
+  "owned_preformat": {
+    "command": [
+      "rustfmt",
+      "--edition",
+      "2024",
+      "--config",
+      "skip_children=true",
+      "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-review/src-tauri/src/drive_auth/account_independent_tests.rs"
+    ],
+    "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-review/src-tauri",
+    "environment_overrides": {
+      "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+      "CARGO_PROFILE_DEV_DEBUG": "0",
+      "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+      "CARGO_PROFILE_TEST_DEBUG": "0",
+      "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+      "CARGO_INCREMENTAL": "0",
+      "RUSTUP_TOOLCHAIN": "1.98",
+      "CARGO_NET_OFFLINE": "true",
+      "TMPDIR": "/private/tmp/rapidraw-gd1b5-account-validation-20261016/tmp/",
+      "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+      "ORT_SKIP_DOWNLOAD": "1",
+      "GIT_OPTIONAL_LOCKS": "0"
+    },
+    "cleared_inherited_env_names": [],
+    "compiler_process_preflight": [],
+    "started_utc": "2026-10-15T16:49:49.383835+00:00",
+    "free_bytes_before": 19417341952,
+    "exit": 0,
+    "elapsed_seconds": 0.22998399999999997,
+    "completed_utc": "2026-10-15T16:49:49.614875+00:00",
+    "free_bytes_after": 19417321472,
+    "test_summaries": [],
+    "binaries": [],
+    "runtime_download_skipped": false
+  },
+  "definition_execution": {
+    "defined_author": 17,
+    "defined_independent": 11,
+    "executed": {
+      "author": [
+        "actual_cancel_signal_or_drop_before_dispatch_and_while_waiting",
+        "actual_content_headers_chunking_overflow_and_truncation",
+        "actual_deadlines_cover_stalls_drips_and_expiring_input",
+        "actual_get_exact_projection_privacy_and_partial_scopes",
+        "actual_non_success_and_malformed_bodies_are_redacted",
+        "actual_redirects_never_forward_credentials_and_disconnect_is_not_replayed",
+        "actual_two_inputs_cannot_exchange_tokens_proof_or_context",
+        "bearer_is_sensitive_bounded_and_never_reinterpreted",
+        "expired_future_clock_and_bad_header_credentials_fail_without_dispatch",
+        "final_gate_rejects_cancel_or_expiry_without_making_parser_proof",
+        "header_and_body_limits_have_exact_bounded_checks",
+        "parser_decoded_duplicate_keys_never_overwrite_identity_or_metadata",
+        "parser_depth_work_size_fields_utf8_and_trailing_limits",
+        "parser_display_and_quota_limits_apply_before_blank_handling",
+        "parser_missing_null_wrong_types_and_error_payload_are_distinct",
+        "parser_optional_display_quota_and_known_answers",
+        "registration_is_syntax_only_and_rejects_noncanonical_or_overflow_projects"
+      ],
+      "independent": [
+        "independent_actual_content_policy_status_redaction_redirect_and_no_replay",
+        "independent_actual_header_count_and_aggregate_bytes_accept_exact_edges",
+        "independent_admission_and_token_expiry_bound_continuous_body_progress",
+        "independent_all_body_framings_enforce_exact_cap_and_truncation",
+        "independent_candidates_keep_owned_credentials_and_exact_native_binding",
+        "independent_exact_get_sensitive_bearer_partial_scopes_and_no_incidental_fetch",
+        "independent_final_gate_and_header_credential_policy_reject_without_constructing_proof",
+        "independent_parser_decoded_duplicates_utf8_and_positive_metadata_edges",
+        "independent_parser_exact_body_depth_work_map_and_decoded_key_limits",
+        "independent_parser_optional_metadata_integer_and_type_known_answers",
+        "independent_pre_and_midstream_cancellation_signal_or_drop_never_return_candidate"
+      ]
+    },
+    "actual_passed": 28,
+    "actual_failed": 0,
+    "actual_ignored": 0,
+    "filtered": 353,
+    "no_overlapping_counts_added": true,
+    "binary": {
+      "path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-b8c68747df43d7c8",
+      "bytes": 39956864,
+      "sha256": "b107a128e59d1c2b34745027caa1fc844da3130f70cb587ac09b9107071a947c",
+      "preserved_path": "/private/tmp/rapidraw-gd1b5-account-validation-20261016/binaries/account-focused"
+    },
+    "timing_messages": [
+      "independent account absolute bound observed: token_bound=false, elapsed_ms=161",
+      "independent account absolute bound observed: token_bound=true, elapsed_ms=201"
+    ]
+  },
+  "counting": "One focused invocation:17author+11independent=28passed,0failed/ignored,353filtered. No previous368/full/auth/CLI or overlapping subset added.",
+  "existing_input_count": 627,
+  "all_existing_hashes_and_exact_inventory_preserved": true,
+  "new_only": [
+    "src-tauri/src/drive_auth/account_independent_tests.rs",
+    "docs/integration/GD1B5-ACCOUNT-RUNTIME-VALIDATION-2026-10-16.md"
+  ],
+  "child": {
+    "bytes": 39510,
+    "sha256": "b1fca07977b32648f4de8b2192abaeadb7c7a899b6b62e668e1e5af1f6e899f8"
+  },
+  "child_kept": true,
+  "expectations_unchanged_after_first_execution": true,
+  "author_prefix": {
+    "bytes": 68171,
+    "sha256": "7834f144d3ca806dbdf669b15f62e714fa5b80d9d360ce331550534d441921f7"
+  },
+  "root_footer": {
+    "bytes": 78,
+    "sha256": "74c3b24b0647177ce5781aa81aee434ef75263ff1557580ff8f503fa7ff26d3b"
+  },
+  "prefix_footer_unchanged": true,
+  "source_before": {
+    "bytes": 101850,
+    "sha256": "d0c5302a3a65fe10eae26f9113370bef1b7687ae31dfd4bd43708b63ac1e667d"
+  },
+  "source_after": {
+    "bytes": 102187,
+    "sha256": "c51255568874e479a120153a8fafa01c839e1ce80bbc80684990d54274323fd0"
+  },
+  "source_records": {
+    "src-tauri/src/drive_auth/account.rs": {
+      "bytes": 68249,
+      "sha256": "5fe87ede9dc5eee57f5f3ffce719fe6650d91618faa74e7b5125aea211eaa75b"
+    },
+    "src-tauri/src/drive_auth/mod.rs": {
+      "bytes": 413,
+      "sha256": "a2e83b21989a031ad035b8e80ff1dbaa44713aecefb29835950d92610ca37810"
+    },
+    "src-tauri/src/drive_auth/session.rs": {
+      "bytes": 65426,
+      "sha256": "17ed9fec0d126895db683ae89fa9e056673e0fbae0dcc2119129369a1b2d6638"
+    },
+    "src-tauri/src/drive_auth/exchange.rs": {
+      "bytes": 41412,
+      "sha256": "f8ac7bf6843ccf101610ceef93a0b0b9454203d1da09807ee3ba6e3f1877d408"
+    },
+    "src-tauri/src/drive_auth/token_response.rs": {
+      "bytes": 33825,
+      "sha256": "7543548a508ae0e1355f3358d6f182543b623d49544533f26be4fe01fee25886"
+    },
+    "src-tauri/src/drive_auth/pkce.rs": {
+      "bytes": 34111,
+      "sha256": "85bd9b4882a9fb45d54c63231b22bf962c322d884f9aa84ca67f866e551e7dd8"
+    },
+    "src-tauri/src/drive/model.rs": {
+      "bytes": 35650,
+      "sha256": "f5bcf2019a34b410056e0cb2e514dcc6d471b1357f6aefe55fd1f1cf60cdd1d0"
+    },
+    "src-tauri/src/lib.rs": {
+      "bytes": 94764,
+      "sha256": "8c71f74aec49a6635a5ab2f959472adeea78e0b48eaabaf9b22c2f0f679e4963"
+    },
+    "src-tauri/Cargo.toml": {
+      "bytes": 4681,
+      "sha256": "454aa558d0b4e0ac2a645b0d67a3b82f33689af9a2036465e05343ec00a272d2"
+    },
+    "src-tauri/Cargo.lock": {
+      "bytes": 219072,
+      "sha256": "7ddd491af60c07c0d0a0983ab77c6f81409961831ed679b7b444103a6d765def"
+    },
+    "README.md": {
+      "bytes": 26488,
+      "sha256": "69f0fd7f6968c513b9641d11640eca334835f67f4f0981b1596f62238d8b8f00"
+    }
+  },
+  "child_patch": {
+    "bytes": 40698,
+    "sha256": "d47e36283f6e67edb15fbb4028e767d444f5a47b12f8c4ed56089702d1764f75"
+  },
+  "independent_notes": {
+    "static_review": "No blocking defect identified in independently inspected account production source. Root separately read the full kept child without a blocking static finding.",
+    "numeric_fixture_derivations": [
+      "Work case has3openings+3colons+1rootcomma+(N-1)arraycommas=N+6;4090items gives4096,4091gives4097.",
+      "Root depth1plus15nestedextensionarrays=16;16arrays reaches17.",
+      "Required key plus31extensions gives32keys in each checked root/user/quota map;32extras gives33.",
+      "64Unicode e-acute scalars decode to128UTF8keybytes;65to130.",
+      "Quota known answers retain9223372036854775807and9007199254740993exactly; configured project18446744073709551615is independentu64 boundary.",
+      "Wire header count has2basefields+62or63; aggregate name/value edge is built by explicit independent summed lengths, excluding punctuation."
+    ],
+    "fixture_origin": "Own earlier exchange-review nonblocking peer adapted for empty-bodyGET and sent-part observation; no account author Server/tests helpers reused.",
+    "fixture_limits": {
+      "connections": 4,
+      "capture_bytes_each": 16384,
+      "scheduled_output_bytes": 262144,
+      "scheduled_parts": 256,
+      "worker_logical_seconds": 4,
+      "stop_aware_nonblocking_wait_ms": 2,
+      "joined_Drop": true,
+      "forced_fixture_unwind_test": false
+    },
+    "coverage": [
+      "Exact actualGET/path/one decoded projection/emptybody/one bearer; sensitive nativeHeaderValue and Request build; no refresh/cookie/referer/proxy auth or photo fetch.",
+      "Actual A/B synthetic response retains same owned pure-parser credentials/context; explicit partial and missing scopes; config/context comparison and beforedispatch mismatch rejection.",
+      "Independent optional/name/email/quota/integer/invalid type answers; decoded duplicates/wholeinputUTF8/unknownextensions and positive/negative resource limits.",
+      "Actual64/65fields and16384/16385bytes; fixed/chunked/close65536/65537body; truncation/badchunk/decoded duplicate; encodings/status/redaction/redirectcapture/noreplay.",
+      "Actual beforedispatch and post-prefix cancellation signal/drop; originaladmission deadline and tokenexpiry while body progress continues.",
+      "Final negative finish/gate checks after data parse, NOT live final-race observation or positive parser-created proof."
+    ],
+    "network_boundary": "No verify_account Google entry, externalnetwork/provider/account/browser/controller/storage/device/UI route. Only private cfgtestLoopback/OwnedInput fixtures; no production transport/constructor override or helper edit.",
+    "trust_boundary": "Synthetic A/Bmapping is fixed response/custody evidence, not provider authentication or a detectable dishonest-provider oracle. Context construction does not prove nativeclient/project provenance; S3livecurrentgeneration/config/adoption remains Notexercised.",
+    "not_exercised": [
+      "LiveGoogle/TLS/provider/authenticatedaccount/registrationmapping",
+      "RealExchangeResult to account entry/controller integration/currentgeneration/S3adoption",
+      "Live finalcancel/returnrace or remote rollback/hardabort",
+      "Nativebrowser/IPC/storage/refresh/revocation/sync/UI/Android/device",
+      "New full canonical suite/ignored/vendor/GPU tests",
+      "TotalprocessRAM/guaranteedzeroization/complete security audit"
+    ]
+  },
+  "toolchain": {
+    "host": "macOS-26.5.2-arm64-arm-64bit",
+    "commands": [
+      {
+        "argv": [
+          "rustc",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "rustc 1.98.1 (48a229cea 2026-09-01)",
+        "stderr": ""
+      },
+      {
+        "argv": [
+          "cargo",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+        "stderr": ""
+      },
+      {
+        "argv": [
+          "rustfmt",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "rustfmt 1.9.0-stable (48a229ceae 2026-09-01)",
+        "stderr": ""
+      },
+      {
+        "argv": [
+          "cargo-clippy",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "clippy 0.1.98 (48a229ceae 2026-09-01)",
+        "stderr": ""
+      }
+    ]
+  },
+  "runtime": {
+    "destination": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-review/src-tauri/resources/libonnxruntime.dylib",
+    "existed_before": false,
+    "copied_from": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri/resources/libonnxruntime.dylib",
+    "bytes": 33481272,
+    "sha256": "2b885992d3d6fa4130d39ec84a80d7504ff52750027c547bb22c86165f19406a",
+    "download": false
+  },
+  "runtime_download_skipped": true,
+  "ignored_outputs": "ORT plus generated ignored schema hashes captured separately, not tracked source changes.",
+  "pass": [
+    "28focusedtests",
+    "Wholecratefmtcheck",
+    "StrictalltargetClippyincludingkeptchild",
+    "All627existinginputsandprefix/footerunchanged"
+  ],
+  "fail": [],
+  "not_exercised": [
+    "LiveGoogle/TLS/provider/authenticatedaccount/registrationmapping",
+    "RealExchangeResult to account entry/controller integration/currentgeneration/S3adoption",
+    "Live finalcancel/returnrace or remote rollback/hardabort",
+    "Nativebrowser/IPC/storage/refresh/revocation/sync/UI/Android/device",
+    "New full canonical suite/ignored/vendor/GPU tests",
+    "TotalprocessRAM/guaranteedzeroization/complete security audit"
+  ],
+  "evidence_directory": "/private/tmp/rapidraw-gd1b5-account-validation-20261016",
+  "artifact_manifest": "/private/tmp/rapidraw-gd1b5-account-validation-20261016/artifact-hashes.json",
+  "cache_release": {
+    "cache": "/private/tmp/rapidraw-integration-20261015/target",
+    "released": true,
+    "released_utc": "2026-10-15T16:53:26.237353+00:00",
+    "compiler_processes": [],
+    "free_bytes": 19381669888,
+    "no_further_build_commands": true
+  }
+}
