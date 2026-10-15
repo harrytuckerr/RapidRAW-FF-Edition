@@ -1,6 +1,7 @@
-//! One native authorization owner, ending at pending account verification.
+//! One native authorization owner: legacy pending or configured verification.
 //!
-//! No browser/IPC/account verification, persistence, refresh or Drive readiness.
+//! Configured success discards the candidate (VerifiedNotAdopted), never connects.
+//! No browser/IPC, persistence, refresh, credential retention or Drive readiness.
 //! Run `begin`/`shutdown` on a native async runtime. Socket binding and pumping
 //! run on one owned blocking worker. Cancellation is cooperative: the slot stays
 //! Draining until that worker returns, including after a startup deadline. Drop
@@ -16,9 +17,11 @@ use futures::FutureExt;
 use tokio::sync::{oneshot, watch};
 use uuid::Uuid;
 
+use super::account::{AccountError, VerificationContext, VerifiedAccountCandidate, verify_account};
 use super::exchange::{ExchangeAttempt, ExchangeResult, exchange_code};
 use super::loopback::{Cancellation, LoopbackError, LoopbackSession};
 use super::pkce::{ApprovedScope, CallbackOutcome};
+use super::registration::{NativeRegistrationCatalog, RegistrationError, RegistrationSelection};
 
 const ATTEMPT_LIFETIME: Duration = Duration::from_secs(300);
 const STARTUP_LIFETIME: Duration = Duration::from_secs(5);
@@ -84,6 +87,7 @@ pub enum ControllerError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StartError {
     InvalidRegistration,
+    Registration(RegistrationError),
     Busy,
     Controller(ControllerError),
     Terminated,
@@ -118,6 +122,7 @@ pub enum Phase {
     AwaitingCallback,
     Exchanging,
     AccountVerificationPending,
+    VerifyingAccount,
     Draining,
     Closed,
 }
@@ -152,6 +157,52 @@ pub struct AuthSnapshot {
     pub granted_subset_pending_verification: Vec<ApprovedScope>,
 }
 
+/// Native-only verification status. Success is immediate discard, not connection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerificationOutcome {
+    VerifiedNotAdopted,
+    Cancelled,
+    TimedOut,
+    Closed,
+    WorkerFailure,
+    BindingMismatch,
+    Failed(AccountError),
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VerificationTerminalRecord {
+    pub attempt_id: Uuid,
+    pub generation: u64,
+    pub outcome: VerificationOutcome,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerificationPhase {
+    Idle,
+    Running,
+    Draining,
+    Closed,
+}
+/// Bounded metadata only: no account identity, credentials, URL or granted lease.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VerificationSnapshot {
+    /// Native records exist; this does not attest their provenance or usability.
+    pub configured: bool,
+    pub generation: u64,
+    pub attempt_id: Option<Uuid>,
+    pub phase: VerificationPhase,
+    pub last_terminal: Option<VerificationTerminalRecord>,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum VerificationState {
+    NotStarted,
+    Running,
+    Finished,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AttemptMode {
+    PendingOnly,
+    Configured,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Key {
     id: Uuid,
@@ -165,6 +216,8 @@ struct Slot {
     handoff_deadline: Option<Instant>,
     terminal: Option<AuthorizationOutcome>,
     registration: NativeStart,
+    configured_selection: Option<RegistrationSelection>,
+    verification: VerificationState,
     stop: watch::Sender<bool>,
     listener: Option<Cancellation>,
     pending: Option<Pending>,
@@ -175,8 +228,10 @@ struct State {
     generation: u64,
     slot: Option<Slot>,
     last: Option<TerminalRecord>,
+    last_verification: Option<VerificationTerminalRecord>,
 }
 struct Inner {
+    catalog: Option<NativeRegistrationCatalog>,
     state: Mutex<State>,
     changed: watch::Sender<()>,
 }
@@ -237,15 +292,27 @@ impl Default for SessionController {
 }
 impl SessionController {
     pub fn new() -> Self {
+        Self::from_catalog(None)
+    }
+
+    /// Immutable native configuration, not provider proof. No task/watcher starts
+    /// here; the existing native runtime is required only when beginning work.
+    pub fn with_catalog(catalog: NativeRegistrationCatalog) -> Self {
+        Self::from_catalog(Some(catalog))
+    }
+
+    fn from_catalog(catalog: Option<NativeRegistrationCatalog>) -> Self {
         let (changed, _) = watch::channel(());
         Self {
             inner: Arc::new(Inner {
+                catalog,
                 state: Mutex::new(State {
                     closed: false,
                     fault: None,
                     generation: 0,
                     slot: None,
                     last: None,
+                    last_verification: None,
                 }),
                 changed,
             }),
@@ -257,6 +324,20 @@ impl SessionController {
     /// opens here. A second caller cannot cancel or overwrite an incumbent.
     pub async fn begin(&self, request: NativeStart) -> Result<BrowserLaunchTicket, StartError> {
         let work = self.inner.reserve(request, Instant::now())?;
+        self.begin_reserved(work).await
+    }
+
+    /// Select only native catalog metadata; no caller URL/client/project input.
+    /// Raw begin remains pending-only, even on this configured controller.
+    pub async fn begin_configured(
+        &self,
+        selection: RegistrationSelection,
+    ) -> Result<BrowserLaunchTicket, StartError> {
+        let work = self.inner.reserve_configured(selection, Instant::now())?;
+        self.begin_reserved(work).await
+    }
+
+    async fn begin_reserved(&self, work: Work) -> Result<BrowserLaunchTicket, StartError> {
         let key = work.key;
         let mut reservation = BeginReservation {
             inner: Arc::clone(&self.inner),
@@ -282,6 +363,7 @@ impl SessionController {
         // Enforce retention at every observation too; a delayed executor must
         // not expose an expired pending capability in a snapshot.
         expire_pending(&mut state, Instant::now());
+        expire_verification(&mut state, Instant::now());
         Ok(AuthSnapshot {
             generation: state.generation,
             phase: state.slot.as_ref().map_or(
@@ -299,6 +381,35 @@ impl SessionController {
                 .as_ref()
                 .and_then(|slot| slot.pending.as_ref())
                 .map_or_else(Vec::new, |value| value.scopes().to_vec()),
+        })
+    }
+
+    pub fn verification_snapshot(&self) -> Result<VerificationSnapshot, ControllerError> {
+        let mut state = self.inner.lock()?;
+        expire_verification(&mut state, Instant::now());
+        let slot = state
+            .slot
+            .as_ref()
+            .filter(|slot| slot.configured_selection.is_some());
+        let phase = if slot.is_some_and(|slot| slot.phase == Phase::Draining) {
+            VerificationPhase::Draining
+        } else if state.closed {
+            VerificationPhase::Closed
+        } else if slot.is_some_and(|slot| slot.verification == VerificationState::Running) {
+            VerificationPhase::Running
+        } else {
+            VerificationPhase::Idle
+        };
+        Ok(VerificationSnapshot {
+            configured: self
+                .inner
+                .catalog
+                .as_ref()
+                .is_some_and(|catalog| !catalog.is_empty()),
+            generation: state.generation,
+            attempt_id: slot.map(|slot| slot.key.id),
+            phase,
+            last_terminal: state.last_verification,
         })
     }
 
@@ -413,6 +524,7 @@ impl Drop for BrowserLaunchTicket {
 
 struct Work {
     key: Key,
+    mode: AttemptMode,
     deadline: Instant,
     startup_deadline: Instant,
     bind: BindConfiguration,
@@ -449,6 +561,36 @@ impl Inner {
     }
 
     fn reserve(&self, request: NativeStart, now: Instant) -> Result<Work, StartError> {
+        self.reserve_mode(request, None, now)
+    }
+
+    fn reserve_configured(
+        &self,
+        selection: RegistrationSelection,
+        now: Instant,
+    ) -> Result<Work, StartError> {
+        let catalog = self
+            .catalog
+            .as_ref()
+            .ok_or(StartError::Registration(RegistrationError::NotConfigured))?;
+        let record = catalog
+            .resolve(&selection)
+            .map_err(StartError::Registration)?;
+        let request = NativeStart::new(
+            record.desktop_client_id().to_owned(),
+            record.id().to_owned(),
+            record.project_number().to_owned(),
+            selection.requested_scopes().to_vec(),
+        )?;
+        self.reserve_mode(request, Some(selection), now)
+    }
+
+    fn reserve_mode(
+        &self,
+        request: NativeStart,
+        configured_selection: Option<RegistrationSelection>,
+        now: Instant,
+    ) -> Result<Work, StartError> {
         if !request.valid() {
             return Err(StartError::InvalidRegistration);
         }
@@ -481,6 +623,11 @@ impl Inner {
             #[cfg(test)]
             startup_gate: request.startup_gate.take(),
         };
+        let mode = if configured_selection.is_some() {
+            AttemptMode::Configured
+        } else {
+            AttemptMode::PendingOnly
+        };
         state.slot = Some(Slot {
             key,
             admitted: now,
@@ -489,6 +636,8 @@ impl Inner {
             handoff_deadline: None,
             terminal: None,
             registration: request,
+            configured_selection,
+            verification: VerificationState::NotStarted,
             stop,
             listener: None,
             pending: None,
@@ -496,6 +645,7 @@ impl Inner {
         self.changed.send_replace(());
         Ok(Work {
             key,
+            mode,
             deadline,
             startup_deadline,
             bind,
@@ -623,6 +773,130 @@ impl Inner {
         true
     }
 
+    fn configured_context(&self, slot: &Slot) -> Result<VerificationContext, AccountError> {
+        let selection = slot
+            .configured_selection
+            .as_ref()
+            .ok_or(AccountError::AttemptMismatch)?;
+        let record = self
+            .catalog
+            .as_ref()
+            .and_then(|catalog| catalog.resolve(selection).ok())
+            .ok_or(AccountError::AttemptMismatch)?;
+        if record.id() != slot.registration.registration_id
+            || record.desktop_client_id() != slot.registration.client_id
+            || record.project_number() != slot.registration.project_number
+            || selection.requested_scopes() != slot.registration.scopes
+        {
+            return Err(AccountError::AttemptMismatch);
+        }
+        VerificationContext::from_native_attempt(
+            record.id(),
+            record.desktop_client_id(),
+            record.project_number(),
+            selection.requested_scopes(),
+            &ExchangeAttempt {
+                id: slot.key.id,
+                generation: slot.key.generation,
+            },
+            slot.deadline,
+        )
+    }
+
+    fn start_verification(
+        &self,
+        key: Key,
+        input: &VerificationInput,
+        now: Instant,
+    ) -> Result<(VerificationContext, Instant), AuthorizationOutcome> {
+        let mut state = self.lock().map_err(|_| AuthorizationOutcome::Closed)?;
+        let now = now.max(Instant::now());
+        if !live(&state, key, Phase::Exchanging, now) {
+            return Err(AuthorizationOutcome::TimedOut);
+        }
+        let slot = state
+            .slot
+            .as_ref()
+            .ok_or(AuthorizationOutcome::WorkerFailure)?;
+        if slot.verification != VerificationState::NotStarted
+            || !input.valid_for(key, &slot.registration.scopes, now)
+        {
+            return Err(AuthorizationOutcome::ExchangeFailure);
+        }
+        let context = self
+            .configured_context(slot)
+            .map_err(|_| AuthorizationOutcome::ExchangeFailure)?;
+        let deadline = slot.deadline;
+        let slot = state
+            .slot
+            .as_mut()
+            .ok_or(AuthorizationOutcome::WorkerFailure)?;
+        slot.phase = Phase::VerifyingAccount;
+        slot.verification = VerificationState::Running;
+        slot.terminal = Some(AuthorizationOutcome::CompletedPendingVerification);
+        state.last = Some(TerminalRecord {
+            attempt_id: key.id,
+            generation: key.generation,
+            outcome: AuthorizationOutcome::CompletedPendingVerification,
+        });
+        self.changed.send_replace(());
+        Ok((context, deadline))
+    }
+
+    fn verification_failed(&self, key: Key, outcome: VerificationOutcome, now: Instant) {
+        if let Ok(mut state) = self.lock()
+            && verification_owned(&state, key)
+        {
+            let outcome = if state
+                .slot
+                .as_ref()
+                .is_some_and(|slot| now.max(Instant::now()) >= slot.deadline)
+            {
+                VerificationOutcome::TimedOut
+            } else {
+                outcome
+            };
+            finish_verification(&mut state, outcome);
+            self.changed.send_replace(());
+        }
+    }
+
+    fn verification_completed(&self, key: Key, candidate: VerifiedAccountCandidate, now: Instant) {
+        let Ok(mut state) = self.lock() else {
+            return;
+        };
+        if !verification_owned(&state, key) {
+            return;
+        }
+        let outcome = if !verification_current(&state, key) {
+            VerificationOutcome::BindingMismatch
+        } else if let Some(slot) = state.slot.as_ref() {
+            let context = self.configured_context(slot);
+            // Context construction cannot refresh the admission deadline. Re-read
+            // the clock after it, immediately before the guarded commit decision.
+            let now = now.max(Instant::now());
+            if now < slot.admitted || now >= slot.deadline {
+                VerificationOutcome::TimedOut
+            } else if !candidate.credentials_usable_at(now) {
+                VerificationOutcome::Failed(AccountError::TokenExpired)
+            } else {
+                match context {
+                    Ok(context) if candidate.matches_native_attempt(&context, now) => {
+                        VerificationOutcome::VerifiedNotAdopted
+                    }
+                    _ => VerificationOutcome::BindingMismatch,
+                }
+            }
+        } else {
+            return;
+        };
+        // Discard the entire sealed result BEFORE publishing success. Never
+        // store it in Slot/State, expose parts, or renew an admission lifetime.
+        drop(candidate);
+        finish_verification(&mut state, outcome);
+        self.changed.send_replace(());
+    }
+
     fn adopt_pending(&self, key: Key, value: Pending, now: Instant) -> Option<Instant> {
         let mut state = self.lock().ok()?;
         let now = now.max(Instant::now());
@@ -721,6 +995,13 @@ fn live(state: &State, key: Key, phase: Phase, now: Instant) -> bool {
         })
 }
 fn terminate(state: &mut State, outcome: AuthorizationOutcome) {
+    let verification = match outcome {
+        AuthorizationOutcome::Cancelled => VerificationOutcome::Cancelled,
+        AuthorizationOutcome::TimedOut => VerificationOutcome::TimedOut,
+        AuthorizationOutcome::Closed => VerificationOutcome::Closed,
+        _ => VerificationOutcome::WorkerFailure,
+    };
+    record_verification(state, verification);
     if let Some(slot) = state.slot.as_mut() {
         if slot.terminal.is_none() {
             slot.terminal = Some(outcome);
@@ -738,6 +1019,50 @@ fn terminate(state: &mut State, outcome: AuthorizationOutcome) {
         }
     }
 }
+fn verification_owned(state: &State, key: Key) -> bool {
+    current(state, key)
+        && state
+            .slot
+            .as_ref()
+            .is_some_and(|slot| slot.verification == VerificationState::Running)
+}
+fn verification_current(state: &State, key: Key) -> bool {
+    verification_owned(state, key)
+        && state.slot.as_ref().is_some_and(|slot| {
+            slot.configured_selection.is_some()
+                && slot.phase == Phase::VerifyingAccount
+                && slot.verification == VerificationState::Running
+                && slot.terminal == Some(AuthorizationOutcome::CompletedPendingVerification)
+        })
+}
+fn record_verification(state: &mut State, outcome: VerificationOutcome) {
+    if let Some(slot) = state.slot.as_mut()
+        && slot.verification == VerificationState::Running
+    {
+        slot.verification = VerificationState::Finished;
+        state.last_verification = Some(VerificationTerminalRecord {
+            attempt_id: slot.key.id,
+            generation: slot.key.generation,
+            outcome,
+        });
+    }
+}
+fn finish_verification(state: &mut State, outcome: VerificationOutcome) {
+    record_verification(state, outcome);
+    // Authorization is already terminal. terminate only drains, and cannot
+    // replace either once-only result after record_verification above.
+    terminate(state, AuthorizationOutcome::CompletedPendingVerification);
+}
+fn expire_verification(state: &mut State, now: Instant) {
+    if state
+        .slot
+        .as_ref()
+        .is_some_and(|slot| slot.verification == VerificationState::Running && now >= slot.deadline)
+    {
+        terminate(state, AuthorizationOutcome::TimedOut);
+    }
+}
+
 fn expire_pending(state: &mut State, now: Instant) {
     if state.slot.as_ref().is_some_and(|slot| {
         slot.pending
@@ -977,7 +1302,100 @@ async fn run_attempt(
     };
     // The exchange future is owned locally, never spawned/replayed. Its sender
     // can drop now; only this guarded commit can retain returned native tokens.
-    continue_pending(inner, key, Pending::Exchange(value), &mut work.stop).await
+    match work.mode {
+        AttemptMode::PendingOnly => {
+            continue_pending(inner, key, Pending::Exchange(value), &mut work.stop).await
+        }
+        AttemptMode::Configured => {
+            continue_configured(
+                inner,
+                key,
+                VerificationInput::Exchange(value),
+                &mut work.stop,
+            )
+            .await
+        }
+    }
+}
+
+enum VerificationInput {
+    Exchange(ExchangeResult),
+    #[cfg(test)]
+    Fixture {
+        spec: Box<super::account::session_test_support::FixtureSpec>,
+        header: Pending,
+        address: std::net::SocketAddr,
+    },
+}
+impl VerificationInput {
+    fn valid_for(&self, key: Key, requested: &[ApprovedScope], now: Instant) -> bool {
+        let (matches, usable, scopes) = match self {
+            Self::Exchange(value) => (
+                value.attempt().id == key.id && value.attempt().generation == key.generation,
+                value.tokens_for_native_controller().is_usable_at(now),
+                value.tokens_for_native_controller().granted_scopes(),
+            ),
+            #[cfg(test)]
+            Self::Fixture { header, .. } => {
+                (header.key() == key, header.usable(now), header.scopes())
+            }
+        };
+        matches
+            && usable
+            && !scopes.is_empty()
+            && scopes.len() <= 2
+            && (scopes.len() != 2 || scopes[0] != scopes[1])
+            && scopes.iter().all(|scope| requested.contains(scope))
+    }
+
+    async fn verify(
+        self,
+        context: VerificationContext,
+        cancel: oneshot::Receiver<()>,
+    ) -> Result<VerifiedAccountCandidate, AccountError> {
+        match self {
+            Self::Exchange(value) => verify_account(value, context, cancel).await,
+            #[cfg(test)]
+            Self::Fixture { spec, address, .. } => {
+                super::account::session_test_support::verify_fixture(
+                    *spec, context, cancel, address,
+                )
+                .await
+            }
+        }
+    }
+}
+
+async fn continue_configured(
+    inner: &Inner,
+    key: Key,
+    input: VerificationInput,
+    stop: &mut watch::Receiver<bool>,
+) -> Result<(), AuthorizationOutcome> {
+    let (context, deadline) = inner.start_verification(key, &input, Instant::now())?;
+    let (cancel_tx, cancel_rx) = oneshot::channel();
+    let operation = input.verify(context, cancel_rx);
+    let result = tokio::select! {
+        biased;
+        _ = stopped(stop) => {
+            let _ = cancel_tx.send(());
+            inner.verification_failed(key, VerificationOutcome::Cancelled, Instant::now());
+            return Ok(());
+        }
+        _ = until(deadline) => {
+            let _ = cancel_tx.send(());
+            inner.verification_failed(key, VerificationOutcome::TimedOut, Instant::now());
+            return Ok(());
+        }
+        result = operation => result,
+    };
+    match result {
+        Ok(candidate) => inner.verification_completed(key, candidate, Instant::now()),
+        Err(error) => {
+            inner.verification_failed(key, VerificationOutcome::Failed(error), Instant::now())
+        }
+    }
+    Ok(())
 }
 
 async fn continue_pending(
@@ -1861,5 +2279,872 @@ mod tests {
 }
 
 #[cfg(test)]
+mod configured_tests {
+    use super::*;
+    use crate::drive_auth::account::session_test_support::{FixtureSpec, SyntheticLabel};
+    use crate::drive_auth::registration::NativeRegistration;
+    use std::io::{Read, Write};
+    use std::net::{Ipv4Addr, SocketAddr, TcpListener};
+    use std::sync::Barrier;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::thread::{self, JoinHandle};
+
+    fn catalog() -> NativeRegistrationCatalog {
+        NativeRegistrationCatalog::from_native_records(vec![
+            NativeRegistration::from_native_configuration(
+                "configured",
+                "configured.apps.googleusercontent.com",
+                "7",
+                &[ApprovedScope::AppData, ApprovedScope::File],
+            )
+            .expect("fixed native record"),
+            NativeRegistration::from_native_configuration(
+                "file-only",
+                "file-only.apps.googleusercontent.com",
+                "8",
+                &[ApprovedScope::File],
+            )
+            .expect("fixed limited record"),
+        ])
+        .expect("fixed catalog")
+    }
+    fn selection() -> RegistrationSelection {
+        RegistrationSelection::new("configured", &[ApprovedScope::AppData, ApprovedScope::File])
+            .expect("fixed selection")
+    }
+    fn raw() -> NativeStart {
+        NativeStart::new(
+            "raw.apps.googleusercontent.com".into(),
+            "raw".into(),
+            "99".into(),
+            vec![ApprovedScope::File],
+        )
+        .expect("raw request")
+    }
+    fn exchanging(owner: &SessionController, key: Key) {
+        owner.inner.offer(key, Instant::now()).expect("offer");
+        owner
+            .inner
+            .acknowledge(key, BrowserHandoff::HandedOff, Instant::now())
+            .expect("reducer ack");
+        assert!(owner.inner.exchanging(key, Instant::now()));
+    }
+    fn reserved() -> (SessionController, Work) {
+        let owner = SessionController::with_catalog(catalog());
+        let work = owner
+            .inner
+            .reserve_configured(selection(), Instant::now())
+            .expect("configured reserve");
+        exchanging(&owner, work.key); // Reducer fixture: no callback/code/worker exists.
+        (owner, work)
+    }
+    fn input(
+        key: Key,
+        address: SocketAddr,
+        label: SyntheticLabel,
+        actual: &[ApprovedScope],
+        issued: Instant,
+        seconds: u64,
+    ) -> VerificationInput {
+        VerificationInput::Fixture {
+            spec: Box::new(
+                FixtureSpec::new(
+                    label,
+                    ExchangeAttempt {
+                        id: key.id,
+                        generation: key.generation,
+                    },
+                    actual,
+                    issued,
+                    seconds,
+                )
+                .expect("pure fixture syntax"),
+            ),
+            // Synthetic preflight metadata only; the sealed candidate MUST still
+            // come from A's actual HTTP verifier with the matching parsed tokens.
+            header: Pending::Marker {
+                key,
+                expires: issued + Duration::from_secs(seconds),
+                scopes: actual.to_vec(),
+            },
+            address,
+        }
+    }
+    // Fixed reply/captured request, one connection,16KiB cap,3s wall budget.
+    // Stop-aware reads/writes and joined Drop, including failed assertions.
+    struct Peer {
+        address: SocketAddr,
+        stop: Arc<AtomicBool>,
+        release: Arc<AtomicBool>,
+        request: Arc<Mutex<Option<String>>>,
+        worker: Option<JoinHandle<()>>,
+    }
+    impl Peer {
+        fn new(label: SyntheticLabel, stalled: bool) -> Self {
+            let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("ephemeral peer");
+            listener.set_nonblocking(true).expect("nonblocking peer");
+            let address = listener.local_addr().expect("peer address");
+            let stop = Arc::new(AtomicBool::new(false));
+            let release = Arc::new(AtomicBool::new(!stalled));
+            let request = Arc::new(Mutex::new(None));
+            let (halt, gate, capture) = (
+                Arc::clone(&stop),
+                Arc::clone(&release),
+                Arc::clone(&request),
+            );
+            let worker = thread::spawn(move || {
+                let end = Instant::now() + Duration::from_secs(3);
+                while !halt.load(Ordering::Acquire) && Instant::now() < end {
+                    let (mut stream, _) = match listener.accept() {
+                        Ok(value) => value,
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                            thread::sleep(Duration::from_millis(2));
+                            continue;
+                        }
+                        Err(_) => return,
+                    };
+                    if stream
+                        .set_read_timeout(Some(Duration::from_millis(10)))
+                        .is_err()
+                        || stream
+                            .set_write_timeout(Some(Duration::from_millis(20)))
+                            .is_err()
+                    {
+                        return;
+                    }
+                    let mut bytes = Vec::new();
+                    let mut buf = [0; 1024];
+                    while !bytes.windows(4).any(|b| b == b"\r\n\r\n")
+                        && !halt.load(Ordering::Acquire)
+                        && Instant::now() < end
+                    {
+                        match stream.read(&mut buf) {
+                            Ok(0) => return,
+                            Ok(n) => {
+                                if bytes.len() + n > 16 * 1024 {
+                                    return;
+                                }
+                                bytes.extend_from_slice(&buf[..n]);
+                            }
+                            Err(e)
+                                if matches!(
+                                    e.kind(),
+                                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                                ) => {}
+                            Err(_) => return,
+                        }
+                    }
+                    if !bytes.windows(4).any(|b| b == b"\r\n\r\n") {
+                        return;
+                    }
+                    *capture.lock().expect("capture") =
+                        Some(String::from_utf8(bytes).expect("synthetic ASCII request"));
+                    while !gate.load(Ordering::Acquire)
+                        && !halt.load(Ordering::Acquire)
+                        && Instant::now() < end
+                    {
+                        thread::sleep(Duration::from_millis(2));
+                    }
+                    if halt.load(Ordering::Acquire) || Instant::now() >= end {
+                        return;
+                    }
+                    let body = match label {
+                        SyntheticLabel::A => r#"{"user":{"permissionId":"fixture_A"}}"#,
+                        SyntheticLabel::B => r#"{"user":{"permissionId":"fixture_B"}}"#,
+                    };
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len()
+                    );
+                    let _ = stream.write_all(response.as_bytes());
+                    return;
+                }
+            });
+            Self {
+                address,
+                stop,
+                release,
+                request,
+                worker: Some(worker),
+            }
+        }
+        async fn captured(&self) {
+            tokio::time::timeout(Duration::from_secs(1), async {
+                while self.request.lock().expect("capture").is_none() {
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                }
+            })
+            .await
+            .expect("bounded capture");
+        }
+        fn request(&self) -> String {
+            self.request
+                .lock()
+                .expect("capture")
+                .clone()
+                .expect("request")
+        }
+    }
+    impl Drop for Peer {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::Release);
+            self.release.store(true, Ordering::Release);
+            if let Some(worker) = self.worker.take() {
+                let _ = worker.join();
+            }
+        }
+    }
+    async fn candidate(
+        owner: &SessionController,
+        work: &Work,
+        peer: &Peer,
+    ) -> VerifiedAccountCandidate {
+        let value = input(
+            work.key,
+            peer.address,
+            SyntheticLabel::A,
+            &[ApprovedScope::File],
+            Instant::now(),
+            60,
+        );
+        let (context, _) = owner
+            .inner
+            .start_verification(work.key, &value, Instant::now())
+            .expect("verification start");
+        let (keep, cancel) = oneshot::channel();
+        let result = value
+            .verify(context, cancel)
+            .await
+            .expect("actual account response");
+        drop(keep);
+        result
+    }
+    fn terminal(owner: &SessionController) -> VerificationOutcome {
+        owner
+            .verification_snapshot()
+            .expect("verification snapshot")
+            .last_terminal
+            .expect("terminal")
+            .outcome
+    }
+    fn assert_auth_once(owner: &SessionController) {
+        assert_eq!(
+            owner
+                .snapshot()
+                .expect("auth")
+                .last_authorization
+                .expect("auth outcome")
+                .outcome,
+            AuthorizationOutcome::CompletedPendingVerification
+        );
+        assert!(
+            owner
+                .snapshot()
+                .expect("auth")
+                .granted_subset_pending_verification
+                .is_empty()
+        );
+        assert!(
+            owner
+                .inner
+                .state
+                .lock()
+                .expect("state")
+                .slot
+                .as_ref()
+                .expect("slot")
+                .pending
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn public_configured_admission_rejects_locally_without_reserving() {
+        for owner in [
+            SessionController::new(),
+            SessionController::with_catalog(
+                NativeRegistrationCatalog::from_native_records(vec![]).unwrap(),
+            ),
+        ] {
+            assert_eq!(
+                owner.begin_configured(selection()).await.err(),
+                Some(StartError::Registration(RegistrationError::NotConfigured))
+            );
+            assert!(!owner.verification_snapshot().unwrap().configured);
+            assert!(owner.snapshot().unwrap().attempt_id.is_none());
+            assert!(
+                owner
+                    .verification_snapshot()
+                    .unwrap()
+                    .last_terminal
+                    .is_none()
+            );
+        }
+        let owner = SessionController::with_catalog(catalog());
+        for (id, scope, expected) in [
+            (
+                "Configured",
+                ApprovedScope::File,
+                RegistrationError::UnknownRegistration,
+            ),
+            (
+                "file-only",
+                ApprovedScope::AppData,
+                RegistrationError::DisallowedScopes,
+            ),
+        ] {
+            assert_eq!(
+                owner
+                    .begin_configured(RegistrationSelection::new(id, &[scope]).unwrap())
+                    .await
+                    .err(),
+                Some(StartError::Registration(expected))
+            );
+            assert!(owner.snapshot().unwrap().attempt_id.is_none());
+        }
+        assert!(owner.verification_snapshot().unwrap().configured);
+    }
+
+    #[tokio::test]
+    async fn configured_and_raw_public_begin_share_real_ticket_cleanup_fence() {
+        let owner = SessionController::with_catalog(catalog());
+        let launch =
+            tokio::time::timeout(Duration::from_secs(3), owner.begin_configured(selection()))
+                .await
+                .unwrap()
+                .unwrap();
+        let before = owner.snapshot().unwrap();
+        assert_eq!(owner.begin(raw()).await.err(), Some(StartError::Busy));
+        assert_eq!(
+            owner.begin_configured(selection()).await.err(),
+            Some(StartError::Busy)
+        );
+        assert_eq!(owner.snapshot().unwrap(), before);
+        let mut shutdown = Box::pin(owner.shutdown());
+        tokio::select! { biased; _ = &mut shutdown => panic!("held ticket fences cleanup"), _ = tokio::time::sleep(Duration::from_millis(20)) => {} }
+        assert_eq!(owner.snapshot().unwrap().phase, Phase::Draining);
+        assert!(
+            owner
+                .verification_snapshot()
+                .unwrap()
+                .last_terminal
+                .is_none()
+        );
+        drop(launch);
+        tokio::time::timeout(Duration::from_secs(3), shutdown)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn raw_on_configured_owner_keeps_legacy_pending_continuation() {
+        let owner = SessionController::with_catalog(catalog());
+        let mut work = owner.inner.reserve(raw(), Instant::now()).unwrap();
+        assert!(work.mode == AttemptMode::PendingOnly);
+        exchanging(&owner, work.key);
+        let value = Pending::Marker {
+            key: work.key,
+            expires: Instant::now() + Duration::from_millis(20),
+            scopes: vec![ApprovedScope::File],
+        };
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            continue_pending(&owner.inner, work.key, value, &mut work.stop),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            owner
+                .snapshot()
+                .unwrap()
+                .last_authorization
+                .unwrap()
+                .outcome,
+            AuthorizationOutcome::CompletedPendingVerification
+        );
+        assert!(
+            owner
+                .verification_snapshot()
+                .unwrap()
+                .last_terminal
+                .is_none()
+        );
+        owner.inner.reaped(work.key); // Reducer fixture owns no listener/task.
+    }
+
+    #[tokio::test]
+    async fn actual_a_b_and_partial_grants_are_verified_then_discarded() {
+        for (label, bearer) in [
+            (SyntheticLabel::A, "synthetic-session-A"),
+            (SyntheticLabel::B, "synthetic-session-B"),
+        ] {
+            let peer = Peer::new(label, false);
+            let (owner, mut work) = reserved();
+            let value = input(
+                work.key,
+                peer.address,
+                label,
+                &[ApprovedScope::File],
+                Instant::now(),
+                60,
+            );
+            tokio::time::timeout(
+                Duration::from_secs(3),
+                continue_configured(&owner.inner, work.key, value, &mut work.stop),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            assert_eq!(terminal(&owner), VerificationOutcome::VerifiedNotAdopted);
+            assert_auth_once(&owner);
+            assert_eq!(owner.snapshot().unwrap().phase, Phase::Draining);
+            let wire = peer.request();
+            assert!(wire.contains(&format!("Bearer {bearer}\r\n")));
+            assert!(!wire.contains("synthetic-session-refresh"));
+            let recorded = owner.verification_snapshot().unwrap().last_terminal;
+            assert_eq!(
+                owner.cancel(work.key.id),
+                Ok(CancelDisposition::AlreadyTerminal)
+            );
+            owner
+                .inner
+                .finish(work.key, AuthorizationOutcome::WorkerFailure);
+            assert_eq!(
+                owner.verification_snapshot().unwrap().last_terminal,
+                recorded
+            );
+            owner.inner.reaped(work.key);
+            assert_eq!(
+                owner.verification_snapshot().unwrap().phase,
+                VerificationPhase::Idle
+            );
+        }
+    }
+
+    #[test]
+    fn extraction_rejects_wrong_identity_scope_and_retained_mapping() {
+        for defect in 0..9 {
+            let (owner, work) = reserved();
+            let mut value = input(
+                work.key,
+                ([127, 0, 0, 1], 1).into(),
+                SyntheticLabel::A,
+                &[ApprovedScope::File],
+                Instant::now(),
+                60,
+            );
+            if let VerificationInput::Fixture {
+                header: Pending::Marker { key, scopes, .. },
+                ..
+            } = &mut value
+            {
+                match defect {
+                    0 => key.id = Uuid::nil(),
+                    1 => key.generation += 1,
+                    2 => scopes.clear(),
+                    3 => *scopes = vec![ApprovedScope::File; 2],
+                    _ => {}
+                }
+            }
+            if defect >= 4 {
+                let mut state = owner.inner.state.lock().unwrap();
+                let slot = state.slot.as_mut().unwrap();
+                match defect {
+                    4 => slot.registration.registration_id = "other".into(),
+                    5 => slot.registration.client_id = "other.apps.googleusercontent.com".into(),
+                    6 => slot.registration.project_number = "9".into(),
+                    7 => slot.registration.scopes = vec![ApprovedScope::File],
+                    _ => slot.configured_selection = None,
+                }
+            }
+            assert!(
+                owner
+                    .inner
+                    .start_verification(work.key, &value, Instant::now())
+                    .is_err()
+            );
+            assert!(owner.snapshot().unwrap().last_authorization.is_none());
+            assert!(
+                owner
+                    .verification_snapshot()
+                    .unwrap()
+                    .last_terminal
+                    .is_none()
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn completion_rebuilds_current_mapping_before_discard_commit() {
+        for defect in 0..5 {
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let (owner, work) = reserved();
+            let result = candidate(&owner, &work, &peer).await;
+            assert_eq!(result.granted_scopes(), &[ApprovedScope::File]);
+            {
+                let mut state = owner.inner.state.lock().unwrap();
+                let slot = state.slot.as_mut().unwrap();
+                match defect {
+                    0 => slot.registration.project_number = "8".into(),
+                    1 => slot.registration.client_id = "other.apps.googleusercontent.com".into(),
+                    2 => slot.registration.registration_id = "file-only".into(),
+                    3 => slot.registration.scopes = vec![ApprovedScope::File],
+                    _ => slot.configured_selection = None,
+                }
+            }
+            owner
+                .inner
+                .verification_completed(work.key, result, Instant::now());
+            assert_eq!(terminal(&owner), VerificationOutcome::BindingMismatch);
+            assert_auth_once(&owner);
+        }
+    }
+
+    #[tokio::test]
+    async fn cancellation_and_real_candidate_commit_serialize_and_late_results_are_inert() {
+        for cancel_first in [true, false] {
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let (owner, work) = reserved();
+            let result = candidate(&owner, &work, &peer).await;
+            if cancel_first {
+                owner.cancel(work.key.id).unwrap();
+            }
+            owner
+                .inner
+                .verification_completed(work.key, result, Instant::now());
+            if !cancel_first {
+                assert_eq!(
+                    owner.cancel(work.key.id),
+                    Ok(CancelDisposition::AlreadyTerminal)
+                );
+            }
+            assert_eq!(
+                terminal(&owner),
+                if cancel_first {
+                    VerificationOutcome::Cancelled
+                } else {
+                    VerificationOutcome::VerifiedNotAdopted
+                }
+            );
+            assert_auth_once(&owner);
+        }
+        let peer = Peer::new(SyntheticLabel::A, false);
+        let (owner, work) = reserved();
+        let result = candidate(&owner, &work, &peer).await;
+        let barrier = Barrier::new(3);
+        thread::scope(|threads| {
+            let left = threads.spawn(|| {
+                barrier.wait();
+                owner
+                    .inner
+                    .verification_completed(work.key, result, Instant::now());
+            });
+            let right = threads.spawn(|| {
+                barrier.wait();
+                owner.cancel(work.key.id).unwrap();
+            });
+            barrier.wait();
+            left.join().unwrap();
+            right.join().unwrap();
+        });
+        assert!(matches!(
+            terminal(&owner),
+            VerificationOutcome::Cancelled | VerificationOutcome::VerifiedNotAdopted
+        ));
+        assert_auth_once(&owner);
+        owner.inner.reaped(work.key);
+        let next = owner
+            .inner
+            .reserve_configured(selection(), Instant::now())
+            .unwrap();
+        let saved = owner.verification_snapshot().unwrap();
+        owner.inner.verification_failed(
+            work.key,
+            VerificationOutcome::WorkerFailure,
+            Instant::now(),
+        );
+        assert_eq!(owner.verification_snapshot().unwrap(), saved);
+        assert_eq!(owner.snapshot().unwrap().attempt_id, Some(next.key.id));
+    }
+
+    #[tokio::test]
+    async fn foreign_and_late_real_candidates_cannot_rebind_or_overwrite() {
+        let peer = Peer::new(SyntheticLabel::A, false);
+        let (left, left_work) = reserved();
+        let result = candidate(&left, &left_work, &peer).await;
+        let (right, right_work) = reserved();
+        let right_input = input(
+            right_work.key,
+            ([127, 0, 0, 1], 1).into(),
+            SyntheticLabel::B,
+            &[ApprovedScope::File],
+            Instant::now(),
+            60,
+        );
+        right
+            .inner
+            .start_verification(right_work.key, &right_input, Instant::now())
+            .unwrap();
+        right
+            .inner
+            .verification_completed(right_work.key, result, Instant::now());
+        assert_eq!(terminal(&right), VerificationOutcome::BindingMismatch);
+        assert_auth_once(&right);
+
+        let peer = Peer::new(SyntheticLabel::A, false);
+        let (owner, work) = reserved();
+        let late = candidate(&owner, &work, &peer).await;
+        owner.cancel(work.key.id).unwrap();
+        owner.inner.reaped(work.key); // No actual listener belongs to this fixture.
+        let replacement = owner
+            .inner
+            .reserve_configured(selection(), Instant::now())
+            .unwrap();
+        owner
+            .inner
+            .finish(replacement.key, AuthorizationOutcome::Denied);
+        let auth = owner.snapshot().unwrap();
+        let verification = owner.verification_snapshot().unwrap();
+        owner
+            .inner
+            .verification_completed(work.key, late, Instant::now());
+        assert_eq!(owner.snapshot().unwrap(), auth);
+        assert_eq!(owner.verification_snapshot().unwrap(), verification);
+        assert_eq!(
+            auth.last_authorization.unwrap().outcome,
+            AuthorizationOutcome::Denied
+        );
+        assert_eq!(verification.last_terminal.unwrap().attempt_id, work.key.id);
+    }
+
+    #[tokio::test]
+    async fn original_and_token_expiry_do_not_renew_at_completion() {
+        for token_boundary in [false, true] {
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let (owner, work) = reserved();
+            let result = candidate(&owner, &work, &peer).await;
+            let at = if token_boundary {
+                result.credential_expires_at()
+            } else {
+                work.deadline
+            };
+            owner.inner.verification_completed(work.key, result, at);
+            assert_ne!(terminal(&owner), VerificationOutcome::VerifiedNotAdopted);
+            assert_auth_once(&owner);
+        }
+        let (owner, work) = reserved();
+        let expired = input(
+            work.key,
+            ([127, 0, 0, 1], 1).into(),
+            SyntheticLabel::A,
+            &[ApprovedScope::File],
+            Instant::now() - Duration::from_secs(2),
+            1,
+        );
+        assert!(
+            owner
+                .inner
+                .start_verification(work.key, &expired, Instant::now())
+                .is_err()
+        );
+        let live_input = input(
+            work.key,
+            ([127, 0, 0, 1], 1).into(),
+            SyntheticLabel::A,
+            &[ApprovedScope::File],
+            Instant::now(),
+            60,
+        );
+        assert_eq!(
+            owner
+                .inner
+                .start_verification(work.key, &live_input, work.deadline)
+                .err(),
+            Some(AuthorizationOutcome::TimedOut)
+        );
+        assert!(
+            owner
+                .verification_snapshot()
+                .unwrap()
+                .last_terminal
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn stalled_real_transport_cancel_close_and_owner_drop_preserve_authorization() {
+        for mode in 0..3 {
+            let peer = Peer::new(SyntheticLabel::A, true);
+            let (owner, mut work) = reserved();
+            let inner = Arc::clone(&owner.inner);
+            let mut owner = Some(owner);
+            let value = input(
+                work.key,
+                peer.address,
+                SyntheticLabel::A,
+                &[ApprovedScope::File],
+                Instant::now(),
+                60,
+            );
+            let mut operation =
+                Box::pin(continue_configured(&inner, work.key, value, &mut work.stop));
+            tokio::select! { biased; _ = &mut operation => panic!("stalled response"), _ = peer.captured() => {} }
+            match mode {
+                0 => {
+                    owner.as_ref().unwrap().cancel(work.key.id).unwrap();
+                }
+                1 => inner.close(),
+                _ => drop(owner.take()),
+            }
+            tokio::time::timeout(Duration::from_secs(1), operation)
+                .await
+                .unwrap()
+                .unwrap();
+            let state = inner.state.lock().unwrap();
+            assert_eq!(
+                state.last.unwrap().outcome,
+                AuthorizationOutcome::CompletedPendingVerification
+            );
+            assert_eq!(
+                state.last_verification.unwrap().outcome,
+                if mode == 0 {
+                    VerificationOutcome::Cancelled
+                } else {
+                    VerificationOutcome::Closed
+                }
+            );
+            assert_eq!(state.slot.as_ref().unwrap().phase, Phase::Draining);
+            assert!(state.slot.as_ref().unwrap().pending.is_none());
+            drop(state);
+            inner.reaped(work.key); // The reducer fixture spawned no listener/supervisor.
+        }
+    }
+
+    #[tokio::test]
+    async fn real_transport_deadline_preserves_one_authorization_result() {
+        for token_limited in [false, true] {
+            let peer = Peer::new(SyntheticLabel::A, true);
+            let (owner, mut work) = reserved();
+            let now = Instant::now();
+            let original = if token_limited {
+                work.deadline
+            } else {
+                now + Duration::from_millis(300)
+            };
+            owner
+                .inner
+                .state
+                .lock()
+                .unwrap()
+                .slot
+                .as_mut()
+                .unwrap()
+                .deadline = original;
+            let (issued, seconds) = if token_limited {
+                (now - Duration::from_millis(650), 1)
+            } else {
+                (now, 60)
+            };
+            let value = input(
+                work.key,
+                peer.address,
+                SyntheticLabel::A,
+                &[ApprovedScope::File],
+                issued,
+                seconds,
+            );
+            tokio::time::timeout(
+                Duration::from_secs(2),
+                continue_configured(&owner.inner, work.key, value, &mut work.stop),
+            )
+            .await
+            .unwrap()
+            .unwrap();
+            assert!(matches!(
+                terminal(&owner),
+                VerificationOutcome::TimedOut
+                    | VerificationOutcome::Failed(
+                        AccountError::Deadline | AccountError::TokenExpired
+                    )
+            ));
+            assert_auth_once(&owner);
+            assert_eq!(
+                owner
+                    .inner
+                    .state
+                    .lock()
+                    .unwrap()
+                    .slot
+                    .as_ref()
+                    .unwrap()
+                    .deadline,
+                original
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn post_authorization_worker_fault_poison_and_counter_overflow_fail_closed() {
+        for mode in 0..3 {
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let (owner, work) = reserved();
+            let result = candidate(&owner, &work, &peer).await;
+            match mode {
+                0 => owner
+                    .inner
+                    .finish(work.key, AuthorizationOutcome::WorkerFailure),
+                1 => {
+                    let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                        let _guard = owner.inner.state.lock().unwrap();
+                        panic!("synthetic poison");
+                    }));
+                    assert_eq!(
+                        owner.verification_snapshot(),
+                        Err(ControllerError::Poisoned)
+                    );
+                }
+                _ => {
+                    owner.inner.state.lock().unwrap().generation = u64::MAX;
+                    assert_eq!(
+                        owner.cancel(work.key.id),
+                        Err(ControllerError::CounterExhausted)
+                    );
+                }
+            }
+            owner
+                .inner
+                .verification_completed(work.key, result, Instant::now());
+            let state = owner
+                .inner
+                .state
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            assert_eq!(
+                state.last.unwrap().outcome,
+                AuthorizationOutcome::CompletedPendingVerification
+            );
+            assert_eq!(
+                state.last_verification.unwrap().outcome,
+                if mode == 0 {
+                    VerificationOutcome::WorkerFailure
+                } else {
+                    VerificationOutcome::Closed
+                }
+            );
+            assert_eq!(state.slot.as_ref().unwrap().phase, Phase::Draining);
+            assert!(*work.stop.borrow());
+            drop(state);
+            owner.inner.reaped(work.key);
+        }
+    }
+}
+
+#[cfg(test)]
 #[path = "session_independent_tests.rs"]
 mod independent_tests;
+
+#[cfg(test)]
+#[path = "configured_verification_independent_tests.rs"]
+mod configured_verification_independent_tests;
