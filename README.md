@@ -24,7 +24,7 @@ It was built for Fujifilm shooters who rely on purchased camera profiles and Loo
 
 ## Download
 
-**No Fujifilm Edition builds have been published yet.** The [releases page](https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/releases) is currently empty. To use the fork today, [build it from source](#build-from-source).
+Check [Fujifilm Edition releases](https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/releases) for development previews when available, and review [current status and limitations](#status-and-limitations) before use. If no build is listed for your platform, [build from source](#build-from-source).
 
 Installers published by upstream RapidRAW do not include anything described in the next sections.
 
@@ -109,13 +109,13 @@ This is an active fork, and some important checks are still open. In brief:
 |---|---|
 | Profile workflow on desktop | Implemented. Automated checks pass with synthetic test files. Not yet confirmed with a real matched Cobalt base and Look pair. |
 | Colour match with Adobe Camera Raw | **Not yet verified.** No Adobe-backed comparison has been run, and colour comparison is not implemented yet (the developer tool's `compare` command reports itself as unavailable). |
-| Android | Builds from this repository. On a physical Samsung Fold-series phone, the app opens, the UI works and basic adjustments work (user-reported). Profile and Look use, save/reopen and export on the device have **not** yet been tested. The newest import and error fixes are not yet in a device build. |
+| Android | Builds from this repository. On a physical Samsung Fold-series phone, the app opens, the UI works and basic adjustments work (user-reported). Profile and Look use, save/reopen and export on the device have **not** yet been tested. The latest import and error fixes compile in a new debug APK, but that APK has not been installed or retested on the phone. |
 | Looks | Supported Look table types render in a bounded, non-HDR way: values are clamped before the Look is applied. Unsupported or "captured" Look variants show an error rather than falling back. |
 | GPU | The profile stage runs on the CPU, before RapidRAW's GPU editing pipeline. An optional GPU version is tested for parity separately but is not used for real editing. No performance target is claimed. |
 | Preview vs thumbnail vs export | They share one profile route. A full measured comparison across all routes hasn't been done. |
 | No-profile rendering | Matches upstream byte-for-byte on one controlled synthetic test, but has not been checked across a broad set of cameras. |
 | Linear RAW | Linear RAW files (for example some ProRAW/linear DNGs) are not yet supported with a profile. Selecting a profile uses rawler decoding rather than Apple RAW. |
-| Android imports | Import status can still finish as "successful" when an item was rejected (fix in progress). Imports from local file paths haven't had the same safety pass yet. |
+| Android imports | Rejected items now produce counted failure outcomes in host-driver and frontend transport-mock tests. Real Android provider/UI behavior remains unverified. Imports from local file paths have not had the same safety pass yet. |
 | Fujifilm X-T5 | A reported Android failure turned out to be JPEG data in a file named `.RAF`. Native X-T5 RAF decoding has not been tested either way; there is no evidence that it is unsupported. |
 | Windows / Linux | Expected to build like upstream. The profile workflow has not been acceptance-tested there. |
 
@@ -138,12 +138,12 @@ Out of scope: full Lightroom preset compatibility, exact reproduction of Fujifil
 
 You'll need [Node.js](https://nodejs.org/) 22 and Rust. The Rust toolchain is pinned in `src-tauri/rust-toolchain.toml`. You'll also need the usual [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system.
 
-The Fujifilm Edition work lives on the **`cobalt/main`** branch. The repository's `main` branch tracks upstream.
+The **`main`** branch contains the Fujifilm Edition integration and reviewed continuation updates.
 
 ```bash
 git clone https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition.git
 cd RapidRAW-Fujifilm-edition
-git checkout cobalt/main
+git checkout main
 
 npm ci
 npm start              # development build
