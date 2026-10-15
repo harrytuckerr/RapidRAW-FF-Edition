@@ -137,7 +137,7 @@ These workflow additions are agreed but **not available as completed features ye
 - **Point Colour eyedropper:** a planned sampled hue/saturation/luminance (H/S/L) adjustment; this control set is a working assumption and its behavior is not finalized.
 - **Lens correction improvements:** build on the existing Lensfun Auto correction using camera and lens metadata; no new lens-correction engine is proposed.
 
-Drive's internal revision format, conflict graph and desktop PKCE transaction helper have passed local tests and independent review. They are not connected to the editor or a Google account. Google sign-in, photo transfers and cross-device sync remain unavailable; see the [Drive contract](docs/drive/contract.md) for the implementation and acceptance gates.
+Drive's internal revision format, conflict graph, desktop PKCE transaction helper, loopback callback listener and token-response parser have passed local tests and independent review. They are not connected to the editor or a Google account. Google sign-in, photo transfers and cross-device sync remain unavailable; see the [Drive contract](docs/drive/contract.md) for the implementation and acceptance gates.
 
 Full Lightroom preset compatibility and exact reproduction of Fujifilm film simulations or recipes are not promised. Full automatic photo backup is not planned.
 
