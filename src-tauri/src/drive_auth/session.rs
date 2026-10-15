@@ -977,10 +977,19 @@ async fn run_attempt(
     };
     // The exchange future is owned locally, never spawned/replayed. Its sender
     // can drop now; only this guarded commit can retain returned native tokens.
+    continue_pending(inner, key, Pending::Exchange(value), &mut work.stop).await
+}
+
+async fn continue_pending(
+    inner: &Inner,
+    key: Key,
+    value: Pending,
+    stop: &mut watch::Receiver<bool>,
+) -> Result<(), AuthorizationOutcome> {
     let expires = inner
-        .adopt_pending(key, Pending::Exchange(value), Instant::now())
+        .adopt_pending(key, value, Instant::now())
         .ok_or(AuthorizationOutcome::TimedOut)?;
-    retain_pending(inner, key, expires, &mut work.stop).await;
+    retain_pending(inner, key, expires, stop).await;
     Ok(())
 }
 

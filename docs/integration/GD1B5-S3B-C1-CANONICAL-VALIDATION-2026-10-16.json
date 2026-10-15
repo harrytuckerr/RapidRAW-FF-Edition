@@ -1,0 +1,496 @@
+{
+  "task_id": "01a140c2-cdcc-71f1-b1a6-cfb442f30996",
+  "status": "Pass: combined canonical gates; root acceptance/commit separate",
+  "model": "gpt-6.1-sol (live Team roster)",
+  "workspace": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration",
+  "branch": "codex/drive-sync-foundation-2026-10-15",
+  "base_head": "1dbeadf0ba2d0dee4ac4bd0467f6c5cabc3ae7cd",
+  "source_state": "Root-owned frozen uncommitted B/C1 import, no validator source changes",
+  "attribution": "Sol authored B; Astra independently reviewed B and added public API probes. Astra authored C1; root gpt-6.1-sol independently reviewed C1. This execution is combined canonical verification, not independent self-approval.",
+  "input_count": 652,
+  "all_inputs_byte_identical": true,
+  "exact_product_inventory_unchanged_before_report": true,
+  "HEAD_index_unchanged": true,
+  "root_manifest": {
+    "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/root-combined-inputs.json",
+    "bytes": 106416,
+    "sha256": "0b0ecbb2c80c775203e259de1e46d893ec853cc364b0fc51422b974ccfdf53b5"
+  },
+  "source_before": {
+    "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/source-before.json",
+    "bytes": 172225,
+    "sha256": "1617986b652c660368c904544303ba7c2d976991f786b845089d053f256b5adb"
+  },
+  "source_after": {
+    "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/source-after.json",
+    "bytes": 172225,
+    "sha256": "715137037da2d0b97c24f5bc66b2389bf920ab26b38fd05b4150981135011cf6"
+  },
+  "key_inputs": {
+    "src-tauri/src/drive_auth/registration.rs": {
+      "bytes": 20157,
+      "sha256": "f9d4a82d7eb3673d70ca022cd44e39074fba15257cc542e64667e62c328dde26"
+    },
+    "src-tauri/src/drive_auth/session.rs": {
+      "bytes": 65639,
+      "sha256": "eba4929001cd3c04aab9c6142b6151a70f899debb773e8b5ac0a4305299b87e0"
+    },
+    "src-tauri/src/drive_auth/mod.rs": {
+      "bytes": 770,
+      "sha256": "e2329fbde92001175c21f3e43e583d41023c9a62a0ad01d77ea6c8a6e680efda"
+    },
+    "src-tauri/src/drive_auth/registration_independent_tests.rs": {
+      "bytes": 10573,
+      "sha256": "a5ef523974b1cb85e7ccdd16852840f549ea81217fcca11317516db44de81826"
+    },
+    "src-tauri/src/drive_auth/account.rs": {
+      "bytes": 87892,
+      "sha256": "6b0ab79ea3245fbe4a7c5ddfb7aa39001930f748b98f2aeb6dde5e24dd521d87"
+    },
+    "src-tauri/Cargo.toml": {
+      "bytes": 4681,
+      "sha256": "454aa558d0b4e0ac2a645b0d67a3b82f33689af9a2036465e05343ec00a272d2"
+    },
+    "src-tauri/Cargo.lock": {
+      "bytes": 219072,
+      "sha256": "7ddd491af60c07c0d0a0983ab77c6f81409961831ed679b7b444103a6d765def"
+    },
+    "README.md": {
+      "bytes": 26664,
+      "sha256": "a9274bd619c97b4fb386e6ce10c2661c497ab08e902528b012c56deed3812ecb"
+    }
+  },
+  "permanent_children_and_probes_intact": {
+    "src-tauri/src/drive_auth/account.rs": {
+      "bytes": 87892,
+      "sha256": "6b0ab79ea3245fbe4a7c5ddfb7aa39001930f748b98f2aeb6dde5e24dd521d87"
+    },
+    "src-tauri/src/drive_auth/account_independent_tests.rs": {
+      "bytes": 39510,
+      "sha256": "b1fca07977b32648f4de8b2192abaeadb7c7a899b6b62e668e1e5af1f6e899f8"
+    },
+    "src-tauri/src/drive_auth/account_lifetime_independent_tests.rs": {
+      "bytes": 20385,
+      "sha256": "ca64cc58ade606457bcbf59ea54d57a259a8fed58f24f1c7b92fa79299fbd6d9"
+    },
+    "src-tauri/src/drive_auth/exchange_independent_tests.rs": {
+      "bytes": 24729,
+      "sha256": "ca224e53c259aa1efd7c3ee71f15c9919a79a35792311db7683ba3682f91d434"
+    },
+    "src-tauri/src/drive_auth/registration.rs": {
+      "bytes": 20157,
+      "sha256": "f9d4a82d7eb3673d70ca022cd44e39074fba15257cc542e64667e62c328dde26"
+    },
+    "src-tauri/src/drive_auth/registration_independent_tests.rs": {
+      "bytes": 10573,
+      "sha256": "a5ef523974b1cb85e7ccdd16852840f549ea81217fcca11317516db44de81826"
+    },
+    "src-tauri/src/drive_auth/session.rs": {
+      "bytes": 65639,
+      "sha256": "eba4929001cd3c04aab9c6142b6151a70f899debb773e8b5ac0a4305299b87e0"
+    },
+    "src-tauri/src/drive_auth/session_independent_tests.rs": {
+      "bytes": 25401,
+      "sha256": "7129423f99b35f724aa82d4ad301bb5708660983a7ba49cabcf0b1084ad2f82b"
+    },
+    "src-tauri/tests/drive_auth_loopback.rs": {
+      "bytes": 17349,
+      "sha256": "33fce63c46907357993c07cacbe8cd56c3b8be593d366fc23f9bb13c77056b72"
+    },
+    "src-tauri/tests/drive_auth_pkce.rs": {
+      "bytes": 11730,
+      "sha256": "32b8bc2a4833a9f580e20128efface34ad082b961b92c927857653840c02b994"
+    },
+    "src-tauri/tests/drive_auth_token_response.rs": {
+      "bytes": 17297,
+      "sha256": "749c353e5f3462112d12283aa0219ae37983604733f32f2a74624e6ee44779c9"
+    }
+  },
+  "accepted_review_inputs": {
+    "docs/integration/GD1B5-REGISTRATION-CONTINUATION-VALIDATION-2026-10-16.md": {
+      "bytes": 8418,
+      "sha256": "c71c15d1dc12f775058929100d20729091724c376a49b40b989d0e1530543c2a"
+    },
+    "docs/integration/GD1B5-S3B-C1-FOCUSED-VALIDATION-2026-10-16.json": {
+      "bytes": 9270,
+      "sha256": "9f3828ad3ac03084dfdd2c5a5cae10bf0ccc8ab14e333c046b9d849dc9dfc017"
+    },
+    "docs/integration/GD1B5-REGISTRATION-LEAD-SOURCE-REVIEW-2026-10-16.md": {
+      "bytes": 3084,
+      "sha256": "cd8c99eb86439f4347442dce6971a7ab05a823e544a6ab1921ed607b5b777962"
+    },
+    "docs/integration/GD1B5-CONTINUATION-INDEPENDENT-REVIEW-2026-10-16.md": {
+      "bytes": 1849,
+      "sha256": "4f0b9d93a4476937d4456d11163cc4c16aba5935c3f15c2f20492f6eda96de41"
+    }
+  },
+  "single_combined_test_invocation": true,
+  "targets": {
+    "lib": {
+      "test_selection": "unittests src/lib.rs",
+      "passed": 393,
+      "failed": 0,
+      "ignored": 14,
+      "measured": 0,
+      "filtered": 0,
+      "test_elapsed": "7.93s",
+      "actual_cargo_binary_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-b8c68747df43d7c8",
+      "preserved_binary_path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/binaries/lib",
+      "bytes": 40169520,
+      "sha256": "b2f82a9582628f78ec503717049ac435958c992454899bebeea3a6fd30a86ef7"
+    },
+    "validate_dcp": {
+      "test_selection": "unittests src/bin/validate_dcp.rs",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0,
+      "test_elapsed": "0.00s",
+      "actual_cargo_binary_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/validate_dcp-aaf6c834ccbd4fa4",
+      "preserved_binary_path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/binaries/validate_dcp",
+      "bytes": 1859696,
+      "sha256": "30580df9fedd8a97c335a56d9be92eeb1aa241cf7069d340a937261a069c360e"
+    },
+    "drive_auth_loopback": {
+      "test_selection": "tests/drive_auth_loopback.rs",
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0,
+      "test_elapsed": "4.64s",
+      "actual_cargo_binary_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_loopback-de1ab6349ec47422",
+      "preserved_binary_path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/binaries/drive_auth_loopback",
+      "bytes": 2451184,
+      "sha256": "e3fd8233ce5ce14357565b34a718d5a9bde44499a5986cb7ec57c5d32757f338"
+    },
+    "drive_auth_pkce": {
+      "test_selection": "tests/drive_auth_pkce.rs",
+      "passed": 7,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0,
+      "test_elapsed": "0.00s",
+      "actual_cargo_binary_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_pkce-97c5e096468cf54b",
+      "preserved_binary_path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/binaries/drive_auth_pkce",
+      "bytes": 2325936,
+      "sha256": "f2b5a1f70409b9af46a0e6a39a84a0229fcef7855adf117d4210e9b154e596c6"
+    },
+    "drive_auth_token_response": {
+      "test_selection": "tests/drive_auth_token_response.rs",
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0,
+      "measured": 0,
+      "filtered": 0,
+      "test_elapsed": "0.00s",
+      "actual_cargo_binary_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_token_response-4b032fc39aaf6fa3",
+      "preserved_binary_path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/binaries/drive_auth_token_response",
+      "bytes": 2028064,
+      "sha256": "3002644440ab93062c83e8f77e574bea245ca20ec25373e8550398133cc1c173"
+    }
+  },
+  "full_test_name_results": {
+    "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/target-results.json",
+    "bytes": 41699,
+    "sha256": "f894c952746ae18eaf6586a07020dcf94483981fa90983e1bed98329982e3e26"
+  },
+  "total_executed_pass": 422,
+  "total_failed": 0,
+  "total_ignored": 14,
+  "count_policy": "Five disjoint targets from one command only; no prior 404/47/18/29 or overlapping subset results added.",
+  "checks": [
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--lib",
+        "--bin",
+        "validate_dcp",
+        "--test",
+        "drive_auth_pkce",
+        "--test",
+        "drive_auth_loopback",
+        "--test",
+        "drive_auth_token_response",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "RUSTUP_AUTO_INSTALL": "0",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T18:12:57.145960+00:00",
+      "free_bytes_before": 18688622592,
+      "exit": 0,
+      "elapsed_seconds": 175.987472875,
+      "completed_utc": "2026-10-15T18:15:53.132968+00:00",
+      "free_bytes_after": 18680037376,
+      "test_summaries": [
+        "test result: ok. 393 passed; 0 failed; 14 ignored; 0 measured; 0 filtered out; finished in 7.93s",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.64s",
+        "test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "binaries": [
+        {
+          "path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-b8c68747df43d7c8",
+          "bytes": 40169520,
+          "sha256": "b2f82a9582628f78ec503717049ac435958c992454899bebeea3a6fd30a86ef7"
+        },
+        {
+          "path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/validate_dcp-aaf6c834ccbd4fa4",
+          "bytes": 1859696,
+          "sha256": "30580df9fedd8a97c335a56d9be92eeb1aa241cf7069d340a937261a069c360e"
+        },
+        {
+          "path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_loopback-de1ab6349ec47422",
+          "bytes": 2451184,
+          "sha256": "e3fd8233ce5ce14357565b34a718d5a9bde44499a5986cb7ec57c5d32757f338"
+        },
+        {
+          "path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_pkce-97c5e096468cf54b",
+          "bytes": 2325936,
+          "sha256": "f2b5a1f70409b9af46a0e6a39a84a0229fcef7855adf117d4210e9b154e596c6"
+        },
+        {
+          "path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_token_response-4b032fc39aaf6fa3",
+          "bytes": 2028064,
+          "sha256": "3002644440ab93062c83e8f77e574bea245ca20ec25373e8550398133cc1c173"
+        }
+      ],
+      "runtime_download_skipped": true
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "RUSTUP_AUTO_INSTALL": "0",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T18:16:02.160778+00:00",
+      "free_bytes_before": 18630963200,
+      "exit": 0,
+      "elapsed_seconds": 0.627598625,
+      "completed_utc": "2026-10-15T18:16:02.788760+00:00",
+      "free_bytes_after": 18630950912,
+      "test_summaries": [],
+      "binaries": [],
+      "runtime_download_skipped": false
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+        "CARGO_INCREMENTAL": "0",
+        "RUSTUP_TOOLCHAIN": "1.98",
+        "RUSTUP_AUTO_INSTALL": "0",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "CARGO_NET_OFFLINE": "true",
+        "TMPDIR": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/tmp/",
+        "TAURI_ENV_TARGET_TRIPLE": "aarch64-apple-darwin",
+        "ORT_SKIP_DOWNLOAD": "1",
+        "GIT_OPTIONAL_LOCKS": "0"
+      },
+      "cleared_inherited_env_names": [],
+      "compiler_process_preflight": [],
+      "started_utc": "2026-10-15T18:16:16.452939+00:00",
+      "free_bytes_before": 18631036928,
+      "exit": 0,
+      "elapsed_seconds": 20.080835042,
+      "completed_utc": "2026-10-15T18:16:36.534033+00:00",
+      "free_bytes_after": 18627026944,
+      "test_summaries": [],
+      "binaries": [],
+      "runtime_download_skipped": true
+    }
+  ],
+  "logs": {
+    "combined-native": {
+      "raw": {
+        "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/combined-native.log",
+        "bytes": 47257,
+        "sha256": "764c0ef1cff91936188d60f02197c685def8bead828656c805ce09e33a3373c5"
+      },
+      "sanitized": {
+        "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/combined-native-sanitized.log",
+        "bytes": 47180,
+        "sha256": "ad17da51ad9f3c4ff767f6df0679aaf6a0f570febee389d4cf4b3ea99dab7513"
+      }
+    },
+    "fmt": {
+      "raw": {
+        "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/fmt.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "sanitized": {
+        "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/fmt-sanitized.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "clippy-all-targets": {
+      "raw": {
+        "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/clippy-all-targets.log",
+        "bytes": 766,
+        "sha256": "cc1ecd1c069d7e57e16fa989d39276e31250ede08b70a713512e8a287d47516c"
+      },
+      "sanitized": {
+        "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/clippy-all-targets-sanitized.log",
+        "bytes": 689,
+        "sha256": "074fc8cedaa8673f2087d0c7b1e9ae4c7bd3ab1d090ced25466c758217bad4e3"
+      }
+    }
+  },
+  "toolchain": {
+    "utc": "2026-10-15T18:12:49.471799+00:00",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "machine": "arm64",
+    "model": "gpt-6.1-sol (live Team roster)",
+    "version_environment": {
+      "RUSTUP_TOOLCHAIN": "1.98",
+      "RUSTUP_AUTO_INSTALL": "0",
+      "CARGO_NET_OFFLINE": "true",
+      "GIT_OPTIONAL_LOCKS": "0"
+    },
+    "tools": {
+      "rustc --version": {
+        "argv": [
+          "rustc",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "rustc 1.98.1 (48a229cea 2026-09-01)"
+      },
+      "cargo --version": {
+        "argv": [
+          "cargo",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "cargo 1.98.1 (797e8a9bc 2026-08-05)"
+      },
+      "rustfmt --version": {
+        "argv": [
+          "rustfmt",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "rustfmt 1.9.0-stable (48a229ceae 2026-09-01)"
+      },
+      "cargo clippy --version": {
+        "argv": [
+          "cargo",
+          "clippy",
+          "--version"
+        ],
+        "exit": 0,
+        "stdout": "clippy 0.1.98 (48a229ceae 2026-09-01)"
+      }
+    }
+  },
+  "runtime": {
+    "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/resources/libonnxruntime.dylib",
+    "bytes": 33481272,
+    "sha256": "2b885992d3d6fa4130d39ec84a80d7504ff52750027c547bb22c86165f19406a",
+    "action": "Read/hash/reuse existing valid runtime; no copy or download"
+  },
+  "runtime_after": {
+    "bytes": 33481272,
+    "sha256": "2b885992d3d6fa4130d39ec84a80d7504ff52750027c547bb22c86165f19406a"
+  },
+  "ignored_schemas": {
+    "before": {
+      "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/ignored-schema-before.json",
+      "bytes": 619,
+      "sha256": "a628934bd4019dd7bb1f1fd737eec33723d8d0f015878bc187f70abdb4892fcc"
+    },
+    "after": {
+      "path": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/ignored-schema-after.json",
+      "bytes": 619,
+      "sha256": "a628934bd4019dd7bb1f1fd737eec33723d8d0f015878bc187f70abdb4892fcc"
+    },
+    "tracked_source_changes": false
+  },
+  "cache_release": {
+    "cache": "/private/tmp/rapidraw-integration-20261015/target",
+    "released": true,
+    "utc": "2026-10-15T18:16:55.843776+00:00",
+    "compiler_processes": [],
+    "free_bytes": 18626035712,
+    "no_further_build_commands": true
+  },
+  "source_inventory_after_report": "Only this new validation report added; verified by private post-report-inventory.json after writing",
+  "Pass": [
+    "One exact five-target combined native test command",
+    "cargo fmt --all -- --check",
+    "cargo clippy --locked --offline --all-targets -- -D warnings",
+    "All 652 frozen inputs and exact inventory preserved; permanent probes intact"
+  ],
+  "Fail": [],
+  "Not exercised": [
+    "Actual owner configuration provenance/provider client-project mapping or actual grants",
+    "Configured verification/adoption/C2-C4/controller configuration/real catalog",
+    "Positive Code handoff/Google or external exchange/provider/account/browser",
+    "IPC/storage/Android/device/UI/sync activation",
+    "Default ignored/vendor/GPU tests"
+  ],
+  "limitations": "Catalog syntax/presence and synthetic fixtures are not provider mapping, actual grants or authenticated identity. C1 static preservation and old regressions are not configured adoption or product acceptance. No extra probes, expectation changes, source repair, dependency refresh, new network or validator Git operation.",
+  "artifact_manifest": "/private/tmp/rapidraw-gd1b5-registration-continuation-canonical-validation-20261016/artifact-hashes.json"
+}

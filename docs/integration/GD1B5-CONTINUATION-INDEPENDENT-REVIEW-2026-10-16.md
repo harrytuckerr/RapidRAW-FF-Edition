@@ -1,0 +1,9 @@
+# GD1b5-S3C1 independent source review — 2026-10-16
+
+Root reviewed the complete 1,002-byte continuation patch and full frozen source receipt. **Pass for source review only**, with no blocking finding. Runtime/compilation/strict lint for changed bytes remain Not exercised.
+
+The production caller now immediately awaits one private continue_pending with the same inner/key, owned Pending::Exchange value and borrowed stop receiver. That helper preserves adopt_pending at Instant::now, identical TimedOut propagation, awaited retain_pending and Ok return. It introduces no separate task, public interface, status, ownership mode or cleanup change. Existing supervisor/unwind/join/ack/resource fences and retain_pending are unchanged. The newly introduced async future has no await before the guarded adopt operation.
+
+Root independently replaced the single exact changed region with its original and recovered the entire 65,426-byte baseline17ed9fec. All 21 authored and 8 child test definitions/footer remain byte-identical. The 643-input comparison has exactly one changed source, session.rs; every other protected input matches, and all 19 artifact records were rehashed. Candidate session SHA256eba4929001cd3c04aab9c6142b6151a70f899debb773e8b5ac0a4305299b87e0; source-only receipt1373705f; patcha78b78bc.
+
+Existing meaningful session regressions must run before acceptance. No redundant mirror tests or new fake proof seam are needed for this reversible extraction. A later combined review snapshot may include the independently owned registration module; validation must distinguish the component authors and root's independent C1 static review. Root alone imports/accepts after preserved-source runtime evidence. This review does not authorize configured verification, adoption, browser/provider/IPC/device activation or a main merge/release.
