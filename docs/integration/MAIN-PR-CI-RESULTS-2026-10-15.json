@@ -1,0 +1,152 @@
+{
+  "observed_utc": "2026-10-15T10:05:05.900572+00:00",
+  "checks": [
+    {
+      "name": "build (macos-14, aarch64-apple-darwin, --features tethering, 02_tethering) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374975"
+    },
+    {
+      "name": "build (macos-15-intel, x86_64-apple-darwin, 02) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374974"
+    },
+    {
+      "name": "build (ubuntu-24.04, --features tethering, 03_tethering) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374939"
+    },
+    {
+      "name": "build (windows-11-arm, --bundles nsis, aarch64-pc-windows-msvc, 01) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374920"
+    },
+    {
+      "name": "build (ubuntu-22.04, 03) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374876"
+    },
+    {
+      "name": "build (ubuntu-24.04-arm, 03) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374863"
+    },
+    {
+      "name": "build (ubuntu-22.04-arm, 03) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374861"
+    },
+    {
+      "name": "build (ubuntu-latest, android, aarch64-linux-android, --debug --target aarch64, 04) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374849"
+    },
+    {
+      "name": "build (macos-15-intel, x86_64-apple-darwin, --features tethering, 02_tethering) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374839"
+    },
+    {
+      "name": "build (ubuntu-22.04, --features tethering, 03_tethering) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374732"
+    },
+    {
+      "name": "build (macos-14, aarch64-apple-darwin, 02) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374680"
+    },
+    {
+      "name": "build (ubuntu-24.04, 03) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374630"
+    },
+    {
+      "name": "build (windows-latest, --bundles nsis, 01) / build",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220/job/116332374430"
+    },
+    {
+      "name": "cargo fmt",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083173/job/116332374037"
+    },
+    {
+      "name": "Frontend Lint & Format",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083173/job/116332373882"
+    },
+    {
+      "name": "cargo clippy",
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083173/job/116332373567"
+    }
+  ],
+  "runs": [
+    {
+      "id": 38708083220,
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083220",
+      "updated_at": "2026-10-15T09:57:49Z"
+    },
+    {
+      "id": 38708083173,
+      "head_sha": "2a7346229bc0cc398ee7e3fee126eb89428b7dd9",
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38708083173",
+      "updated_at": "2026-10-15T08:55:58Z"
+    },
+    {
+      "id": 38716864401,
+      "head_sha": "255fa978945513331de0c659a76b18b528496c45",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38716864401",
+      "updated_at": "2026-10-15T09:59:55Z"
+    },
+    {
+      "id": 38716864308,
+      "head_sha": "255fa978945513331de0c659a76b18b528496c45",
+      "status": "completed",
+      "conclusion": "cancelled",
+      "html_url": "https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/actions/runs/38716864308",
+      "updated_at": "2026-10-15T10:00:08Z"
+    }
+  ],
+  "duplicate_main_cancellation": "Deliberately cancelled after successful complete PR matrix and independent merged-tree equality proof, not a pass."
+}
