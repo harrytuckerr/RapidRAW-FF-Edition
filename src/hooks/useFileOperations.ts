@@ -2,13 +2,20 @@ import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { toast } from 'react-toastify';
+import { useTranslation } from 'react-i18next';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { useEditorStore } from '../store/useEditorStore';
 import { useUIStore } from '../store/useUIStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { Invokes } from '../components/ui/AppProperties';
+import { ImageFlag, Invokes } from '../components/ui/AppProperties';
 import { Status } from '../components/ui/ExportImportProperties';
+import {
+  IMPORT_ALREADY_RUNNING_MESSAGE,
+  IMPORT_NOT_READY_MESSAGE,
+  failImportInvocation,
+  requestImportAdmission,
+} from '../utils/imageImport';
 
 export function useFileOperations(
   refreshImageList: () => Promise<void>,
@@ -17,6 +24,8 @@ export function useFileOperations(
   handleBackToLibrary: () => void,
   sortedImageList: any[],
 ) {
+  const { t } = useTranslation();
+
   const getParentDir = (filePath: string): string => {
     const separator = filePath.includes('/') ? '/' : '\\';
     const lastSeparatorIndex = filePath.lastIndexOf(separator);
@@ -147,6 +156,37 @@ export function useFileOperations(
     });
   }, [executeDelete]);
 
+  const handleDeleteRejected = useCallback(() => {
+    const { imageList } = useLibraryStore.getState();
+    const rejectedPaths = imageList.filter((image) => image.flag === ImageFlag.Reject).map((image) => image.path);
+
+    if (rejectedPaths.length === 0) {
+      toast.info(t('library.reject.noneToDelete'));
+      return;
+    }
+
+    const rejectedSet = new Set(rejectedPaths);
+    const affectedCopyCount = imageList.filter(
+      (image) =>
+        image.path.includes('?vc=') && !rejectedSet.has(image.path) && rejectedSet.has(image.path.split('?vc=')[0]),
+    ).length;
+    const deleteMessage = t('library.reject.deleteMessage', { count: rejectedPaths.length });
+
+    useUIStore.getState().setUI({
+      confirmModalState: {
+        confirmText: t('library.reject.deleteConfirm'),
+        confirmVariant: 'destructive',
+        isOpen: true,
+        message:
+          affectedCopyCount > 0
+            ? `${deleteMessage}\n\n${t('library.reject.virtualCopiesWarning', { count: affectedCopyCount })}`
+            : deleteMessage,
+        onConfirm: () => executeDelete(rejectedPaths, { includeAssociated: false }),
+        title: t('library.reject.deleteTitle'),
+      },
+    });
+  }, [executeDelete, t]);
+
   const handleCreateFolder = useCallback(
     async (folderName: string) => {
       const { folderActionTarget } = useUIStore.getState();
@@ -266,15 +306,33 @@ export function useFileOperations(
   }, []);
 
   const startImportFiles = useCallback(async (sourcePaths: string[], destinationFolder: string, settings: any) => {
-    if (sourcePaths.length === 0 || !destinationFolder) return;
+    const { setImportState } = useProcessStore.getState();
+    const admission = requestImportAdmission(sourcePaths, destinationFolder);
+
+    if (admission.kind === 'busy') {
+      // Leave the running import's state untouched.
+      toast.error(IMPORT_ALREADY_RUNNING_MESSAGE, { toastId: 'import-already-running' });
+      return;
+    }
+    if (admission.kind === 'invalid' || admission.kind === 'notReady') {
+      const errorMessage = admission.kind === 'invalid' ? admission.message : IMPORT_NOT_READY_MESSAGE;
+      setImportState({ status: Status.Error, errorMessage, path: '', progress: { current: 0, total: 0 } });
+      toast.error(errorMessage, { toastId: 'import-not-started' });
+      return;
+    }
+
+    const { runId, total, listenerGeneration } = admission;
+    setImportState({ status: Status.Importing, errorMessage: '', path: '', progress: { current: 0, total } });
 
     try {
-      await invoke(Invokes.ImportFiles, { destinationFolder, settings, sourcePaths });
+      // Resolution only means the batch was queued; results arrive as import events.
+      await invoke(Invokes.ImportFiles, { destinationFolder, settings, sourcePaths, runId });
     } catch (err) {
+      const failure = failImportInvocation(runId, listenerGeneration, err);
+      if (!failure) return;
       console.error('Failed to start import:', err);
-      useProcessStore
-        .getState()
-        .setImportState({ status: Status.Error, errorMessage: `Failed to start import: ${err}` });
+      useProcessStore.getState().setImportState({ status: Status.Error, errorMessage: failure.errorMessage });
+      toast.error(failure.errorMessage, { toastId: `import-${runId}` });
     }
   }, []);
 
@@ -402,6 +460,7 @@ export function useFileOperations(
   return {
     executeDelete,
     handleDeleteSelected,
+    handleDeleteRejected,
     handleCreateFolder,
     handleRenameFolder,
     handleSaveRename,

@@ -19,6 +19,7 @@ dist-ssr
 !.vscode/settings.json
 .idea
 .DS_Store
+patch.txt
 *.suo
 *.ntvs*
 *.njsproj
@@ -41,3 +42,7 @@ src-tauri/libs/
 
 # bench/replay.js result dumps
 bench/out/
+
+# Cobalt DCP test assets (vendor files, never committed) - keep only the README
+test-assets/*
+!test-assets/README.md

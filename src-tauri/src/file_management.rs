@@ -9,7 +9,7 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use anyhow::Result;
@@ -17,7 +17,7 @@ use chrono::{DateTime, Utc};
 use image::codecs::jpeg::JpegEncoder;
 use image::{DynamicImage, GenericImageView, ImageBuffer, Luma};
 use rayon::prelude::*;
-use regex::Regex;
+use regex::regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sysinfo::Disks;
@@ -30,15 +30,20 @@ use crate::PendingMetadata;
 #[cfg(target_os = "android")]
 use crate::android_integration::*;
 use crate::app_settings::*;
+use crate::as_shot::as_shot;
+use crate::baseline_exposure::BaselineOptions;
 use crate::exif_processing;
-use crate::formats::{is_raw_file, is_supported_image_file};
+use crate::formats::{
+    ImageContentIssue, is_raw_file, is_supported_image_file, validate_image_content,
+};
 use crate::gpu_processing;
 use crate::image_loader;
 use crate::image_processing::GpuContext;
 use crate::image_processing::{
-    Crop, ImageMetadata, apply_coarse_rotation, apply_cpu_default_raw_processing, apply_crop,
-    apply_flip, apply_geometry_warp, apply_rotation, auto_results_to_json,
-    get_all_adjustments_from_json, perform_auto_analysis,
+    Crop, ImageFlag, ImageMetadata, apply_coarse_rotation, apply_cpu_default_raw_processing,
+    apply_crop, apply_exposure, apply_flip, apply_geometry_warp, apply_rotation,
+    auto_results_to_json, default_adjustments, effective_baseline_exposure,
+    get_all_adjustments_from_json, perform_auto_analysis, resolve_render_options,
 };
 use crate::mask_generation::MaskDefinition;
 use crate::preset_converter;
@@ -85,6 +90,7 @@ struct ImageFileMetadata {
     is_edited: bool,
     tags: Option<Vec<String>>,
     rating: u8,
+    flag: Option<ImageFlag>,
     is_raw: bool,
 }
 
@@ -111,6 +117,7 @@ fn resolve_image_metadata(
         is_edited,
         tags: metadata.tags,
         rating: metadata.rating,
+        flag: metadata.flag,
         is_raw,
     }
 }
@@ -119,12 +126,13 @@ fn emit_image_metadata_loaded(
     app_handle: &AppHandle,
     path: &str,
     rating: u8,
+    flag: Option<ImageFlag>,
     is_edited: bool,
     tags: &Option<Vec<String>>,
 ) {
     let _ = app_handle.emit(
         "image-metadata-loaded",
-        serde_json::json!({ "path": path, "rating": rating, "is_edited": is_edited, "tags": tags }),
+        serde_json::json!({ "path": path, "rating": rating, "flag": flag, "is_edited": is_edited, "tags": tags }),
     );
 }
 
@@ -188,6 +196,7 @@ pub fn start_metadata_workers(app_handle: tauri::AppHandle) {
                     &app_clone,
                     &item.virtual_path,
                     metadata.rating,
+                    metadata.flag,
                     metadata.is_edited,
                     &metadata.tags,
                 );
@@ -284,6 +293,7 @@ pub struct ImageFile {
     modified: u64,
     is_edited: bool,
     rating: u8,
+    flag: Option<ImageFlag>,
     tags: Option<Vec<String>>,
     exif: Option<HashMap<String, String>>,
     is_virtual_copy: bool,
@@ -400,7 +410,7 @@ pub fn parse_virtual_path(virtual_path: &str) -> (PathBuf, PathBuf) {
                 .file_name()
                 .unwrap_or_default()
                 .to_string_lossy(),
-            &id
+            id
         )
     } else {
         format!(
@@ -657,6 +667,7 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
                         is_edited: false,
                         tags: None,
                         rating: 0,
+                        flag: None,
                         is_raw: crate::formats::is_raw_file(&path_buf),
                     }
                 } else {
@@ -673,6 +684,7 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
                     is_raw: metadata.is_raw,
                     group_id: None,
                     rating: metadata.rating,
+                    flag: metadata.flag,
                     is_cloud_placeholder,
                 });
             }
@@ -790,6 +802,7 @@ pub fn list_images_recursive(
                         is_edited: false,
                         tags: None,
                         rating: 0,
+                        flag: None,
                         is_raw: crate::formats::is_raw_file(&path_buf),
                     }
                 } else {
@@ -806,6 +819,7 @@ pub fn list_images_recursive(
                     is_raw: metadata.is_raw,
                     group_id: None,
                     rating: metadata.rating,
+                    flag: metadata.flag,
                     is_cloud_placeholder,
                 });
             }
@@ -1061,6 +1075,7 @@ pub fn get_album_images(
                     is_edited: false,
                     tags: None,
                     rating: 0,
+                    flag: None,
                     is_raw: crate::formats::is_raw_file(&source_path),
                 }
             } else {
@@ -1077,6 +1092,7 @@ pub fn get_album_images(
                 is_raw: metadata.is_raw,
                 group_id: None,
                 rating: metadata.rating,
+                flag: metadata.flag,
                 is_cloud_placeholder,
             })
         })
@@ -1424,21 +1440,14 @@ fn apply_exif_orientation(img: DynamicImage, orientation: u32) -> DynamicImage {
     }
 }
 
-fn try_load_embedded_raw_preview(source_path: &Path, target_res: u32) -> Option<DynamicImage> {
-    let mmap = read_file_mapped(source_path).ok()?;
-    let exif = exif_processing::read_exif(&mmap)?;
-
-    let (jpeg_bytes, ifd) = find_embedded_jpeg(&exif, exif::In::PRIMARY)
+fn exif_embedded_preview(exif: &exif::Exif) -> Option<DynamicImage> {
+    let (jpeg_bytes, ifd) = find_embedded_jpeg(exif, exif::In::PRIMARY)
         .map(|b| (b, exif::In::PRIMARY))
         .or_else(|| {
-            find_embedded_jpeg(&exif, exif::In::THUMBNAIL).map(|b| (b, exif::In::THUMBNAIL))
+            find_embedded_jpeg(exif, exif::In::THUMBNAIL).map(|b| (b, exif::In::THUMBNAIL))
         })?;
 
     let img = image::load_from_memory_with_format(jpeg_bytes, image::ImageFormat::Jpeg).ok()?;
-
-    if img.width().max(img.height()) < (target_res as f32 * 0.95) as u32 {
-        return None;
-    }
 
     let orientation = exif
         .get_field(exif::Tag::Orientation, ifd)
@@ -1446,6 +1455,19 @@ fn try_load_embedded_raw_preview(source_path: &Path, target_res: u32) -> Option<
         .unwrap_or(1);
 
     Some(apply_exif_orientation(img, orientation))
+}
+
+fn try_load_embedded_raw_preview(source_path: &Path, target_res: u32) -> Option<DynamicImage> {
+    let mmap = read_file_mapped(source_path).ok()?;
+
+    let preview = match exif_processing::read_exif(&mmap) {
+        Some(exif) => exif_embedded_preview(&exif)?,
+        None => {
+            image_loader::safe_embedded_preview_fallback(&mmap, &source_path.to_string_lossy())?
+        }
+    };
+
+    (preview.width().max(preview.height()) >= (target_res as f32 * 0.95) as u32).then_some(preview)
 }
 
 pub fn generate_thumbnail_data(
@@ -1476,11 +1498,19 @@ pub fn generate_thumbnail_data(
         .as_ref()
         .map_or(serde_json::Value::Null, |m| m.adjustments.clone());
 
+    // A preloaded upstream RGB image cannot substitute for camera-native profile development.
+    let profile_registry = app_handle.state::<AppState>().profile_registry.clone();
+    let preloaded_image =
+        if crate::dcp::pipeline::has_selected_profile(&adjustments).map_err(anyhow::Error::msg)? {
+            None
+        } else {
+            preloaded_image
+        };
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
     let always_decode_raw = settings.always_decode_raw_thumbnails.unwrap_or(false);
 
     if is_raw && adjustments.is_null() && preloaded_image.is_none() && !always_decode_raw {
-        let target_res = settings.thumbnail_resolution.unwrap_or(720);
+        let target_res = settings.medium_thumbnail_resolution.unwrap_or(1280);
         if let Some(preview) = try_load_embedded_raw_preview(&source_path, target_res) {
             return Ok(preview);
         }
@@ -1490,13 +1520,13 @@ pub fn generate_thumbnail_data(
         && !meta.adjustments.is_null()
     {
         let state = app_handle.state::<AppState>();
-        let target_res = settings.thumbnail_resolution.unwrap_or(720);
+        let target_res = settings.medium_thumbnail_resolution.unwrap_or(1280);
 
         let base_cache_hash = crate::cache_utils::calculate_thumbnail_base_hash(&meta.adjustments);
 
         let crop_data: Option<Crop> = serde_json::from_value(meta.adjustments["crop"].clone()).ok();
 
-        let cached_base: Option<(DynamicImage, f32)> = {
+        let cached_base: Option<(Arc<DynamicImage>, f32)> = {
             let cache = state.thumbnail_geometry_cache.lock().unwrap();
             if let Some((cached_hash, img, scale)) = cache.get(path_str) {
                 let mut sufficient_resolution = true;
@@ -1512,7 +1542,7 @@ pub fn generate_thumbnail_data(
                 }
 
                 if *cached_hash == base_cache_hash && sufficient_resolution {
-                    Some((img.clone(), *scale))
+                    Some((Arc::clone(img), *scale))
                 } else {
                     None
                 }
@@ -1521,8 +1551,8 @@ pub fn generate_thumbnail_data(
             }
         };
 
-        let (processing_base, total_scale) = if let Some(hit) = cached_base {
-            hit
+        let (processing_base_arc, total_scale) = if let Some((arc_img, scale)) = cached_base {
+            (arc_img, scale)
         } else {
             let mut raw_scale_factor = 1.0f32;
 
@@ -1553,12 +1583,13 @@ pub fn generate_thumbnail_data(
                     }
                 };
 
-                let img = image_loader::load_and_composite(
+                let img = image_loader::load_and_composite_with_profiles(
                     file_slice,
                     &source_path_str,
                     &adjustments,
                     true,
                     &settings,
+                    &profile_registry,
                     None,
                 )?;
 
@@ -1575,7 +1606,9 @@ pub fn generate_thumbnail_data(
             let warped_image =
                 apply_geometry_warp(Cow::Borrowed(&composite_image), &meta.adjustments);
 
-            let blurred_image = crate::lens_blur::apply_lens_blur(warped_image, &meta.adjustments);
+            let relit_image = crate::relight::apply_relight(warped_image, &meta.adjustments);
+            let fogged_image = crate::fog::apply_fog(relit_image, &meta.adjustments);
+            let blurred_image = crate::lens_blur::apply_lens_blur(fogged_image, &meta.adjustments);
 
             let orientation_steps =
                 meta.adjustments["orientationSteps"].as_u64().unwrap_or(0) as u8;
@@ -1616,15 +1649,20 @@ pub fn generate_thumbnail_data(
             let total_scale = gpu_scale * raw_scale_factor;
 
             let mut cache = state.thumbnail_geometry_cache.lock().unwrap();
-            if cache.len() > 30 {
-                cache.clear();
+            if cache.len() >= 8 {
+                let key_to_remove = cache.keys().next().cloned();
+                if let Some(key) = key_to_remove {
+                    cache.remove(&key);
+                }
             }
+
+            let base_arc = Arc::new(base);
             cache.insert(
                 path_str.to_string(),
-                (base_cache_hash, base.clone(), total_scale),
+                (base_cache_hash, Arc::clone(&base_arc), total_scale),
             );
 
-            (base, total_scale)
+            (base_arc, total_scale)
         };
 
         let rotation_degrees = meta.adjustments["rotation"].as_f64().unwrap_or(0.0) as f32;
@@ -1633,7 +1671,11 @@ pub fn generate_thumbnail_data(
             .unwrap_or(false);
         let flip_vertical = meta.adjustments["flipVertical"].as_bool().unwrap_or(false);
 
-        let flipped_image = apply_flip(Cow::Owned(processing_base), flip_horizontal, flip_vertical);
+        let flipped_image = apply_flip(
+            Cow::Borrowed(&*processing_base_arc),
+            flip_horizontal,
+            flip_vertical,
+        );
         let rotated_image = apply_rotation(flipped_image, rotation_degrees);
 
         let scaled_crop_json = if let Some(c) = &crop_data {
@@ -1663,6 +1705,7 @@ pub fn generate_thumbnail_data(
             .filter_map(|def| {
                 crate::get_cached_or_generate_mask(
                     &state,
+                    path_str,
                     def,
                     preview_w,
                     preview_h,
@@ -1676,8 +1719,12 @@ pub fn generate_thumbnail_data(
             })
             .collect();
 
-        let tm_override = crate::image_processing::resolve_tonemapper_override(&settings, is_raw);
-        let gpu_adjustments = get_all_adjustments_from_json(&meta.adjustments, is_raw, tm_override);
+        let gpu_adjustments = get_all_adjustments_from_json(
+            &meta.adjustments,
+            is_raw,
+            as_shot(&source_path_str),
+            resolve_render_options(&settings, is_raw),
+        );
         let lut_path = meta.adjustments["lutPath"].as_str();
         let lut = lut_path.and_then(|p| {
             let mut cache = state.lut_cache.lock().unwrap();
@@ -1707,6 +1754,7 @@ pub fn generate_thumbnail_data(
                 mask_bitmaps: &mask_bitmaps,
                 lut,
                 roi: None,
+                dcp_textures: None,
             },
             "generate_thumbnail_data",
         ) {
@@ -1720,23 +1768,25 @@ pub fn generate_thumbnail_data(
         image_loader::composite_patches_on_image(img, &adjustments)?
     } else {
         match read_file_mapped(&source_path) {
-            Ok(mmap) => image_loader::load_and_composite(
+            Ok(mmap) => image_loader::load_and_composite_with_profiles(
                 &mmap,
                 &source_path_str,
                 &adjustments,
                 true,
                 &settings,
+                &profile_registry,
                 None,
             )?,
             Err(e) => {
                 log::warn!("Fallback read for {}: {}", source_path_str, e);
                 let bytes = fs::read(&source_path)?;
-                image_loader::load_and_composite(
+                image_loader::load_and_composite_with_profiles(
                     &bytes,
                     &source_path_str,
                     &adjustments,
                     true,
                     &settings,
+                    &profile_registry,
                     None,
                 )?
             }
@@ -1744,15 +1794,14 @@ pub fn generate_thumbnail_data(
     };
 
     if adjustments.is_null() {
-        let default_tm = if is_raw {
-            settings.default_raw_tonemapper.as_deref().unwrap_or("agx")
-        } else {
-            settings
-                .default_non_raw_tonemapper
-                .as_deref()
-                .unwrap_or("basic")
-        };
-        if default_tm == "agx" {
+        let render = resolve_render_options(&settings, is_raw);
+        final_image = apply_exposure(
+            final_image,
+            effective_baseline_exposure(&adjustments, as_shot(&source_path_str), render.baseline),
+        );
+        let use_agx = render.tonemapper_override == Some(1);
+
+        if use_agx {
             if !is_raw {
                 final_image = crate::image_processing::apply_srgb_to_linear(final_image);
             }
@@ -1782,7 +1831,7 @@ fn generate_single_thumbnail_and_cache(
     force_regenerate: bool,
     app_handle: &AppHandle,
     settings: &AppSettings,
-) -> Option<(String, u8, bool)> {
+) -> Option<(String, String, u8, bool)> {
     let (source_path, sidecar_path) = parse_virtual_path(path_str);
 
     let (rating, is_edited, adjustments_bytes) = if is_cloud_placeholder(&sidecar_path) {
@@ -1797,7 +1846,6 @@ fn generate_single_thumbnail_and_cache(
         if let Ok(meta) = serde_json::from_str::<ImageMetadata>(&content) {
             let is_raw = crate::formats::is_raw_file(path_str);
             let tm = crate::image_processing::resolve_tonemapper_override(settings, is_raw);
-
             (
                 meta.rating,
                 crate::image_processing::is_image_edited(&meta.adjustments, is_raw, tm),
@@ -1812,32 +1860,49 @@ fn generate_single_thumbnail_and_cache(
 
     let cache_hash = compute_thumbnail_cache_hash(path_str, &adjustments_bytes)?;
 
-    let cache_filename = format!("{}.jpg", cache_hash);
-    let cache_path = thumb_cache_dir.join(cache_filename);
+    let small_path = thumb_cache_dir.join(format!("{}_small.jpg", cache_hash));
+    let medium_path = thumb_cache_dir.join(format!("{}_medium.jpg", cache_hash));
 
-    if !force_regenerate && cache_path.exists() {
-        return Some((cache_path.to_string_lossy().into_owned(), rating, is_edited));
+    if !force_regenerate && small_path.exists() && medium_path.exists() {
+        return Some((
+            small_path.to_string_lossy().into_owned(),
+            medium_path.to_string_lossy().into_owned(),
+            rating,
+            is_edited,
+        ));
     }
 
     if is_cloud_placeholder(&source_path) {
         return None;
     }
 
-    let target_width = settings.thumbnail_resolution.unwrap_or(720);
+    let target_width_small = settings.small_thumbnail_resolution.unwrap_or(480);
+    let target_width_medium = settings.medium_thumbnail_resolution.unwrap_or(1280);
 
     if let Ok(thumb_image) =
         generate_thumbnail_data(path_str, gpu_context, preloaded_image, app_handle)
-        && let Ok(thumb_data) = encode_thumbnail(&thumb_image, target_width)
+        && let (Ok(small_data), Ok(medium_data)) = (
+            encode_thumbnail(&thumb_image, target_width_small),
+            encode_thumbnail(&thumb_image, target_width_medium),
+        )
     {
-        let _ = fs::write(&cache_path, &thumb_data);
-        return Some((cache_path.to_string_lossy().into_owned(), rating, is_edited));
+        let _ = fs::write(&small_path, &small_data);
+        let _ = fs::write(&medium_path, &medium_data);
+        return Some((
+            small_path.to_string_lossy().into_owned(),
+            medium_path.to_string_lossy().into_owned(),
+            rating,
+            is_edited,
+        ));
     }
     None
 }
 
 fn prefetch_source_file(path_str: &str) {
     let (source_path, _) = parse_virtual_path(path_str);
-    let _ = fs::read(&source_path);
+    if let Ok(mut file) = std::fs::File::open(&source_path) {
+        let _ = std::io::copy(&mut file, &mut std::io::sink());
+    }
 }
 
 pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
@@ -1849,7 +1914,6 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
     for _ in 0..thread_count {
         let app_clone = app_handle.clone();
         let manager_clone = manager.clone();
-        let worker_settings = settings.clone();
 
         std::thread::spawn(move || {
             loop {
@@ -1874,6 +1938,8 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
                 let gpu_context =
                     crate::gpu_processing::get_or_init_gpu_context(&state, &app_clone).ok();
 
+                let current_settings = load_settings(app_clone.clone()).unwrap_or_default();
+
                 if let Ok(cache_dir) = get_thumb_cache_dir(&app_clone) {
                     if manager_clone.rotational_disk.load(Ordering::Relaxed) {
                         let _io_permit = manager_clone.io_gate.lock().unwrap();
@@ -1887,14 +1953,15 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
                         None,
                         false,
                         &app_clone,
-                        &worker_settings,
+                        &current_settings,
                     );
 
-                    if let Some((thumbnail_path, rating, is_edited)) = result {
+                    if let Some((small_path, medium_path, rating, is_edited)) = result {
                         emit_thumbnail_generated(
                             &app_clone,
                             &path_to_process,
-                            &thumbnail_path,
+                            &small_path,
+                            &medium_path,
                             rating,
                             is_edited,
                         );
@@ -2024,13 +2091,20 @@ pub fn increment_thumbnail_progress(state: &AppState, app_handle: &AppHandle) {
 fn emit_thumbnail_generated(
     app_handle: &AppHandle,
     path: &str,
-    thumbnail_path: &str,
+    small_thumbnail_path: &str,
+    medium_thumbnail_path: &str,
     rating: u8,
     is_edited: bool,
 ) {
     let _ = app_handle.emit(
         "thumbnail-generated",
-        serde_json::json!({ "path": path, "thumbnailPath": thumbnail_path, "rating": rating, "is_edited": is_edited }),
+        serde_json::json!({
+            "path": path,
+            "thumbnailPath": small_thumbnail_path,
+            "previewPath": medium_thumbnail_path,
+            "rating": rating,
+            "is_edited": is_edited
+        }),
     );
 }
 
@@ -2049,9 +2123,15 @@ pub fn resolve_lens_params_in_adjustments(
             if let Some(exif) = exif_data {
                 let exif_maker = exif.get("Make").map(|s| s.as_str()).unwrap_or("");
                 let exif_model = exif.get("LensModel").map(|s| s.as_str()).unwrap_or("");
+                let exif_camera_model = exif.get("Model").map(|s| s.as_str()).unwrap_or("");
                 if let Some(db) = lens_db {
                     if let Some((detected_maker, detected_model)) =
-                        crate::lens_correction::find_best_lens_match(db, exif_maker, exif_model)
+                        crate::lens_correction::find_best_lens_match(
+                            db,
+                            exif_maker,
+                            exif_model,
+                            exif_camera_model,
+                        )
                     {
                         map.insert(
                             "lensMaker".to_string(),
@@ -2492,7 +2572,7 @@ pub fn save_metadata_and_update_thumbnail(
 ) -> Result<(), String> {
     let (source_path, sidecar_path) = parse_virtual_path(&path);
 
-    let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
+    let mut metadata = crate::exif_processing::load_sidecar_with_exif(&sidecar_path, &source_path);
 
     let mut final_adjustments = adjustments;
     {
@@ -2562,11 +2642,12 @@ pub fn save_metadata_and_update_thumbnail(
             &settings,
         );
 
-        if let Some((thumbnail_path, rating, is_edited)) = result {
+        if let Some((small_path, medium_path, rating, is_edited)) = result {
             emit_thumbnail_generated(
                 &app_handle_clone,
                 &path_clone,
-                &thumbnail_path,
+                &small_path,
+                &medium_path,
                 rating,
                 is_edited,
             );
@@ -2600,13 +2681,14 @@ pub async fn apply_adjustments_to_paths(
             .clone();
 
         paths.par_iter().for_each(|path| {
-            let (_, sidecar_path) = parse_virtual_path(path);
+            let (source_path, sidecar_path) = parse_virtual_path(path);
 
-            let mut existing_metadata = crate::exif_processing::load_sidecar(&sidecar_path);
+            let mut existing_metadata =
+                crate::exif_processing::load_sidecar_with_exif(&sidecar_path, &source_path);
 
             let mut new_adjustments = existing_metadata.adjustments;
             if new_adjustments.is_null() {
-                new_adjustments = serde_json::json!({});
+                new_adjustments = default_adjustments();
             }
 
             if let (Some(new_map), Some(pasted_map)) =
@@ -2635,40 +2717,7 @@ pub async fn apply_adjustments_to_paths(
             }
         });
 
-        let state = app_handle.state::<AppState>();
-        let thumb_cache_dir = match resolve_thumbnail_cache_dir(&app_handle) {
-            Ok(dir) => dir,
-            Err(e) => {
-                log::warn!("Unable to initialize thumbnail cache directory: {}", e);
-                for path in &paths {
-                    emit_thumbnail_cache_setup_error(&app_handle, path, &e);
-                }
-                for _ in 0..paths.len() {
-                    increment_thumbnail_progress(&state, &app_handle);
-                }
-                return;
-            }
-        };
-
-        let gpu_context = gpu_processing::get_or_init_gpu_context(&state, &app_handle).ok();
-
-        paths.par_iter().for_each(|path_str| {
-            let result = generate_single_thumbnail_and_cache(
-                path_str,
-                &thumb_cache_dir,
-                gpu_context.as_ref(),
-                None,
-                true,
-                &app_handle,
-                &settings,
-            );
-
-            if let Some((thumbnail_path, rating, is_edited)) = result {
-                emit_thumbnail_generated(&app_handle, path_str, &thumbnail_path, rating, is_edited);
-            }
-
-            increment_thumbnail_progress(&state, &app_handle);
-        });
+        regenerate_thumbnails(&paths, &app_handle, &settings);
     });
 
     Ok(())
@@ -2692,7 +2741,7 @@ pub async fn reset_adjustments_for_paths(
 
             let mut existing_metadata = crate::exif_processing::load_sidecar(&sidecar_path);
 
-            existing_metadata.adjustments = serde_json::json!({});
+            existing_metadata.adjustments = default_adjustments();
 
             if let Ok(json_string) = serde_json::to_string_pretty(&existing_metadata) {
                 let _ = std::fs::write(&sidecar_path, json_string);
@@ -2704,40 +2753,110 @@ pub async fn reset_adjustments_for_paths(
             }
         });
 
-        let state = app_handle.state::<AppState>();
-        let thumb_cache_dir = match resolve_thumbnail_cache_dir(&app_handle) {
-            Ok(dir) => dir,
-            Err(e) => {
-                log::warn!("Unable to initialize thumbnail cache directory: {}", e);
-                for path in &paths {
-                    emit_thumbnail_cache_setup_error(&app_handle, path, &e);
-                }
-                for _ in 0..paths.len() {
-                    increment_thumbnail_progress(&state, &app_handle);
-                }
-                return;
+        regenerate_thumbnails(&paths, &app_handle, &settings);
+    });
+
+    Ok(())
+}
+
+fn regenerate_thumbnails(paths: &[String], app_handle: &AppHandle, settings: &AppSettings) {
+    let state = app_handle.state::<AppState>();
+    let thumb_cache_dir = match resolve_thumbnail_cache_dir(app_handle) {
+        Ok(dir) => dir,
+        Err(e) => {
+            log::warn!("Unable to initialize thumbnail cache directory: {}", e);
+            for path in paths {
+                emit_thumbnail_cache_setup_error(app_handle, path, &e);
             }
-        };
+            for _ in 0..paths.len() {
+                increment_thumbnail_progress(&state, app_handle);
+            }
+            return;
+        }
+    };
 
-        let gpu_context = gpu_processing::get_or_init_gpu_context(&state, &app_handle).ok();
+    let gpu_context = gpu_processing::get_or_init_gpu_context(&state, app_handle).ok();
 
-        paths.par_iter().for_each(|path_str| {
-            let result = generate_single_thumbnail_and_cache(
+    paths.par_iter().for_each(|path_str| {
+        let result = generate_single_thumbnail_and_cache(
+            path_str,
+            &thumb_cache_dir,
+            gpu_context.as_ref(),
+            None,
+            true,
+            app_handle,
+            settings,
+        );
+
+        if let Some((small_path, medium_path, rating, is_edited)) = result {
+            emit_thumbnail_generated(
+                app_handle,
                 path_str,
-                &thumb_cache_dir,
-                gpu_context.as_ref(),
-                None,
-                true,
-                &app_handle,
-                &settings,
+                &small_path,
+                &medium_path,
+                rating,
+                is_edited,
+            );
+        }
+
+        increment_thumbnail_progress(&state, app_handle);
+    });
+}
+
+#[tauri::command]
+pub async fn apply_auto_lens_correction_to_paths(
+    paths: Vec<String>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    let settings = load_settings(app_handle.clone()).unwrap_or_default();
+    let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
+    let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
+    let lens_db = app_handle
+        .state::<AppState>()
+        .lens_db
+        .lock()
+        .unwrap()
+        .clone();
+
+    let sidecar_paths = paths.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        sidecar_paths.par_iter().for_each(|path| {
+            let (source_path, sidecar_path) = parse_virtual_path(path);
+            let mut existing_metadata =
+                crate::exif_processing::load_sidecar_with_exif(&sidecar_path, &source_path);
+
+            if existing_metadata.adjustments.is_null() {
+                existing_metadata.adjustments = default_adjustments();
+            }
+
+            if let Some(obj) = existing_metadata.adjustments.as_object_mut() {
+                obj.insert("lensCorrectionMode".to_string(), serde_json::json!("auto"));
+                obj.insert("lensDistortionEnabled".to_string(), serde_json::json!(true));
+                obj.insert("lensTcaEnabled".to_string(), serde_json::json!(true));
+                obj.insert("lensVignetteEnabled".to_string(), serde_json::json!(true));
+            }
+
+            resolve_lens_params_in_adjustments(
+                &mut existing_metadata.adjustments,
+                &existing_metadata.exif,
+                lens_db.as_deref(),
             );
 
-            if let Some((thumbnail_path, rating, is_edited)) = result {
-                emit_thumbnail_generated(&app_handle, path_str, &thumbnail_path, rating, is_edited);
+            if let Ok(json_string) = serde_json::to_string_pretty(&existing_metadata) {
+                let _ = std::fs::write(&sidecar_path, json_string);
             }
 
-            increment_thumbnail_progress(&state, &app_handle);
+            if enable_xmp_sync {
+                sync_metadata_to_xmp(&source_path, &existing_metadata, create_xmp_if_missing);
+            }
         });
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    add_to_thumbnail_queue(&app_handle.state::<AppState>(), paths.len(), &app_handle);
+    tauri::async_runtime::spawn_blocking(move || {
+        regenerate_thumbnails(&paths, &app_handle, &settings)
     });
 
     Ok(())
@@ -2788,14 +2907,21 @@ pub async fn apply_auto_adjustments_to_paths(
                 )
                 .map_err(|e| e.to_string())?;
 
-                let auto_results = perform_auto_analysis(&image);
-                let auto_adjustments_json = auto_results_to_json(&auto_results);
-
                 let mut existing_metadata = crate::exif_processing::load_sidecar(&sidecar_path);
 
                 if existing_metadata.adjustments.is_null() {
-                    existing_metadata.adjustments = serde_json::json!({});
+                    existing_metadata.adjustments = default_adjustments();
                 }
+
+                let auto_results = perform_auto_analysis(
+                    &image,
+                    effective_baseline_exposure(
+                        &existing_metadata.adjustments,
+                        as_shot(&source_path_str),
+                        BaselineOptions::from_settings(&settings),
+                    ),
+                );
+                let auto_adjustments_json = auto_results_to_json(&auto_results);
 
                 if let (Some(existing_map), Some(auto_map)) = (
                     existing_metadata.adjustments.as_object_mut(),
@@ -2842,8 +2968,15 @@ pub async fn apply_auto_adjustments_to_paths(
                 &settings,
             );
 
-            if let Some((thumbnail_path, rating, is_edited)) = result {
-                emit_thumbnail_generated(&app_handle, path, &thumbnail_path, rating, is_edited);
+            if let Some((small_path, medium_path, rating, is_edited)) = result {
+                emit_thumbnail_generated(
+                    &app_handle,
+                    path,
+                    &small_path,
+                    &medium_path,
+                    rating,
+                    is_edited,
+                );
             }
 
             increment_thumbnail_progress(&state, &app_handle);
@@ -2853,22 +2986,40 @@ pub async fn apply_auto_adjustments_to_paths(
     Ok(())
 }
 
+fn update_metadata_for_paths(
+    paths: &[String],
+    app_handle: &AppHandle,
+    update: impl Fn(&mut ImageMetadata) + Sync,
+) {
+    let settings = load_settings(app_handle.clone()).unwrap_or_default();
+    let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
+    let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
+
+    paths.par_iter().for_each(|path| {
+        let (source_path, sidecar_path) = parse_virtual_path(path);
+
+        let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
+
+        update(&mut metadata);
+
+        if let Ok(json_string) = serde_json::to_string_pretty(&metadata) {
+            let _ = std::fs::write(&sidecar_path, json_string);
+        }
+
+        if enable_xmp_sync {
+            sync_metadata_to_xmp(&source_path, &metadata, create_xmp_if_missing);
+        }
+    });
+}
+
 #[tauri::command]
 pub fn set_color_label_for_paths(
     paths: Vec<String>,
     color: Option<String>,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let settings = load_settings(app_handle.clone()).unwrap_or_default();
-    let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
-    let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
-
-    paths.par_iter().for_each(|path| {
-        let (_, sidecar_path) = parse_virtual_path(path);
-
-        let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
-
-        let mut tags = metadata.tags.unwrap_or_default();
+    update_metadata_for_paths(&paths, &app_handle, |metadata| {
+        let mut tags = metadata.tags.take().unwrap_or_default();
         tags.retain(|tag| !tag.starts_with(COLOR_TAG_PREFIX));
 
         if let Some(c) = &color
@@ -2877,19 +3028,8 @@ pub fn set_color_label_for_paths(
             tags.push(format!("{}{}", COLOR_TAG_PREFIX, c));
         }
 
-        if tags.is_empty() {
-            metadata.tags = None;
-        } else {
+        if !tags.is_empty() {
             metadata.tags = Some(tags);
-        }
-
-        if let Ok(json_string) = serde_json::to_string_pretty(&metadata) {
-            let _ = std::fs::write(&sidecar_path, json_string);
-        }
-
-        if enable_xmp_sync {
-            let source_path = parse_virtual_path(path).0;
-            sync_metadata_to_xmp(&source_path, &metadata, create_xmp_if_missing);
         }
     });
 
@@ -2902,25 +3042,24 @@ pub fn set_rating_for_paths(
     rating: u8,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let settings = load_settings(app_handle.clone()).unwrap_or_default();
-    let enable_xmp_sync = settings.enable_xmp_sync.unwrap_or(false);
-    let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
-
-    paths.par_iter().for_each(|path| {
-        let (_, sidecar_path) = parse_virtual_path(path);
-
-        let mut metadata = crate::exif_processing::load_sidecar(&sidecar_path);
-
+    update_metadata_for_paths(&paths, &app_handle, |metadata| {
         metadata.rating = rating;
-
-        if let Ok(json_string) = serde_json::to_string_pretty(&metadata) {
-            let _ = std::fs::write(&sidecar_path, json_string);
+        if rating > 0 && metadata.flag == Some(ImageFlag::Reject) {
+            metadata.flag = None;
         }
+    });
 
-        if enable_xmp_sync {
-            let source_path = parse_virtual_path(path).0;
-            sync_metadata_to_xmp(&source_path, &metadata, create_xmp_if_missing);
-        }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_flag_for_paths(
+    paths: Vec<String>,
+    flag: Option<ImageFlag>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    update_metadata_for_paths(&paths, &app_handle, |metadata| {
+        metadata.flag = flag;
     });
 
     Ok(())
@@ -3035,9 +3174,7 @@ fn parse_preset_file(file_path: &str) -> Result<Vec<PresetItem>, String> {
         .map_err(|e| format!("Failed to read legacy preset file: {}", e))?;
 
     let xmp_content = if lower_path.ends_with(".lrtemplate") {
-        let re = Regex::new(r#"(?s)s.xmp = "(.*)""#)
-            .map_err(|e| format!("Regex compilation failed: {}", e))?;
-        if let Some(caps) = re.captures(&content) {
+        if let Some(caps) = regex!(r#"(?s)s.xmp = "(.*)""#).captures(&content) {
             caps.get(1)
                 .map(|m| m.as_str().replace(r#"\""#, r#"""#))
                 .unwrap_or(content)
@@ -3536,11 +3673,11 @@ pub fn get_cached_or_generate_thumbnail_image(
 ) -> Result<DynamicImage> {
     let thumb_cache_dir = get_thumb_cache_dir(app_handle).map_err(|e| anyhow::anyhow!(e))?;
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
-    let target_width = settings.thumbnail_resolution.unwrap_or(720);
+    let target_width_small = settings.small_thumbnail_resolution.unwrap_or(480);
+    let target_width_medium = settings.medium_thumbnail_resolution.unwrap_or(1280);
 
     if let Some(cache_hash) = get_cache_key_hash(path_str) {
-        let cache_filename = format!("{}.jpg", cache_hash);
-        let cache_path = thumb_cache_dir.join(cache_filename);
+        let cache_path = thumb_cache_dir.join(format!("{}_medium.jpg", cache_hash));
 
         if cache_path.exists() {
             if let Ok(image) = image::open(&cache_path) {
@@ -3553,8 +3690,19 @@ pub fn get_cached_or_generate_thumbnail_image(
         }
 
         let thumb_image = generate_thumbnail_data(path_str, gpu_context, None, app_handle)?;
-        let thumb_data = encode_thumbnail(&thumb_image, target_width)?;
-        fs::write(&cache_path, &thumb_data)?;
+        if let (Ok(small_data), Ok(medium_data)) = (
+            encode_thumbnail(&thumb_image, target_width_small),
+            encode_thumbnail(&thumb_image, target_width_medium),
+        ) {
+            let _ = fs::write(
+                thumb_cache_dir.join(format!("{}_small.jpg", cache_hash)),
+                &small_data,
+            );
+            let _ = fs::write(
+                thumb_cache_dir.join(format!("{}_medium.jpg", cache_hash)),
+                &medium_data,
+            );
+        }
 
         Ok(thumb_image)
     } else {
@@ -3562,196 +3710,758 @@ pub fn get_cached_or_generate_thumbnail_image(
     }
 }
 
+/// Filesystem steps used to publish an imported file. Tests replace individual
+/// steps to inject failures; production uses `ImportStagingOps::default()`.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+struct ImportStagingOps<'a> {
+    write: &'a dyn Fn(&mut fs::File, &[u8]) -> std::io::Result<()>,
+    before_publish: &'a dyn Fn(&Path),
+    persist: &'a dyn Fn(&Path, &Path) -> std::io::Result<()>,
+    remove: &'a dyn Fn(&Path) -> std::io::Result<()>,
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn write_and_sync(file: &mut fs::File, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    file.write_all(bytes)?;
+    file.flush()?;
+    file.sync_all()
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn no_publish_hook(_: &Path) {}
+
+/// Never replaces an existing target. tempfile first tries an atomic
+/// no-replace rename; where unsupported it hard-links and then unlinks the
+/// temporary name, ignoring unlink errors (handled by the caller).
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn persist_without_replacing(temp: &Path, dest: &Path) -> std::io::Result<()> {
+    tempfile::TempPath::try_from_path(temp)?
+        .persist_noclobber(dest)
+        .map_err(|err| {
+            // The caller owns cleanup of the temporary file.
+            let _ = err.path.keep();
+            err.error
+        })
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn remove_path(path: &Path) -> std::io::Result<()> {
+    fs::remove_file(path)
+}
+
+impl Default for ImportStagingOps<'static> {
+    fn default() -> Self {
+        ImportStagingOps {
+            write: &write_and_sync,
+            before_publish: &no_publish_hook,
+            persist: &persist_without_replacing,
+            remove: &remove_path,
+        }
+    }
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn import_display_basename(name: &str) -> String {
+    Path::new(name)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| name.to_string())
+}
+
+/// Accepts bytes that were actually read only when they are nonempty and do not
+/// contradict the original display name. Other content is left to the decoders.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn validate_import_read(
+    display_name: &str,
+    read: Result<Vec<u8>, String>,
+    source_label: &str,
+) -> Result<Vec<u8>, String> {
+    let name = import_display_basename(display_name);
+    let bytes = read.map_err(|e| {
+        let detail = if source_label.is_empty() {
+            e
+        } else {
+            e.replace(source_label, "the selected item")
+        };
+        format!("Could not read “{}”: {}", name, detail)
+    })?;
+
+    match validate_image_content(display_name, &bytes) {
+        Ok(()) => Ok(bytes),
+        Err(ImageContentIssue::Empty) => Err(format!(
+            "No image data was read for “{}”. Select the original file and try again.",
+            name
+        )),
+        Err(issue) => Err(issue.open_error_message(display_name)),
+    }
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+struct PublishedImport {
+    path: PathBuf,
+    cleanup_warning: Option<String>,
+}
+
+/// Writes `bytes` to a hidden temporary file in `dest_dir` and publishes it as
+/// `file_name` without replacing anything. On failure no final file is created,
+/// existing files are untouched and only the owned temporary file is removed.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn publish_import_bytes(
+    dest_dir: &Path,
+    file_name: &str,
+    bytes: &[u8],
+    ops: &ImportStagingOps,
+) -> Result<PublishedImport, String> {
+    let dest = dest_dir.join(file_name);
+    let name = import_display_basename(file_name);
+
+    if fs::symlink_metadata(&dest).is_ok() {
+        return Err(format!(
+            "File already exists at destination: {}",
+            dest.display()
+        ));
+    }
+
+    let (mut file, temp_path) = tempfile::Builder::new()
+        .prefix(".rapidraw-import-")
+        .suffix(".tmp")
+        .tempfile_in(dest_dir)
+        .and_then(|temp| temp.keep().map_err(|e| e.error))
+        .map_err(|e| format!("Could not stage “{}”: {}", name, e))?;
+
+    let temp_name = import_display_basename(&temp_path.to_string_lossy());
+    // Removes the owned temporary file. Only success or NotFound proves it is
+    // gone; any other error (including an unreadable directory) is reported.
+    let remove_temp = || match (ops.remove)(&temp_path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Some(e),
+        _ => None,
+    };
+    let with_cleanup = |primary: String| -> String {
+        match remove_temp() {
+            None => primary,
+            Some(e) => format!(
+                "{} The temporary file “{}” could not be removed: {}",
+                primary, temp_name, e
+            ),
+        }
+    };
+
+    let written = (ops.write)(&mut file, bytes);
+    drop(file);
+    if let Err(e) = written {
+        return Err(with_cleanup(format!("Could not write “{}”: {}", name, e)));
+    }
+
+    (ops.before_publish)(&dest);
+
+    if let Err(e) = (ops.persist)(&temp_path, &dest) {
+        let primary = if e.kind() == std::io::ErrorKind::AlreadyExists {
+            format!("File already exists at destination: {}", dest.display())
+        } else {
+            format!("Could not publish “{}”: {}", name, e)
+        };
+        return Err(with_cleanup(primary));
+    }
+
+    // A rename leaves no temporary name (NotFound); the hard-link fallback can
+    // leave it behind. The published file is complete either way, so a cleanup
+    // failure is a warning, never a failed import.
+    let cleanup_warning = remove_temp().map(|e| {
+        format!(
+            "Imported “{}”, but the temporary file “{}” could not be removed: {}",
+            name, temp_name, e
+        )
+    });
+
+    Ok(PublishedImport {
+        path: dest,
+        cleanup_warning,
+    })
+}
+
+/// Android content-URI import of one item: validates the original display name
+/// against the bytes actually read, before any EXIF parsing (`creation_date`),
+/// naming or folder creation, then publishes those same bytes without replacing
+/// existing files.
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn import_content_bytes(
+    resolved_name: &str,
+    read: Result<Vec<u8>, String>,
+    source_label: &str,
+    creation_date: &dyn Fn(&str, &[u8]) -> DateTime<Utc>,
+    destination_folder: &str,
+    settings: &ImportSettings,
+    sequence: usize,
+    total: usize,
+    ops: &ImportStagingOps,
+) -> Result<PathBuf, String> {
+    let source_bytes = validate_import_read(resolved_name, read, source_label)?;
+    let source_name_path = Path::new(resolved_name);
+    let file_date = creation_date(resolved_name, &source_bytes);
+
+    let mut final_dest_folder = PathBuf::from(destination_folder);
+    if settings.organize_by_date {
+        let date_format_str = settings
+            .date_folder_format
+            .replace("YYYY", "%Y")
+            .replace("MM", "%m")
+            .replace("DD", "%d");
+        let subfolder = file_date.format(&date_format_str).to_string();
+        final_dest_folder.push(subfolder);
+    }
+
+    fs::create_dir_all(&final_dest_folder)
+        .map_err(|e| format!("Failed to create destination folder: {}", e))?;
+
+    let new_stem = generate_filename_from_template(
+        &settings.filename_template,
+        source_name_path,
+        sequence,
+        total,
+        &file_date,
+    );
+    let extension = source_name_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    let new_filename = format!("{}.{}", new_stem, extension);
+
+    let published = publish_import_bytes(&final_dest_folder, &new_filename, &source_bytes, ops)?;
+    if let Some(warning) = &published.cleanup_warning {
+        log::warn!("{}", warning);
+    }
+
+    Ok(published.path)
+}
+
+/// Highest count JavaScript represents exactly (`Number.MAX_SAFE_INTEGER`).
+const MAX_SAFE_JS_INTEGER: u64 = 9_007_199_254_740_991;
+const IMPORT_DETAIL_MAX_CHARS: usize = 256;
+const IMPORT_SUMMARY_MAX_CHARS: usize = 1024;
+const IMPORT_SUMMARY_MAX_DETAILS: usize = 3;
+
+/// Process-wide flag: at most one native import batch runs at a time.
+static IMPORT_RUN_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Owns the single-active import flag; releases it on drop, including unwind.
+struct ImportRunGuard {
+    flag: &'static AtomicBool,
+}
+
+impl ImportRunGuard {
+    fn try_acquire(flag: &'static AtomicBool) -> Option<Self> {
+        flag.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .ok()
+            .map(|_| ImportRunGuard { flag })
+    }
+}
+
+impl Drop for ImportRunGuard {
+    fn drop(&mut self) {
+        self.flag.store(false, Ordering::Release);
+    }
+}
+
+fn import_count_is_js_safe(count: usize) -> bool {
+    u64::try_from(count).is_ok_and(|count| count <= MAX_SAFE_JS_INTEGER)
+}
+
+fn is_canonical_run_id(run_id: &str) -> bool {
+    Uuid::parse_str(run_id).is_ok_and(|id| id.hyphenated().to_string() == run_id)
+}
+
+fn validate_import_request(
+    source_paths: &[String],
+    destination_folder: &str,
+    run_id: &str,
+) -> Result<(), String> {
+    if source_paths.is_empty() {
+        return Err("No files were selected for import.".to_string());
+    }
+    if destination_folder.trim().is_empty() {
+        return Err("No destination folder was selected for import.".to_string());
+    }
+    if !is_canonical_run_id(run_id) {
+        return Err("The import request has an invalid run ID.".to_string());
+    }
+    if !import_count_is_js_safe(source_paths.len()) {
+        return Err("Too many files were selected for import.".to_string());
+    }
+    Ok(())
+}
+
+/// Validates a request, then claims the single-active flag. Neither step emits
+/// events or touches files.
+fn admit_import_run(
+    source_paths: &[String],
+    destination_folder: &str,
+    run_id: &str,
+    flag: &'static AtomicBool,
+) -> Result<ImportRunGuard, String> {
+    validate_import_request(source_paths, destination_folder, run_id)?;
+    ImportRunGuard::try_acquire(flag).ok_or_else(|| "An import is already running.".to_string())
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct ImportStartPayload {
+    run_id: String,
+    total: u64,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct ImportProgressPayload {
+    run_id: String,
+    total: u64,
+    current: u64,
+    path: String,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct ImportItemErrorPayload {
+    run_id: String,
+    total: u64,
+    failed: u64,
+    error_message: String,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct ImportCompletePayload {
+    run_id: String,
+    total: u64,
+    imported: u64,
+    failed: u64,
+    error_message: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ImportEvent {
+    Start(ImportStartPayload),
+    Progress(ImportProgressPayload),
+    ItemError(ImportItemErrorPayload),
+    Complete(ImportCompletePayload),
+}
+
+fn emit_import_event(app_handle: &AppHandle, event: ImportEvent) {
+    let (name, result) = match &event {
+        ImportEvent::Start(p) => ("import-start", app_handle.emit("import-start", p)),
+        ImportEvent::Progress(p) => ("import-progress", app_handle.emit("import-progress", p)),
+        ImportEvent::ItemError(p) => ("import-error", app_handle.emit("import-error", p)),
+        ImportEvent::Complete(p) => ("import-complete", app_handle.emit("import-complete", p)),
+    };
+    // Transport failures are reported but never change the recorded outcomes.
+    if let Err(e) = result {
+        log::warn!("Could not emit {} for an import run: {}", name, e);
+    }
+}
+
+/// Replaces each run of control characters with one space and keeps at most
+/// `max_chars` Unicode scalar values.
+fn bound_display_text(text: &str, max_chars: usize) -> String {
+    let mut out = String::new();
+    let mut kept = 0;
+    let mut in_control = false;
+    for c in text.chars() {
+        let c = if c.is_control() {
+            if in_control {
+                continue;
+            }
+            in_control = true;
+            ' '
+        } else {
+            in_control = false;
+            c
+        };
+        if kept == max_chars {
+            break;
+        }
+        out.push(c);
+        kept += 1;
+    }
+    out
+}
+
+/// Replaces every `content://` token (ASCII case-insensitive) with a placeholder.
+fn redact_content_uris(text: &str) -> String {
+    replace_content_uri_tokens(text, None)
+}
+
+/// URI punctuation is not a safe terminator: consume the entire non-whitespace
+/// token, including any attached grant/query suffix or closing punctuation.
+/// Substitute a label only for an exact whole source token, never its prefix.
+fn replace_content_uri_tokens(text: &str, source_label: Option<(&str, &str)>) -> String {
+    const SCHEME: &str = "content://";
+    let lower = text.to_ascii_lowercase();
+    let mut out = String::with_capacity(text.len());
+    let mut rest = 0;
+    while let Some(offset) = lower[rest..].find(SCHEME) {
+        let start = rest + offset;
+        out.push_str(&text[rest..start]);
+        let end = text[start..]
+            .find(char::is_whitespace)
+            .map_or(text.len(), |len| start + len);
+        let replacement = source_label
+            .filter(|(source, _)| *source == &text[start..end])
+            .map_or("[content URI]", |(_, label)| label);
+        out.push_str(replacement);
+        rest = end;
+    }
+    out.push_str(&text[rest..]);
+    out
+}
+
+/// A bounded display name for an item: the resolved URI name or local basename,
+/// never a raw content URI; `Item N` when no usable name is available.
+fn import_item_label(source: &str, resolved_name: Option<&str>, index: usize) -> String {
+    let name = match resolved_name {
+        Some(name) if redact_content_uris(name) != name => None,
+        Some(name) => Path::new(name).file_name(),
+        None if redact_content_uris(source) != source => None,
+        None => Path::new(source.rsplit_once("?vc=").map_or(source, |(base, _)| base)).file_name(),
+    };
+    name.map(|name| bound_display_text(&name.to_string_lossy(), IMPORT_DETAIL_MAX_CHARS))
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| format!("Item {}", index + 1))
+}
+
+/// Retain both ends of a long basename, including its extension, while reserving
+/// at least 190 of the 256 detail scalars for the failure cause and action.
+fn import_detail_label(label: &str) -> String {
+    const MAX_LABEL_CHARS: usize = 64;
+    const SUFFIX_CHARS: usize = 16;
+    if label.chars().count() <= MAX_LABEL_CHARS {
+        return label.to_string();
+    }
+    let prefix: String = label
+        .chars()
+        .take(MAX_LABEL_CHARS - SUFFIX_CHARS - 1)
+        .collect();
+    let suffix: String = label.chars().rev().take(SUFFIX_CHARS).collect();
+    format!("{}…{}", prefix, suffix.chars().rev().collect::<String>())
+}
+
+/// `bounded label: reason`, compacting known repeated names before bounding the
+/// reason. Redact URI tokens before replacing local source/name strings so an
+/// exact source prefix cannot leave a grant suffix behind. Keep the full known
+/// resolved basename until normalization is complete; `label` may already be
+/// bounded for progress and is only a fallback for this internal context.
+fn import_failure_detail(
+    label: &str,
+    source: &str,
+    error: &str,
+    resolved_name: Option<&str>,
+) -> String {
+    let label = resolved_name
+        .filter(|name| redact_content_uris(name) == *name)
+        .and_then(|name| Path::new(name).file_name())
+        .map(|name| bound_display_text(&name.to_string_lossy(), usize::MAX))
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| bound_display_text(&redact_content_uris(label), usize::MAX));
+    let long_label = label.chars().count() > 64;
+    let reason_label = if long_label {
+        "the selected item"
+    } else {
+        label.as_str()
+    };
+    let redacted = replace_content_uri_tokens(error, Some((source, reason_label)));
+    let mut reason = bound_display_text(&redacted, usize::MAX);
+    if !source.is_empty() {
+        let clean_source = bound_display_text(source, usize::MAX);
+        if !clean_source.trim().is_empty() {
+            reason = reason.replace(&clean_source, reason_label);
+        }
+        let basename = import_display_basename(source);
+        let basename = bound_display_text(&basename, usize::MAX);
+        if basename.chars().count() > 64 {
+            reason = reason.replace(&basename, "the selected item");
+        }
+    }
+    if long_label && !label.is_empty() {
+        reason = reason.replace(&label, "the selected item");
+    }
+    let display_label = import_detail_label(&label);
+    let reason_budget = IMPORT_DETAIL_MAX_CHARS - display_label.chars().count() - 2;
+    format!(
+        "{}: {}",
+        display_label,
+        bound_display_text(&reason, reason_budget)
+    )
+}
+
+/// Empty when every item imported; otherwise a bounded summary naming up to the
+/// first three failures.
+fn import_summary(total: u64, imported: u64, failed: u64, details: &[String]) -> String {
+    if failed == 0 {
+        return String::new();
+    }
+    let mut summary = format!(
+        "{} of {} imported; {} failed: {}",
+        imported,
+        total,
+        failed,
+        details.join("; ")
+    );
+    let further = failed.saturating_sub(details.len() as u64);
+    if further > 0 {
+        summary.push_str(&format!(" +{} further failures", further));
+    }
+    bound_display_text(&summary, IMPORT_SUMMARY_MAX_CHARS)
+}
+
+type ImportBatchItem<'a> = dyn FnMut(usize, &str, &mut Option<String>) -> Result<(), String> + 'a;
+
+/// Runs every item once and reports one start, progress per attempt, an error
+/// per failed item and exactly one completion built from the actual outcomes.
+fn run_import_batch(
+    run_id: &str,
+    source_paths: &[String],
+    item: &mut ImportBatchItem<'_>,
+    emit: &mut dyn FnMut(ImportEvent),
+) -> ImportCompletePayload {
+    let total = source_paths.len() as u64;
+    let mut imported: u64 = 0;
+    let mut failed: u64 = 0;
+    let mut details: Vec<String> = Vec::new();
+
+    emit(ImportEvent::Start(ImportStartPayload {
+        run_id: run_id.to_string(),
+        total,
+    }));
+
+    for (i, source) in source_paths.iter().enumerate() {
+        emit(ImportEvent::Progress(ImportProgressPayload {
+            run_id: run_id.to_string(),
+            total,
+            current: i as u64,
+            path: import_item_label(source, None, i),
+        }));
+
+        let mut display_name = None;
+        match item(i, source, &mut display_name) {
+            Ok(()) => imported += 1,
+            Err(e) => {
+                failed += 1;
+                let label = import_item_label(source, display_name.as_deref(), i);
+                let detail = import_failure_detail(&label, source, &e, display_name.as_deref());
+                if details.len() < IMPORT_SUMMARY_MAX_DETAILS {
+                    details.push(detail.clone());
+                }
+                emit(ImportEvent::ItemError(ImportItemErrorPayload {
+                    run_id: run_id.to_string(),
+                    total,
+                    failed,
+                    error_message: detail,
+                }));
+            }
+        }
+    }
+
+    emit(ImportEvent::Progress(ImportProgressPayload {
+        run_id: run_id.to_string(),
+        total,
+        current: total,
+        path: String::new(),
+    }));
+
+    let complete = ImportCompletePayload {
+        run_id: run_id.to_string(),
+        total,
+        imported,
+        failed,
+        error_message: import_summary(total, imported, failed, &details),
+    };
+    emit(ImportEvent::Complete(complete.clone()));
+    complete
+}
+
+/// The real per-item operation used by `import_files`, including its existing
+/// failure log line.
+fn import_item_operation<'a>(
+    destination_folder: &'a str,
+    settings: &'a ImportSettings,
+    total_files: usize,
+) -> impl FnMut(usize, &str, &mut Option<String>) -> Result<(), String> + 'a {
+    move |i, source_path_str, display_name| {
+        let result = import_one_item(
+            source_path_str,
+            i,
+            total_files,
+            destination_folder,
+            settings,
+            display_name,
+        );
+        if let Err(e) = &result {
+            eprintln!("Failed to import {}: {}", source_path_str, e);
+        }
+        result
+    }
+}
+
+/// Imports one source item. This is the former per-item closure body of
+/// `import_files`, moved unchanged apart from recording the URI display name
+/// that the content-URI route already resolved.
+#[cfg_attr(not(target_os = "android"), allow(unused_variables))]
+fn import_one_item(
+    source_path_str: &str,
+    i: usize,
+    total_files: usize,
+    destination_folder: &str,
+    settings: &ImportSettings,
+    display_name: &mut Option<String>,
+) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    if is_android_content_uri(source_path_str) {
+        let resolved_name = resolve_android_content_uri_name(source_path_str)?;
+        *display_name = Some(resolved_name.clone());
+        import_content_bytes(
+            &resolved_name,
+            read_android_content_uri(source_path_str),
+            source_path_str,
+            &exif_processing::get_creation_date_from_bytes,
+            &destination_folder,
+            &settings,
+            i + 1,
+            total_files,
+            &ImportStagingOps::default(),
+        )?;
+
+        if settings.delete_after_import {
+            log::info!(
+                "Skipping delete_after_import for Android content URI source: {}",
+                source_path_str
+            );
+        }
+
+        return Ok(());
+    }
+
+    let (source_path, source_sidecar) = parse_virtual_path(source_path_str);
+    if !source_path.exists() {
+        return Err(format!("Source file not found: {}", source_path_str));
+    }
+
+    let file_date = exif_processing::get_creation_date_from_path(&source_path);
+
+    let mut final_dest_folder = PathBuf::from(&destination_folder);
+    if settings.organize_by_date {
+        let date_format_str = settings
+            .date_folder_format
+            .replace("YYYY", "%Y")
+            .replace("MM", "%m")
+            .replace("DD", "%d");
+        let subfolder = file_date.format(&date_format_str).to_string();
+        final_dest_folder.push(subfolder);
+    }
+
+    fs::create_dir_all(&final_dest_folder)
+        .map_err(|e| format!("Failed to create destination folder: {}", e))?;
+
+    let new_stem = generate_filename_from_template(
+        &settings.filename_template,
+        &source_path,
+        i + 1,
+        total_files,
+        &file_date,
+    );
+    let extension = source_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    let new_filename = format!("{}.{}", new_stem, extension);
+    let dest_file_path = final_dest_folder.join(new_filename);
+
+    if dest_file_path.exists() {
+        return Err(format!(
+            "File already exists at destination: {}",
+            dest_file_path.display()
+        ));
+    }
+
+    fs::copy(&source_path, &dest_file_path).map_err(|e| e.to_string())?;
+    if source_sidecar.exists()
+        && let Some(dest_str) = dest_file_path.to_str()
+    {
+        let (_, dest_sidecar) = parse_virtual_path(dest_str);
+        fs::copy(&source_sidecar, &dest_sidecar).map_err(|e| e.to_string())?;
+    }
+
+    let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
+    source_rrexif_name.push(".rrexif");
+    let source_rrexif = source_path.with_file_name(source_rrexif_name);
+
+    if source_rrexif.exists() {
+        let mut dest_rrexif_name = dest_file_path.file_name().unwrap().to_os_string();
+        dest_rrexif_name.push(".rrexif");
+        let dest_rrexif = dest_file_path.with_file_name(dest_rrexif_name);
+        let _ = fs::copy(&source_rrexif, &dest_rrexif);
+    }
+
+    if settings.delete_after_import {
+        #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+        {
+            if let Err(trash_error) = trash::delete(&source_path) {
+                log::warn!(
+                    "Failed to trash source file {}: {}. Deleting permanently.",
+                    source_path.display(),
+                    trash_error
+                );
+                fs::remove_file(&source_path).map_err(|e| e.to_string())?;
+            }
+            if source_sidecar.exists()
+                && let Err(trash_error) = trash::delete(&source_sidecar)
+            {
+                log::warn!(
+                    "Failed to trash source sidecar {}: {}. Deleting permanently.",
+                    source_sidecar.display(),
+                    trash_error
+                );
+                fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
+            }
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        {
+            fs::remove_file(&source_path).map_err(|e| e.to_string())?;
+            if source_sidecar.exists() {
+                fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
+            }
+            if source_rrexif.exists() {
+                let _ = fs::remove_file(&source_rrexif);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Queues one import batch. Resolving only means the batch was admitted and
+/// queued; outcomes arrive through run-tagged `import-*` events.
 #[tauri::command]
 pub async fn import_files(
     source_paths: Vec<String>,
     destination_folder: String,
     settings: ImportSettings,
+    run_id: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let total_files = source_paths.len();
-    let _ = app_handle.emit("import-start", serde_json::json!({ "total": total_files }));
+    let guard = admit_import_run(
+        &source_paths,
+        &destination_folder,
+        &run_id,
+        &IMPORT_RUN_ACTIVE,
+    )?;
 
     tauri::async_runtime::spawn_blocking(move || {
-        for (i, source_path_str) in source_paths.iter().enumerate() {
-            let _ = app_handle.emit(
-                "import-progress",
-                serde_json::json!({ "current": i, "total": total_files, "path": source_path_str }),
-            );
-
-            let import_result: Result<(), String> = (|| {
-                #[cfg(target_os = "android")]
-                if is_android_content_uri(source_path_str) {
-                    let resolved_name = resolve_android_content_uri_name(source_path_str)?;
-                    let source_bytes = read_android_content_uri(source_path_str)?;
-                    let source_name_path = Path::new(&resolved_name);
-                    let file_date = exif_processing::get_creation_date_from_bytes(
-                        &resolved_name,
-                        &source_bytes,
-                    );
-
-                    let mut final_dest_folder = PathBuf::from(&destination_folder);
-                    if settings.organize_by_date {
-                        let date_format_str = settings
-                            .date_folder_format
-                            .replace("YYYY", "%Y")
-                            .replace("MM", "%m")
-                            .replace("DD", "%d");
-                        let subfolder = file_date.format(&date_format_str).to_string();
-                        final_dest_folder.push(subfolder);
-                    }
-
-                    fs::create_dir_all(&final_dest_folder)
-                        .map_err(|e| format!("Failed to create destination folder: {}", e))?;
-
-                    let new_stem = generate_filename_from_template(
-                        &settings.filename_template,
-                        source_name_path,
-                        i + 1,
-                        total_files,
-                        &file_date,
-                    );
-                    let extension = source_name_path
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("");
-                    let new_filename = format!("{}.{}", new_stem, extension);
-                    let dest_file_path = final_dest_folder.join(new_filename);
-
-                    if dest_file_path.exists() {
-                        return Err(format!(
-                            "File already exists at destination: {}",
-                            dest_file_path.display()
-                        ));
-                    }
-
-                    fs::write(&dest_file_path, source_bytes).map_err(|e| e.to_string())?;
-
-                    if settings.delete_after_import {
-                        log::info!(
-                            "Skipping delete_after_import for Android content URI source: {}",
-                            source_path_str
-                        );
-                    }
-
-                    return Ok(());
-                }
-
-                let (source_path, source_sidecar) = parse_virtual_path(source_path_str);
-                if !source_path.exists() {
-                    return Err(format!("Source file not found: {}", source_path_str));
-                }
-
-                let file_date = exif_processing::get_creation_date_from_path(&source_path);
-
-                let mut final_dest_folder = PathBuf::from(&destination_folder);
-                if settings.organize_by_date {
-                    let date_format_str = settings
-                        .date_folder_format
-                        .replace("YYYY", "%Y")
-                        .replace("MM", "%m")
-                        .replace("DD", "%d");
-                    let subfolder = file_date.format(&date_format_str).to_string();
-                    final_dest_folder.push(subfolder);
-                }
-
-                fs::create_dir_all(&final_dest_folder)
-                    .map_err(|e| format!("Failed to create destination folder: {}", e))?;
-
-                let new_stem = generate_filename_from_template(
-                    &settings.filename_template,
-                    &source_path,
-                    i + 1,
-                    total_files,
-                    &file_date,
-                );
-                let extension = source_path
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("");
-                let new_filename = format!("{}.{}", new_stem, extension);
-                let dest_file_path = final_dest_folder.join(new_filename);
-
-                if dest_file_path.exists() {
-                    return Err(format!(
-                        "File already exists at destination: {}",
-                        dest_file_path.display()
-                    ));
-                }
-
-                fs::copy(&source_path, &dest_file_path).map_err(|e| e.to_string())?;
-                if source_sidecar.exists()
-                    && let Some(dest_str) = dest_file_path.to_str()
-                {
-                    let (_, dest_sidecar) = parse_virtual_path(dest_str);
-                    fs::copy(&source_sidecar, &dest_sidecar).map_err(|e| e.to_string())?;
-                }
-
-                let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
-                source_rrexif_name.push(".rrexif");
-                let source_rrexif = source_path.with_file_name(source_rrexif_name);
-
-                if source_rrexif.exists() {
-                    let mut dest_rrexif_name = dest_file_path.file_name().unwrap().to_os_string();
-                    dest_rrexif_name.push(".rrexif");
-                    let dest_rrexif = dest_file_path.with_file_name(dest_rrexif_name);
-                    let _ = fs::copy(&source_rrexif, &dest_rrexif);
-                }
-
-                if settings.delete_after_import {
-                    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-                    {
-                        if let Err(trash_error) = trash::delete(&source_path) {
-                            log::warn!(
-                                "Failed to trash source file {}: {}. Deleting permanently.",
-                                source_path.display(),
-                                trash_error
-                            );
-                            fs::remove_file(&source_path).map_err(|e| e.to_string())?;
-                        }
-                        if source_sidecar.exists()
-                            && let Err(trash_error) = trash::delete(&source_sidecar)
-                        {
-                            log::warn!(
-                                "Failed to trash source sidecar {}: {}. Deleting permanently.",
-                                source_sidecar.display(),
-                                trash_error
-                            );
-                            fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
-                        }
-                    }
-
-                    #[cfg(not(any(
-                        target_os = "windows",
-                        target_os = "macos",
-                        target_os = "linux"
-                    )))]
-                    {
-                        fs::remove_file(&source_path).map_err(|e| e.to_string())?;
-                        if source_sidecar.exists() {
-                            fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
-                        }
-                        if source_rrexif.exists() {
-                            let _ = fs::remove_file(&source_rrexif);
-                        }
-                    }
-                }
-
-                Ok(())
-            })();
-
-            if let Err(e) = import_result {
-                eprintln!("Failed to import {}: {}", source_path_str, e);
-                let _ = app_handle.emit("import-error", e);
-                continue;
-            }
-        }
-
-        let _ = app_handle.emit(
-            "import-progress",
-            serde_json::json!({ "current": total_files, "total": total_files, "path": "" }),
-        );
-        let _ = app_handle.emit("import-complete", ());
+        // Held until the terminal event has been attempted.
+        let _guard = guard;
+        let mut item = import_item_operation(&destination_folder, &settings, source_paths.len());
+        let mut emit = |event: ImportEvent| emit_import_event(&app_handle, event);
+        run_import_batch(&run_id, &source_paths, &mut item, &mut emit);
     });
 
     Ok(())
@@ -3774,9 +4484,12 @@ pub fn generate_filename_from_template(
         width = total.to_string().len().max(1)
     );
     let local_date = file_date.with_timezone(&chrono::Local);
+    let stem_prefix = stem.trim_end_matches(|c: char| c.is_ascii_digit());
+    let filename_number = &stem[stem_prefix.len()..];
 
     let mut result = template.to_string();
     result = result.replace("{original_filename}", stem);
+    result = result.replace("{original_filename_number}", filename_number);
     result = result.replace("{sequence}", &sequence_str);
     result = result.replace("{YYYY}", &local_date.format("%Y").to_string());
     result = result.replace("{MM}", &local_date.format("%m").to_string());
@@ -3830,6 +4543,15 @@ pub fn rename_files(
         if new_path.exists() && new_path != original_path {
             return Err(format!(
                 "A file with the name {} already exists.",
+                new_path.display()
+            ));
+        }
+
+        if operations.iter().any(|(other_original, other_new)| {
+            *other_new == new_path && *other_original != original_path
+        }) {
+            return Err(format!(
+                "More than one file would be renamed to {}.",
                 new_path.display()
             ));
         }
@@ -3936,7 +4658,7 @@ pub fn create_virtual_copy(
     Ok(new_virtual_path)
 }
 
-pub fn extract_xmp_rating(content: &str) -> Option<u8> {
+pub fn extract_xmp_rating(content: &str) -> Option<i8> {
     if let Some(idx) = content.find("xmp:Rating=\"") {
         let start = idx + 12;
         let end = content[start..].find('"').map(|i| start + i)?;
@@ -3948,6 +4670,38 @@ pub fn extract_xmp_rating(content: &str) -> Option<u8> {
         return content[start..end].parse().ok();
     }
     None
+}
+
+const XMP_REJECTED_RATING: i8 = -1;
+
+pub fn xmp_rating(metadata: &ImageMetadata) -> String {
+    if metadata.flag == Some(ImageFlag::Reject) {
+        XMP_REJECTED_RATING.to_string()
+    } else {
+        metadata.rating.to_string()
+    }
+}
+
+pub fn xmp_label(tags: &[String]) -> Option<String> {
+    tags.iter()
+        .rev()
+        .find_map(|t| t.strip_prefix(COLOR_TAG_PREFIX))
+        .map(|color| {
+            let mut c = color.chars();
+            match c.next() {
+                None => String::new(),
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            }
+        })
+}
+
+pub fn xmp_subject_bag<S: AsRef<str>>(items: &[S]) -> String {
+    let mut bag = String::from("<dc:subject>\n    <rdf:Bag>\n");
+    for item in items {
+        bag.push_str(&format!("     <rdf:li>{}</rdf:li>\n", item.as_ref()));
+    }
+    bag.push_str("    </rdf:Bag>\n   </dc:subject>");
+    bag
 }
 
 pub fn extract_xmp_label(content: &str) -> Option<String> {
@@ -4004,15 +4758,23 @@ pub fn sync_metadata_from_xmp(source_path: &Path, metadata: &mut ImageMetadata) 
     if let Some(xmp_file) = actual_xmp
         && let Ok(content) = fs::read_to_string(&xmp_file)
     {
+        let xmp_rating = extract_xmp_rating(&content);
+
+        if xmp_rating == Some(XMP_REJECTED_RATING) && metadata.flag.is_none() {
+            metadata.flag = Some(ImageFlag::Reject);
+            changed = true;
+        }
+
         if metadata.rating == 0
-            && let Some(rating) = extract_xmp_rating(&content)
+            && let Some(rating) = xmp_rating.and_then(|r| u8::try_from(r).ok())
             && rating != 0
         {
             metadata.rating = rating;
+            if !metadata.adjustments.is_object() {
+                metadata.adjustments = default_adjustments();
+            }
             if let Some(obj) = metadata.adjustments.as_object_mut() {
                 obj.insert("rating".to_string(), serde_json::json!(rating));
-            } else {
-                metadata.adjustments = serde_json::json!({"rating": rating});
             }
             changed = true;
         }
@@ -4081,9 +4843,9 @@ pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create
     if let Some(xmp_file) = actual_xmp
         && let Ok(mut content) = fs::read_to_string(&xmp_file)
     {
-        let rating_str = metadata.rating.to_string();
-        let re_rating_attr = Regex::new(r#"xmp:Rating\s*=\s*"[^"]*""#).unwrap();
-        let re_rating_tag = Regex::new(r#"<xmp:Rating\s*>[^<]*</xmp:Rating>"#).unwrap();
+        let rating_str = xmp_rating(metadata);
+        let re_rating_attr = regex!(r#"xmp:Rating\s*=\s*"[^"]*""#);
+        let re_rating_tag = regex!(r#"<xmp:Rating\s*>[^<]*</xmp:Rating>"#);
 
         if re_rating_attr.is_match(&content) {
             content = re_rating_attr
@@ -4099,25 +4861,15 @@ pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create
         }
 
         let current_tags = metadata.tags.clone().unwrap_or_default();
-        let mut label = None;
-        let mut normal_tags = Vec::new();
-
-        for t in current_tags {
-            if let Some(color) = t.strip_prefix(COLOR_TAG_PREFIX) {
-                let mut c = color.chars();
-                let cap_color = match c.next() {
-                    None => String::new(),
-                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-                };
-                label = Some(cap_color);
-            } else {
-                normal_tags.push(t);
-            }
-        }
+        let label = xmp_label(&current_tags);
+        let normal_tags: Vec<String> = current_tags
+            .into_iter()
+            .filter(|t| !t.starts_with(COLOR_TAG_PREFIX))
+            .collect();
 
         if let Some(lbl) = label {
-            let re_label_attr = Regex::new(r#"xmp:Label\s*=\s*"[^"]*""#).unwrap();
-            let re_label_tag = Regex::new(r#"<xmp:Label\s*>[^<]*</xmp:Label>"#).unwrap();
+            let re_label_attr = regex!(r#"xmp:Label\s*=\s*"[^"]*""#);
+            let re_label_tag = regex!(r#"<xmp:Label\s*>[^<]*</xmp:Label>"#);
 
             if re_label_attr.is_match(&content) {
                 content = re_label_attr
@@ -4132,22 +4884,17 @@ pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create
                 content = format!("{} <xmp:Label>{}</xmp:Label>\n{}", start, lbl, end);
             }
         } else {
-            let re_label_attr = Regex::new(r#"\s*xmp:Label\s*=\s*"[^"]*""#).unwrap();
-            let re_label_tag = Regex::new(r#"\s*<xmp:Label\s*>[^<]*</xmp:Label>"#).unwrap();
+            let re_label_attr = regex!(r#"\s*xmp:Label\s*=\s*"[^"]*""#);
+            let re_label_tag = regex!(r#"\s*<xmp:Label\s*>[^<]*</xmp:Label>"#);
             content = re_label_attr.replace_all(&content, "").to_string();
             content = re_label_tag.replace_all(&content, "").to_string();
         }
 
-        let re_subject =
-            Regex::new(r#"(?s)<dc:subject>\s*<rdf:Bag>.*?</rdf:Bag>\s*</dc:subject>"#).unwrap();
+        let re_subject = regex!(r#"(?s)<dc:subject>\s*<rdf:Bag>.*?</rdf:Bag>\s*</dc:subject>"#);
         if normal_tags.is_empty() {
             content = re_subject.replace_all(&content, "").to_string();
         } else {
-            let mut bag = String::from("<dc:subject>\n    <rdf:Bag>\n");
-            for t in normal_tags {
-                bag.push_str(&format!("     <rdf:li>{}</rdf:li>\n", t));
-            }
-            bag.push_str("    </rdf:Bag>\n   </dc:subject>");
+            let bag = xmp_subject_bag(&normal_tags);
 
             if re_subject.is_match(&content) {
                 content = re_subject.replace(&content, bag).to_string();
@@ -4158,5 +4905,1220 @@ pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create
         }
 
         let _ = fs::write(&xmp_file, content);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    const RAF_JPEG_MESSAGE: &str = "has a JPEG signature, but its name identifies it as a RAF RAW file. Select the original RAW file and try again.";
+
+    /// A complete JPEG produced by the real encoder, not a marker literal.
+    fn encoded_jpeg() -> Vec<u8> {
+        let image = image::RgbImage::from_fn(32, 24, |x, y| {
+            image::Rgb([(x * 8) as u8, (y * 10) as u8, 128])
+        });
+        let mut bytes = Vec::new();
+        DynamicImage::ImageRgb8(image)
+            .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Jpeg)
+            .unwrap();
+        bytes
+    }
+
+    fn import_settings(template: &str, organize_by_date: bool) -> ImportSettings {
+        ImportSettings {
+            filename_template: template.to_string(),
+            organize_by_date,
+            date_folder_format: "YYYY/MM-DD".to_string(),
+            delete_after_import: false,
+        }
+    }
+
+    thread_local! {
+        static DATE_CALLS: Cell<usize> = const { Cell::new(0) };
+    }
+
+    /// Fixed date standing in for Android-only EXIF parsing; counts calls so
+    /// tests can show rejected content never reaches it.
+    fn fixed_date(_: &str, _: &[u8]) -> DateTime<Utc> {
+        DATE_CALLS.with(|calls| calls.set(calls.get() + 1));
+        DateTime::parse_from_rfc3339("2026-10-15T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    fn date_calls() -> usize {
+        DATE_CALLS.with(Cell::get)
+    }
+
+    fn import(
+        library: &Path,
+        name: &str,
+        read: Result<Vec<u8>, String>,
+        settings: &ImportSettings,
+        ops: &ImportStagingOps,
+    ) -> Result<PathBuf, String> {
+        import_content_bytes(
+            name,
+            read,
+            "content://provider/item/1",
+            &fixed_date,
+            &library.to_string_lossy(),
+            settings,
+            1,
+            1,
+            ops,
+        )
+    }
+
+    /// Every file under `dir`, including hidden temporary files.
+    fn all_files(dir: &Path) -> Vec<PathBuf> {
+        WalkDir::new(dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .map(|e| e.into_path())
+            .collect()
+    }
+
+    fn failing_write(file: &mut fs::File, bytes: &[u8]) -> std::io::Result<()> {
+        use std::io::Write;
+        file.write_all(&bytes[..bytes.len() / 2])?;
+        Err(std::io::Error::other("disk full (injected)"))
+    }
+
+    fn failing_remove(_: &Path) -> std::io::Result<()> {
+        Err(std::io::Error::other("permission denied (injected)"))
+    }
+
+    #[test]
+    fn jpeg_named_raf_is_not_imported_in_any_case_or_template() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let jpeg = encoded_jpeg();
+        for name in ["DSCF5389.RAF", "dscf5389.raf", "DSCF5389.RaF"] {
+            for settings in [
+                import_settings("{original_filename}", false),
+                import_settings("renamed_{sequence}", true),
+            ] {
+                let err = import(
+                    &library,
+                    name,
+                    Ok(jpeg.clone()),
+                    &settings,
+                    &ImportStagingOps::default(),
+                )
+                .unwrap_err();
+                assert_eq!(err, format!("“{name}” {RAF_JPEG_MESSAGE}"));
+            }
+        }
+        // Rejected before EXIF parsing and folder creation: no final,
+        // temporary or date folder.
+        assert_eq!(date_calls(), 0);
+        assert!(!library.exists());
+        assert!(all_files(root.path()).is_empty());
+    }
+
+    #[test]
+    fn same_jpeg_named_jpg_is_imported_byte_identical() {
+        let root = tempfile::tempdir().unwrap();
+        let jpeg = encoded_jpeg();
+        for (organize, template) in [(false, "{original_filename}"), (true, "copy_{sequence}")] {
+            let library = root.path().join(format!("library-{organize}"));
+            let path = import(
+                &library,
+                "DSCF5389.jpg",
+                Ok(jpeg.clone()),
+                &import_settings(template, organize),
+                &ImportStagingOps::default(),
+            )
+            .unwrap();
+            assert_eq!(fs::read(&path).unwrap(), jpeg);
+            assert_eq!(all_files(&library), vec![path]);
+        }
+    }
+
+    #[test]
+    fn empty_read_and_read_failure_are_distinct_and_write_nothing() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let settings = import_settings("{original_filename}", false);
+        let ops = ImportStagingOps::default();
+
+        let empty = import(&library, "x.RAF", Ok(Vec::new()), &settings, &ops).unwrap_err();
+        assert_eq!(
+            empty,
+            "No image data was read for “x.RAF”. Select the original file and try again."
+        );
+
+        let failed = import(
+            &library,
+            "x.RAF",
+            Err(
+                "Failed to open InputStream for Android content URI: content://provider/item/1"
+                    .to_string(),
+            ),
+            &settings,
+            &ops,
+        )
+        .unwrap_err();
+        assert_eq!(
+            failed,
+            "Could not read “x.RAF”: Failed to open InputStream for Android content URI: the selected item"
+        );
+
+        assert_eq!(date_calls(), 0);
+        assert!(!library.exists());
+    }
+
+    #[test]
+    fn existing_target_is_never_replaced() {
+        let root = tempfile::tempdir().unwrap();
+        let existing = root.path().join("DSCF5389.jpg");
+        fs::write(&existing, b"original").unwrap();
+
+        let err = import(
+            root.path(),
+            "DSCF5389.jpg",
+            Ok(encoded_jpeg()),
+            &import_settings("{original_filename}", false),
+            &ImportStagingOps::default(),
+        )
+        .unwrap_err();
+        assert!(
+            err.starts_with("File already exists at destination:"),
+            "{err}"
+        );
+        assert_eq!(fs::read(&existing).unwrap(), b"original");
+        assert_eq!(all_files(root.path()), vec![existing]);
+    }
+
+    #[test]
+    fn collision_created_after_staging_is_not_replaced() {
+        let root = tempfile::tempdir().unwrap();
+        let raced = |dest: &Path| fs::write(dest, b"raced").unwrap();
+        let ops = ImportStagingOps {
+            before_publish: &raced,
+            ..ImportStagingOps::default()
+        };
+
+        let err = import(
+            root.path(),
+            "DSCF5389.jpg",
+            Ok(encoded_jpeg()),
+            &import_settings("{original_filename}", false),
+            &ops,
+        )
+        .unwrap_err();
+        let dest = root.path().join("DSCF5389.jpg");
+        assert_eq!(
+            err,
+            format!("File already exists at destination: {}", dest.display())
+        );
+        assert_eq!(fs::read(&dest).unwrap(), b"raced");
+        assert_eq!(all_files(root.path()), vec![dest]);
+    }
+
+    #[test]
+    fn write_failure_leaves_no_final_or_temporary_file() {
+        let root = tempfile::tempdir().unwrap();
+        let ops = ImportStagingOps {
+            write: &failing_write,
+            ..ImportStagingOps::default()
+        };
+        let err = import(
+            root.path(),
+            "DSCF5389.jpg",
+            Ok(encoded_jpeg()),
+            &import_settings("{original_filename}", false),
+            &ops,
+        )
+        .unwrap_err();
+        assert_eq!(err, "Could not write “DSCF5389.jpg”: disk full (injected)");
+        assert!(all_files(root.path()).is_empty());
+    }
+
+    #[test]
+    fn cleanup_failure_is_reported_after_the_primary_error() {
+        let root = tempfile::tempdir().unwrap();
+        let ops = ImportStagingOps {
+            write: &failing_write,
+            remove: &failing_remove,
+            ..ImportStagingOps::default()
+        };
+        let err = import(
+            root.path(),
+            "DSCF5389.jpg",
+            Ok(encoded_jpeg()),
+            &import_settings("{original_filename}", false),
+            &ops,
+        )
+        .unwrap_err();
+        assert!(
+            err.starts_with(
+                "Could not write “DSCF5389.jpg”: disk full (injected) The temporary file “.rapidraw-import-"
+            ),
+            "{err}"
+        );
+        assert!(err.ends_with(".tmp” could not be removed: permission denied (injected)"));
+
+        // The leftover is hidden and never listed as an image; no final file exists.
+        let leftovers = all_files(root.path());
+        assert_eq!(leftovers.len(), 1);
+        assert!(!is_supported_image_file(&leftovers[0]));
+        assert!(!root.path().join("DSCF5389.jpg").exists());
+    }
+
+    /// Simulates tempfile's hard-link fallback, which can leave the temporary name.
+    fn link_without_unlink(temp: &Path, dest: &Path) -> std::io::Result<()> {
+        fs::hard_link(temp, dest)
+    }
+
+    #[test]
+    fn hard_link_fallback_leftover_is_removed_or_reported() {
+        let jpeg = encoded_jpeg();
+
+        let root = tempfile::tempdir().unwrap();
+        let ops = ImportStagingOps {
+            persist: &link_without_unlink,
+            ..ImportStagingOps::default()
+        };
+        let published = publish_import_bytes(root.path(), "a.jpg", &jpeg, &ops).unwrap();
+        assert!(published.cleanup_warning.is_none());
+        assert_eq!(all_files(root.path()), vec![published.path.clone()]);
+        assert_eq!(fs::read(&published.path).unwrap(), jpeg);
+
+        let root = tempfile::tempdir().unwrap();
+        let ops = ImportStagingOps {
+            persist: &link_without_unlink,
+            remove: &failing_remove,
+            ..ImportStagingOps::default()
+        };
+        let published = publish_import_bytes(root.path(), "a.jpg", &jpeg, &ops).unwrap();
+        let warning = published.cleanup_warning.unwrap();
+        assert!(
+            warning.starts_with("Imported “a.jpg”, but the temporary file “.rapidraw-import-"),
+            "{warning}"
+        );
+        assert_eq!(fs::read(&published.path).unwrap(), jpeg);
+    }
+
+    /// Removes like production and records each result's error kind.
+    fn recording_remove(
+        calls: &std::cell::RefCell<Vec<Option<std::io::ErrorKind>>>,
+    ) -> impl Fn(&Path) -> std::io::Result<()> + '_ {
+        move |path| {
+            let result = fs::remove_file(path);
+            calls
+                .borrow_mut()
+                .push(result.as_ref().err().map(std::io::Error::kind));
+            result
+        }
+    }
+
+    #[test]
+    fn renamed_temporary_reports_not_found_as_clean() {
+        let root = tempfile::tempdir().unwrap();
+        let jpeg = encoded_jpeg();
+        let calls = std::cell::RefCell::new(Vec::new());
+        let remove = recording_remove(&calls);
+        let ops = ImportStagingOps {
+            remove: &remove,
+            ..ImportStagingOps::default()
+        };
+
+        let published = publish_import_bytes(root.path(), "a.jpg", &jpeg, &ops).unwrap();
+        // The real no-replace persist renamed the temporary file away, so the
+        // direct removal attempt saw NotFound and that is not a warning.
+        assert_eq!(*calls.borrow(), vec![Some(std::io::ErrorKind::NotFound)]);
+        assert!(published.cleanup_warning.is_none());
+        assert_eq!(all_files(root.path()), vec![published.path.clone()]);
+        assert_eq!(fs::read(&published.path).unwrap(), jpeg);
+    }
+
+    /// Restores a directory's permissions on drop, including on panic.
+    #[cfg(unix)]
+    struct RestorePermissions<'a>(&'a Path);
+
+    #[cfg(unix)]
+    impl Drop for RestorePermissions<'_> {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(self.0, fs::Permissions::from_mode(0o755));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unknown_temporary_status_after_hard_link_publication_is_a_warning() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        fs::create_dir(&library).unwrap();
+        let jpeg = encoded_jpeg();
+
+        // Publishes by hard link, then makes the directory unsearchable so the
+        // temporary file's status can no longer be read or changed.
+        let _restore = RestorePermissions(&library);
+        let lock_after_link = |temp: &Path, dest: &Path| {
+            fs::hard_link(temp, dest)?;
+            fs::set_permissions(dest.parent().unwrap(), fs::Permissions::from_mode(0o000))
+        };
+        let ops = ImportStagingOps {
+            persist: &lock_after_link,
+            ..ImportStagingOps::default()
+        };
+        let result = publish_import_bytes(&library, "a.jpg", &jpeg, &ops);
+        fs::set_permissions(&library, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let published = result.expect("a complete published file is still a success");
+        let warning = published
+            .cleanup_warning
+            .expect("unverified cleanup must warn");
+        assert!(
+            warning.starts_with("Imported “a.jpg”, but the temporary file “.rapidraw-import-"),
+            "{warning}"
+        );
+        assert_eq!(fs::read(&published.path).unwrap(), jpeg);
+        let files = all_files(&library);
+        assert_eq!(files.len(), 2, "final file and the reported temporary file");
+        assert!(files.contains(&published.path));
+    }
+
+    #[test]
+    fn already_missing_temporary_is_not_a_cleanup_failure_after_an_error() {
+        let root = tempfile::tempdir().unwrap();
+        let remove_then_missing = |path: &Path| -> std::io::Result<()> {
+            fs::remove_file(path)?;
+            Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        };
+        let ops = ImportStagingOps {
+            write: &failing_write,
+            remove: &remove_then_missing,
+            ..ImportStagingOps::default()
+        };
+        let err = publish_import_bytes(root.path(), "a.jpg", &encoded_jpeg(), &ops)
+            .err()
+            .unwrap();
+        assert_eq!(err, "Could not write “a.jpg”: disk full (injected)");
+        assert!(all_files(root.path()).is_empty());
+    }
+
+    #[test]
+    fn unsupported_publication_fails_without_final_or_temporary_file() {
+        let root = tempfile::tempdir().unwrap();
+        let unsupported = |_: &Path, _: &Path| -> std::io::Result<()> {
+            Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
+        };
+        let ops = ImportStagingOps {
+            persist: &unsupported,
+            ..ImportStagingOps::default()
+        };
+        let err = publish_import_bytes(root.path(), "a.jpg", &encoded_jpeg(), &ops)
+            .err()
+            .unwrap();
+        assert!(err.starts_with("Could not publish “a.jpg”: "), "{err}");
+        assert!(!err.contains("temporary file"), "{err}");
+        assert!(all_files(root.path()).is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unwritable_destination_fails_without_output() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        fs::set_permissions(root.path(), fs::Permissions::from_mode(0o555)).unwrap();
+        let attempted = Cell::new(false);
+        let write = |file: &mut fs::File, bytes: &[u8]| {
+            attempted.set(true);
+            write_and_sync(file, bytes)
+        };
+        let ops = ImportStagingOps {
+            write: &write,
+            ..ImportStagingOps::default()
+        };
+        let result = publish_import_bytes(root.path(), "a.jpg", &encoded_jpeg(), &ops);
+        fs::set_permissions(root.path(), fs::Permissions::from_mode(0o755)).unwrap();
+
+        let err = result.err().expect("read-only destination must fail");
+        assert!(err.starts_with("Could not stage “a.jpg”:"), "{err}");
+        assert!(!attempted.get());
+        assert!(all_files(root.path()).is_empty());
+    }
+
+    fn env_path(var: &str) -> PathBuf {
+        PathBuf::from(std::env::var(var).unwrap_or_else(|_| panic!("set {var}")))
+    }
+
+    fn assert_imported_byte_identical(source: &Path, names: &[&str]) {
+        use sha2::{Digest, Sha256};
+        let bytes = fs::read(source).unwrap();
+        let before = hex::encode(Sha256::digest(&bytes));
+        let root = tempfile::tempdir().unwrap();
+        for name in names {
+            let library = root.path().join(name.replace('.', "_"));
+            let path = import(
+                &library,
+                name,
+                Ok(bytes.clone()),
+                &import_settings("{original_filename}", false),
+                &ImportStagingOps::default(),
+            )
+            .unwrap();
+            let after = hex::encode(Sha256::digest(fs::read(&path).unwrap()));
+            assert_eq!(after, before, "{name}");
+            println!("{name}: imported sha256 {after}");
+        }
+        assert_eq!(
+            hex::encode(Sha256::digest(fs::read(source).unwrap())),
+            before
+        );
+    }
+
+    #[test]
+    #[ignore = "needs RAPIDRAW_R2A_FIXTURE_DIR from scripts/integration-fixtures.py"]
+    fn synthetic_dng_imports_byte_identical_including_raf_alias() {
+        let dng = env_path("RAPIDRAW_R2A_FIXTURE_DIR").join("synthetic-camera.dng");
+        assert_imported_byte_identical(&dng, &["synthetic-camera.dng", "synthetic-camera.RAF"]);
+    }
+
+    #[test]
+    #[ignore = "needs RAPIDRAW_R2A_NATIVE_RAF pointing at a genuine RAF"]
+    fn native_raf_imports_byte_identical() {
+        assert_imported_byte_identical(&env_path("RAPIDRAW_R2A_NATIVE_RAF"), &["DSCF1893.RAF"]);
+    }
+}
+
+#[cfg(test)]
+mod r3_terminal_tests {
+    use super::*;
+    use std::sync::Barrier;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::mpsc;
+
+    const RUN_ID: &str = "3f2b8c1e-5d4a-4f6b-9a7c-2e1d0b9f8a76";
+
+    fn settings() -> ImportSettings {
+        ImportSettings {
+            filename_template: "{original_filename}".to_string(),
+            organize_by_date: false,
+            date_folder_format: "YYYY/MM-DD".to_string(),
+            delete_after_import: false,
+        }
+    }
+
+    /// A fresh flag per test so tests never contend on the process-wide one.
+    fn test_flag() -> &'static AtomicBool {
+        Box::leak(Box::new(AtomicBool::new(false)))
+    }
+
+    /// Runs the real batch driver with the real per-item operation on local files.
+    fn run_local_batch(
+        sources: &[String],
+        destination: &Path,
+    ) -> (Vec<ImportEvent>, ImportCompletePayload) {
+        let settings = settings();
+        let destination = destination.to_string_lossy().into_owned();
+        let mut item = import_item_operation(&destination, &settings, sources.len());
+        let mut events = Vec::new();
+        let complete =
+            run_import_batch(RUN_ID, sources, &mut item, &mut |event| events.push(event));
+        (events, complete)
+    }
+
+    fn write_source(dir: &Path, name: &str, bytes: &[u8]) -> String {
+        let path = dir.join(name);
+        fs::write(&path, bytes).unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    fn missing_source(dir: &Path, name: &str) -> String {
+        dir.join(name).to_string_lossy().into_owned()
+    }
+
+    fn progress_currents(events: &[ImportEvent]) -> Vec<u64> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                ImportEvent::Progress(p) => Some(p.current),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn count_kind(events: &[ImportEvent], kind: fn(&ImportEvent) -> bool) -> usize {
+        events.iter().filter(|e| kind(e)).count()
+    }
+
+    #[test]
+    fn single_failure_ends_with_an_error_terminal() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let sources = vec![missing_source(root.path(), "missing.RAF")];
+
+        let (events, complete) = run_local_batch(&sources, &library);
+
+        let detail = "missing.RAF: Source file not found: missing.RAF".to_string();
+        let expected_complete = ImportCompletePayload {
+            run_id: RUN_ID.to_string(),
+            total: 1,
+            imported: 0,
+            failed: 1,
+            error_message: format!("0 of 1 imported; 1 failed: {detail}"),
+        };
+        assert_eq!(
+            events,
+            vec![
+                ImportEvent::Start(ImportStartPayload {
+                    run_id: RUN_ID.to_string(),
+                    total: 1,
+                }),
+                ImportEvent::Progress(ImportProgressPayload {
+                    run_id: RUN_ID.to_string(),
+                    total: 1,
+                    current: 0,
+                    path: "missing.RAF".to_string(),
+                }),
+                ImportEvent::ItemError(ImportItemErrorPayload {
+                    run_id: RUN_ID.to_string(),
+                    total: 1,
+                    failed: 1,
+                    error_message: detail,
+                }),
+                ImportEvent::Progress(ImportProgressPayload {
+                    run_id: RUN_ID.to_string(),
+                    total: 1,
+                    current: 1,
+                    path: String::new(),
+                }),
+                ImportEvent::Complete(expected_complete.clone()),
+            ]
+        );
+        assert_eq!(complete, expected_complete);
+    }
+
+    #[test]
+    fn mixed_batch_counts_each_outcome_once_and_keeps_the_good_copy() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let good_bytes = b"not decoded by import; copied byte-for-byte".to_vec();
+        let sources = vec![
+            write_source(root.path(), "DSCF0001.JPG", &good_bytes),
+            missing_source(root.path(), "missing.RAF"),
+        ];
+
+        let (events, complete) = run_local_batch(&sources, &library);
+
+        assert_eq!(
+            (complete.total, complete.imported, complete.failed),
+            (2, 1, 1)
+        );
+        assert_eq!(
+            complete.error_message,
+            "1 of 2 imported; 1 failed: missing.RAF: Source file not found: missing.RAF"
+        );
+        assert_eq!(
+            count_kind(&events, |e| matches!(e, ImportEvent::Start(_))),
+            1
+        );
+        assert_eq!(
+            count_kind(&events, |e| matches!(e, ImportEvent::ItemError(_))),
+            1
+        );
+        assert_eq!(
+            count_kind(&events, |e| matches!(e, ImportEvent::Complete(_))),
+            1
+        );
+        assert!(matches!(events.last(), Some(ImportEvent::Complete(_))));
+        assert_eq!(progress_currents(&events), vec![0, 1, 2]);
+
+        assert_eq!(fs::read(library.join("DSCF0001.JPG")).unwrap(), good_bytes);
+        assert_eq!(fs::read(&sources[0]).unwrap(), good_bytes);
+    }
+
+    #[test]
+    fn all_good_batch_completes_with_an_empty_message() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let sources = vec![
+            write_source(root.path(), "a.JPG", b"first"),
+            write_source(root.path(), "b.RAF", b"second"),
+        ];
+
+        let (events, complete) = run_local_batch(&sources, &library);
+
+        assert_eq!(
+            complete,
+            ImportCompletePayload {
+                run_id: RUN_ID.to_string(),
+                total: 2,
+                imported: 2,
+                failed: 0,
+                error_message: String::new(),
+            }
+        );
+        assert_eq!(
+            count_kind(&events, |e| matches!(e, ImportEvent::ItemError(_))),
+            0
+        );
+        assert_eq!(fs::read(library.join("a.JPG")).unwrap(), b"first");
+        assert_eq!(fs::read(library.join("b.RAF")).unwrap(), b"second");
+        // delete_after_import is false: sources remain.
+        assert!(sources.iter().all(|s| Path::new(s).exists()));
+    }
+
+    #[test]
+    fn existing_destination_is_a_counted_failure_and_left_unchanged() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        fs::create_dir_all(&library).unwrap();
+        fs::write(library.join("a.JPG"), b"existing").unwrap();
+        let sources = vec![write_source(root.path(), "a.JPG", b"incoming")];
+
+        let (_, complete) = run_local_batch(&sources, &library);
+
+        assert_eq!((complete.imported, complete.failed), (0, 1));
+        assert!(
+            complete.error_message.starts_with(
+                "0 of 1 imported; 1 failed: a.JPG: File already exists at destination"
+            ),
+            "{}",
+            complete.error_message
+        );
+        assert_eq!(fs::read(library.join("a.JPG")).unwrap(), b"existing");
+    }
+
+    #[test]
+    fn many_failures_are_summarised_with_bounded_safe_details() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let long_name = format!("{}.RAF", "L".repeat(300));
+        let sources = vec![
+            "content://com.android.providers.media.documents/document/image%3A42".to_string(),
+            missing_source(root.path(), "bad\u{7}\nname.RAF"),
+            missing_source(root.path(), &long_name),
+            missing_source(root.path(), "fourth.RAF"),
+            missing_source(root.path(), "fifth.RAF"),
+        ];
+
+        let (events, complete) = run_local_batch(&sources, &library);
+
+        assert_eq!(
+            (complete.total, complete.imported, complete.failed),
+            (5, 0, 5)
+        );
+        let message = &complete.error_message;
+        assert!(
+            message.starts_with(
+                "0 of 5 imported; 5 failed: Item 1: Source file not found: Item 1; bad name.RAF: "
+            ),
+            "{message}"
+        );
+        assert!(message.ends_with(" +2 further failures"), "{message}");
+        assert!(message.chars().count() <= IMPORT_SUMMARY_MAX_CHARS);
+        assert!(!message.chars().any(char::is_control));
+        assert!(!message.contains("fourth.RAF") && !message.contains("fifth.RAF"));
+
+        let mut failed_counts = Vec::new();
+        for event in &events {
+            let json = match event {
+                ImportEvent::Start(p) => serde_json::to_string(p),
+                ImportEvent::Progress(p) => serde_json::to_string(p),
+                ImportEvent::ItemError(p) => {
+                    failed_counts.push(p.failed);
+                    assert!(p.error_message.chars().count() <= IMPORT_DETAIL_MAX_CHARS);
+                    assert!(!p.error_message.chars().any(char::is_control));
+                    serde_json::to_string(p)
+                }
+                ImportEvent::Complete(p) => serde_json::to_string(p),
+            }
+            .unwrap();
+            assert!(!json.contains("content://"), "{json}");
+        }
+        assert_eq!(failed_counts, vec![1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn resolved_uri_name_labels_failures_and_uri_text_is_redacted() {
+        let sources = vec!["content://provider/item/7".to_string()];
+        let mut item = |_: usize, _: &str, name: &mut Option<String>| -> Result<(), String> {
+            *name = Some("DSCF5389.RAF".to_string());
+            Err(
+                "read failed for content://provider/item/7 via CONTENT://other/grant?x=1"
+                    .to_string(),
+            )
+        };
+        let mut events = Vec::new();
+        let complete = run_import_batch(RUN_ID, &sources, &mut item, &mut |e| events.push(e));
+
+        assert_eq!(
+            complete.error_message,
+            "0 of 1 imported; 1 failed: DSCF5389.RAF: read failed for DSCF5389.RAF via [content URI]"
+        );
+        // Before the attempt the URI name is unknown, so progress uses `Item N`.
+        assert!(matches!(
+            &events[1],
+            ImportEvent::Progress(p) if p.path == "Item 1"
+        ));
+    }
+
+    #[test]
+    fn wire_payloads_use_the_contract_field_names() {
+        let keys = |value: serde_json::Value| -> Vec<String> {
+            let mut keys: Vec<String> = value.as_object().unwrap().keys().cloned().collect();
+            keys.sort();
+            keys
+        };
+        let id = RUN_ID.to_string();
+        assert_eq!(
+            keys(
+                serde_json::to_value(ImportStartPayload {
+                    run_id: id.clone(),
+                    total: 1
+                })
+                .unwrap()
+            ),
+            ["runId", "total"]
+        );
+        assert_eq!(
+            keys(
+                serde_json::to_value(ImportProgressPayload {
+                    run_id: id.clone(),
+                    total: 1,
+                    current: 0,
+                    path: String::new()
+                })
+                .unwrap()
+            ),
+            ["current", "path", "runId", "total"]
+        );
+        assert_eq!(
+            keys(
+                serde_json::to_value(ImportItemErrorPayload {
+                    run_id: id.clone(),
+                    total: 1,
+                    failed: 1,
+                    error_message: "x".to_string()
+                })
+                .unwrap()
+            ),
+            ["errorMessage", "failed", "runId", "total"]
+        );
+        assert_eq!(
+            keys(
+                serde_json::to_value(ImportCompletePayload {
+                    run_id: id,
+                    total: 1,
+                    imported: 1,
+                    failed: 0,
+                    error_message: String::new()
+                })
+                .unwrap()
+            ),
+            ["errorMessage", "failed", "imported", "runId", "total"]
+        );
+    }
+
+    #[test]
+    fn invalid_requests_are_rejected_without_claiming_the_run() {
+        let flag = test_flag();
+        let one = vec!["/tmp/a.RAF".to_string()];
+        let cases: Vec<(Vec<String>, &str, &str)> = vec![
+            (Vec::new(), "/tmp/lib", RUN_ID),
+            (one.clone(), "   ", RUN_ID),
+            (one.clone(), "/tmp/lib", ""),
+            (one.clone(), "/tmp/lib", "not-a-uuid"),
+            (
+                one.clone(),
+                "/tmp/lib",
+                "3F2B8C1E-5D4A-4F6B-9A7C-2E1D0B9F8A76",
+            ),
+            (one.clone(), "/tmp/lib", "3f2b8c1e5d4a4f6b9a7c2e1d0b9f8a76"),
+            (
+                one.clone(),
+                "/tmp/lib",
+                "{3f2b8c1e-5d4a-4f6b-9a7c-2e1d0b9f8a76}",
+            ),
+        ];
+        for (sources, destination, run_id) in cases {
+            assert!(admit_import_run(&sources, destination, run_id, flag).is_err());
+            assert!(!flag.load(Ordering::SeqCst), "{run_id:?} {destination:?}");
+        }
+
+        let guard = admit_import_run(&one, "/tmp/lib", RUN_ID, flag).unwrap();
+        assert!(flag.load(Ordering::SeqCst));
+        drop(guard);
+        assert!(!flag.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn counts_beyond_javascript_safe_integers_are_rejected() {
+        assert!(import_count_is_js_safe(1));
+        if let Ok(max) = usize::try_from(MAX_SAFE_JS_INTEGER) {
+            assert!(import_count_is_js_safe(max));
+            assert!(!import_count_is_js_safe(max + 1));
+        }
+    }
+
+    #[test]
+    fn busy_run_rejects_admission_until_the_worker_releases() {
+        let flag = test_flag();
+        let sources = vec!["/tmp/a.RAF".to_string()];
+        let guard = admit_import_run(&sources, "/tmp/lib", RUN_ID, flag).unwrap();
+
+        let (release_tx, release_rx) = mpsc::channel::<()>();
+        let (started_tx, started_rx) = mpsc::channel::<()>();
+        let worker_sources = sources.clone();
+        let worker = std::thread::spawn(move || {
+            // Mirrors import_files: the guard lives until the terminal attempt.
+            let _guard = guard;
+            let mut item = |_: usize, _: &str, _: &mut Option<String>| -> Result<(), String> {
+                started_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+                Ok(())
+            };
+            run_import_batch(RUN_ID, &worker_sources, &mut item, &mut |_| {})
+        });
+
+        started_rx.recv().unwrap();
+        let second = "0d6f1c52-7a3e-4b8f-9c21-5e4d3b2a1f00";
+        assert_eq!(
+            admit_import_run(&sources, "/tmp/lib", second, flag).err(),
+            Some("An import is already running.".to_string())
+        );
+
+        release_tx.send(()).unwrap();
+        let complete = worker.join().unwrap();
+        assert_eq!((complete.imported, complete.failed), (1, 0));
+        assert!(!flag.load(Ordering::SeqCst));
+        assert!(admit_import_run(&sources, "/tmp/lib", second, flag).is_ok());
+    }
+
+    #[test]
+    fn concurrent_admissions_accept_exactly_one() {
+        let flag = test_flag();
+        let threads = 8;
+        let barrier = std::sync::Arc::new(Barrier::new(threads));
+        let admitted = std::sync::Arc::new(AtomicUsize::new(0));
+        let handles: Vec<_> = (0..threads)
+            .map(|_| {
+                let barrier = barrier.clone();
+                let admitted = admitted.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    let guard = ImportRunGuard::try_acquire(flag);
+                    if guard.is_some() {
+                        admitted.fetch_add(1, Ordering::SeqCst);
+                    }
+                    // Hold any guard until every thread has tried.
+                    barrier.wait();
+                    drop(guard);
+                })
+            })
+            .collect();
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        assert_eq!(admitted.load(Ordering::SeqCst), 1);
+        assert!(!flag.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn guard_is_released_when_the_worker_panics() {
+        let flag = test_flag();
+        let result = std::panic::catch_unwind(|| {
+            let _guard = ImportRunGuard::try_acquire(flag).unwrap();
+            panic!("injected worker panic");
+        });
+        assert!(result.is_err());
+        assert!(!flag.load(Ordering::SeqCst));
+        assert!(ImportRunGuard::try_acquire(flag).is_some());
+    }
+
+    #[test]
+    fn display_text_helpers_bound_and_redact() {
+        assert_eq!(
+            redact_content_uris("see CONTENT://a/b?x=1, then content://c"),
+            "see [content URI] then [content URI]"
+        );
+        assert_eq!(bound_display_text("a\u{0}\u{1b}b\tc", 10), "a b c");
+        assert_eq!(bound_display_text("ééééé", 3), "ééé");
+        assert_eq!(
+            import_item_label("/x/y/photo.RAF?vc=abc", None, 0),
+            "photo.RAF"
+        );
+        assert_eq!(import_item_label("content://p/doc/1", None, 4), "Item 5");
+        assert_eq!(import_item_label("/x/..", None, 1), "Item 2");
+    }
+
+    #[test]
+    fn long_names_keep_actual_causes_and_actions_even_when_repeated() {
+        for name in [
+            format!("{}.RAF", "L".repeat(251)),
+            format!("{}.RAF", "界".repeat(251)),
+        ] {
+            for source in [
+                format!("/selected/{name}"),
+                "content://synthetic/document/7".to_string(),
+            ] {
+                let label = import_item_label(&source, Some(&name), 0);
+                let read_error = validate_import_read(
+                    &name,
+                    Err(format!(
+                        "{name}: Permission denied; select a readable original"
+                    )),
+                    &source,
+                )
+                .unwrap_err();
+                // Real R1 signature validation, not a RAW decode or image route.
+                let misnamed_error =
+                    validate_import_read(&name, Ok(vec![0xff, 0xd8, 0xff]), &source).unwrap_err();
+                for (error, required) in [
+                    (
+                        format!("Source file not found: {source}"),
+                        vec!["Source file not found"],
+                    ),
+                    (
+                        format!("File already exists at destination: /library/{name}"),
+                        vec!["File already exists at destination"],
+                    ),
+                    (
+                        read_error,
+                        vec!["Permission denied", "select a readable original"],
+                    ),
+                    (
+                        misnamed_error,
+                        vec![
+                            "has a JPEG signature",
+                            "Select the original RAW file and try again.",
+                        ],
+                    ),
+                ] {
+                    let detail = import_failure_detail(&label, &source, &error, Some(&name));
+                    assert!(
+                        detail.chars().count() <= IMPORT_DETAIL_MAX_CHARS,
+                        "{detail}"
+                    );
+                    assert!(!detail.chars().any(char::is_control));
+                    assert!(detail.starts_with(&name.chars().take(8).collect::<String>()));
+                    assert!(
+                        detail.contains("…") && detail.contains(".RAF: "),
+                        "{detail}"
+                    );
+                    for part in required {
+                        assert!(detail.contains(part), "missing {part:?}: {detail}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn real_driver_long_missing_and_collision_details_keep_reasons() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        fs::create_dir_all(&library).unwrap();
+        let missing = format!("{}.RAF", "M".repeat(251));
+        let collision = format!("{}.JPG", "界".repeat(83));
+        let sources = vec![
+            missing_source(root.path(), &missing),
+            write_source(root.path(), &collision, b"incoming"),
+        ];
+        fs::write(library.join(&collision), b"existing").unwrap();
+        let (events, complete) = run_local_batch(&sources, &library);
+        assert_eq!(
+            (complete.total, complete.imported, complete.failed),
+            (2, 0, 2)
+        );
+        assert!(complete.error_message.contains("Source file not found"));
+        assert!(
+            complete
+                .error_message
+                .contains("File already exists at destination")
+        );
+        assert!(complete.error_message.chars().count() <= IMPORT_SUMMARY_MAX_CHARS);
+        assert_eq!(progress_currents(&events), vec![0, 1, 2]);
+        for event in events {
+            if let ImportEvent::ItemError(error) = event {
+                assert!(error.error_message.chars().count() <= IMPORT_DETAIL_MAX_CHARS);
+            }
+        }
+        assert_eq!(fs::read(library.join(collision)).unwrap(), b"existing");
+        assert_eq!(fs::read(&sources[1]).unwrap(), b"incoming");
+    }
+
+    #[test]
+    fn every_uri_punctuation_variant_redacts_the_fake_grant_and_path_suffix() {
+        for punctuation in [
+            ",", ";", "(", ")", "[", "]", "{", "}", "<", ">", "\"", "'", "#", "@", ":",
+        ] {
+            for scheme in ["content://", "CONTENT://", "CoNtEnT://"] {
+                let uri =
+                    format!("{scheme}other/document/a{punctuation}PRIVATE_PATH?grant=TEST_ONLY");
+                let reason = format!("Permission denied for {uri} select a readable original");
+                let redacted = redact_content_uris(&reason);
+                assert_eq!(
+                    redacted,
+                    "Permission denied for [content URI] select a readable original"
+                );
+                for private in ["TEST_ONLY", "grant=", "PRIVATE_PATH", "other/document"] {
+                    assert!(!redacted.contains(private), "{redacted}");
+                }
+                let label = import_item_label("content://synthetic/item/1", Some(&uri), 0);
+                assert_eq!(label, "Item 1");
+            }
+        }
+    }
+
+    #[test]
+    fn display_payloads_redact_multiple_unicode_control_and_source_prefix_uri_suffixes() {
+        let source = "content://synthetic/item/1".to_string();
+        let sources = vec![source.clone()];
+        let error = format!(
+            "Permission\u{7}\n denied for {source},PRIVATE_PATH?grant=TEST_ONLY_A via CoNtEnT://other/写真[部]\u{0}?grant=TEST_ONLY_B; select a readable original"
+        );
+        let mut item = |_: usize, _: &str, name: &mut Option<String>| -> Result<(), String> {
+            *name = Some("photo.RAF".to_string());
+            Err(error.clone())
+        };
+        let mut events = Vec::new();
+        let complete = run_import_batch(RUN_ID, &sources, &mut item, &mut |e| events.push(e));
+        assert_eq!((complete.imported, complete.failed), (0, 1));
+        for detail in events.iter().filter_map(|event| match event {
+            ImportEvent::ItemError(error) => Some(error.error_message.as_str()),
+            ImportEvent::Complete(complete) => Some(complete.error_message.as_str()),
+            _ => None,
+        }) {
+            assert!(
+                detail.contains("Permission") && detail.contains("denied"),
+                "{detail}"
+            );
+            assert!(detail.contains("select a readable original"), "{detail}");
+            assert_eq!(detail.matches("[content URI]").count(), 2, "{detail}");
+            assert!(!detail.chars().any(char::is_control));
+            for private in [
+                "TEST_ONLY",
+                "grant=",
+                "PRIVATE_PATH",
+                "other/",
+                "写真",
+                "部",
+                "content://",
+                "CONTENT://",
+                "CoNtEnT://",
+            ] {
+                assert!(!detail.contains(private), "{detail}");
+            }
+        }
+    }
+
+    #[test]
+    fn oversized_resolved_names_keep_actual_raf_error_through_the_batch_driver() {
+        for (name, suffix) in [
+            (
+                format!("{}{}.RAF", "A".repeat(500), "B".repeat(500)),
+                "BBBBBBBBBBBB.RAF",
+            ),
+            (
+                format!("{}{}.RAF", "撮".repeat(300), "影".repeat(300)),
+                "影影影影影影影影影影影影.RAF",
+            ),
+        ] {
+            let sources = vec!["content://synthetic/item/7".to_string()];
+            let actual_error = ImageContentIssue::RafHasJpegSignature.open_error_message(&name);
+            let mut item =
+                |_: usize, _: &str, resolved: &mut Option<String>| -> Result<(), String> {
+                    *resolved = Some(name.clone());
+                    Err(actual_error.clone())
+                };
+            let mut events = Vec::new();
+            let complete = run_import_batch(RUN_ID, &sources, &mut item, &mut |e| events.push(e));
+            assert_eq!(
+                (complete.total, complete.imported, complete.failed),
+                (1, 0, 1)
+            );
+            assert_eq!(progress_currents(&events), vec![0, 1]);
+            let errors: Vec<_> = events
+                .iter()
+                .filter_map(|event| match event {
+                    ImportEvent::ItemError(error) => Some(error),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(errors.len(), 1);
+            assert_eq!((errors[0].total, errors[0].failed), (1, 1));
+            let detail = &errors[0].error_message;
+            let (label, _) = detail.split_once(": ").expect("bounded label and reason");
+            assert!(label.chars().count() <= 64, "{detail}");
+            assert!(
+                label.starts_with(&name.chars().take(8).collect::<String>()),
+                "{detail}"
+            );
+            assert!(label.contains('…') && label.ends_with(suffix), "{detail}");
+            assert!(detail.chars().count() <= IMPORT_DETAIL_MAX_CHARS);
+            assert!(complete.error_message.chars().count() <= IMPORT_SUMMARY_MAX_CHARS);
+            assert!(complete.error_message.contains(detail));
+            for message in [detail.as_str(), complete.error_message.as_str()] {
+                assert!(message.contains("has a JPEG signature"), "{message}");
+                assert!(
+                    message.contains("Select the original RAW file and try again."),
+                    "{message}"
+                );
+                assert!(
+                    !message.contains("content://") && !message.contains("synthetic/item"),
+                    "{message}"
+                );
+                assert!(!message.chars().any(char::is_control));
+            }
+        }
+    }
+
+    #[test]
+    fn oversized_resolved_read_name_repetitions_do_not_consume_the_reason_budget() {
+        let name = format!("{}{}.RAF", "A".repeat(500), "B".repeat(500));
+        let sources = vec!["content://synthetic/item/7,PRIVATE_PATH?grant=TEST_ONLY".to_string()];
+        let actual_error = validate_import_read(
+            &name,
+            Err(format!(
+                "{name}: Permission denied; select a readable original"
+            )),
+            &sources[0],
+        )
+        .unwrap_err();
+        let mut item = |_: usize, _: &str, resolved: &mut Option<String>| -> Result<(), String> {
+            *resolved = Some(name.clone());
+            Err(actual_error.clone())
+        };
+        let mut events = Vec::new();
+        let complete = run_import_batch(RUN_ID, &sources, &mut item, &mut |e| events.push(e));
+        assert_eq!(
+            (complete.total, complete.imported, complete.failed),
+            (1, 0, 1)
+        );
+        let mut details = Vec::new();
+        for event in &events {
+            if let ImportEvent::ItemError(error) = event {
+                assert!(error.error_message.chars().count() <= IMPORT_DETAIL_MAX_CHARS);
+                details.push(error.error_message.as_str());
+            }
+        }
+        assert_eq!(details.len(), 1);
+        assert!(complete.error_message.chars().count() <= IMPORT_SUMMARY_MAX_CHARS);
+        for message in [details[0], complete.error_message.as_str()] {
+            assert!(message.contains("Permission denied"), "{message}");
+            assert!(message.contains("select a readable original"), "{message}");
+            assert!(message.contains("BBBBBBBBBBBB.RAF: "), "{message}");
+            for private in [
+                "TEST_ONLY",
+                "grant=",
+                "PRIVATE_PATH",
+                "synthetic/item",
+                "content://",
+            ] {
+                assert!(!message.contains(private), "{message}");
+            }
+        }
     }
 }

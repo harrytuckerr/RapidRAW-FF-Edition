@@ -3,7 +3,8 @@ import { Image as ImageIcon, Star, SlidersHorizontal } from 'lucide-react';
 import clsx from 'clsx';
 import { Grid, useGridCallbackRef } from 'react-window';
 import { useTranslation } from 'react-i18next';
-import { ImageFile, SelectedImage, ThumbnailAspectRatio, GroupingMode } from '../ui/AppProperties';
+import { ImageFile, ImageFlag, SelectedImage, ThumbnailAspectRatio, GroupingMode } from '../ui/AppProperties';
+import FlagBadges from '../ui/FlagBadges';
 import { Color, COLOR_LABELS } from '../../utils/adjustments';
 import Text from '../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../types/typography';
@@ -79,7 +80,7 @@ const FilmstripThumbnail = memo(
 
     const isInitialLoad = useRef(true);
 
-    const { path, tags, is_edited: isEdited } = imageFile;
+    const { path, tags, is_edited: isEdited, flag } = imageFile;
 
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
       id: `filmstrip-image-${path}`,
@@ -95,8 +96,9 @@ const FilmstripThumbnail = memo(
 
     const hasEditIcon = !!showEditIcon;
     const hasColorLabel = !!colorLabel;
-    const hasRating = rating > 0;
-    const hasAnyOverlay = hasEditIcon || hasColorLabel || hasRating;
+    const isRejected = flag === ImageFlag.Reject;
+    const hasRating = rating > 0 && !isRejected;
+    const hasAnyOverlay = hasEditIcon || hasColorLabel || hasRating || !!flag;
 
     const cleanPath = path.split('?')[0];
     const filename = cleanPath.split(/[\\/]/).pop() || '';
@@ -105,7 +107,11 @@ const FilmstripThumbnail = memo(
       filename.length > 40 ? filename.substring(0, 20) + '...' + filename.substring(filename.length - 17) : filename;
 
     useEffect(() => {
-      if (thumbnailAspectRatio === ThumbnailAspectRatio.Contain && thumbData) {
+      const needsCalculation =
+        thumbnailAspectRatio === ThumbnailAspectRatio.Contain ||
+        thumbnailAspectRatio === ThumbnailAspectRatio.Justified;
+
+      if (needsCalculation && thumbData) {
         const img = new Image();
         img.onload = () => {
           const ratio = img.naturalWidth / img.naturalHeight;
@@ -167,6 +173,7 @@ const FilmstripThumbnail = memo(
         : 'hover:ring-2 hover:ring-hover-color';
 
     const imageClasses = `w-full h-full group-hover:scale-[1.02] transition-transform duration-300`;
+    const fitClass = thumbnailAspectRatio === ThumbnailAspectRatio.Cover ? 'object-cover' : 'object-contain';
 
     return (
       <div
@@ -189,7 +196,12 @@ const FilmstripThumbnail = memo(
         data-tooltip={truncatedTitle}
       >
         {layers.length > 0 ? (
-          <div className="absolute inset-0 w-full h-full">
+          <div
+            className={clsx(
+              'absolute inset-0 w-full h-full transition-opacity duration-200',
+              isRejected && 'opacity-40 group-hover:opacity-100',
+            )}
+          >
             {layers.map((layer) => (
               <div
                 key={layer.id}
@@ -210,9 +222,7 @@ const FilmstripThumbnail = memo(
                 )}
                 <img
                   alt={truncatedTitle}
-                  className={`${imageClasses} ${
-                    thumbnailAspectRatio === ThumbnailAspectRatio.Contain ? 'object-contain' : 'object-cover'
-                  } relative`}
+                  className={`${imageClasses} ${fitClass} relative`}
                   loading="lazy"
                   decoding="async"
                   src={layer.url}
@@ -274,6 +284,8 @@ const FilmstripThumbnail = memo(
               </Text>
               <Star size={12} className="text-white fill-white" />
             </div>
+
+            <FlagBadges flag={flag} hasPrecedingBadge={hasEditIcon || hasColorLabel || hasRating} />
           </div>
         </div>
 
@@ -370,6 +382,34 @@ const FilmstripList = ({
   const scrollAnimationTimeout = useRef<any>(null);
   const pendingScrollTarget = useRef<number | null>(null);
   const hasCompletedInitialScroll = useRef(false);
+  const [isRevealed, setIsRevealed] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsRevealed(true), 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (isRevealed) return;
+
+    if (data.thumbnailAspectRatio === ThumbnailAspectRatio.Cover) {
+      setIsRevealed(true);
+      return;
+    }
+
+    const selectedIndex = data.imageList.findIndex((img) => img.path === data.selectedPath);
+    if (selectedIndex === -1) {
+      setIsRevealed(true);
+      return;
+    }
+
+    if (ratioMapRef.current[selectedIndex]) {
+      if (gridHandle) {
+        gridHandle.scrollToColumn({ index: selectedIndex, align: 'center', behavior: 'instant' });
+      }
+      requestAnimationFrame(() => setIsRevealed(true));
+    }
+  }, [ratioMapVersion, data.selectedPath, data.imageList, data.thumbnailAspectRatio, gridHandle, isRevealed]);
 
   const itemHeight = useMemo(() => {
     const baseHeight = Math.max(20, height - 20);
@@ -575,7 +615,13 @@ const FilmstripList = ({
   );
 
   return (
-    <div style={{ height, width }}>
+    <div
+      style={{
+        height,
+        width,
+        visibility: isRevealed ? 'visible' : 'hidden',
+      }}
+    >
       <Grid
         gridRef={setGridHandle}
         defaultWidth={width}

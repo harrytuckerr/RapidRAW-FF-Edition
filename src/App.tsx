@@ -2,7 +2,7 @@ import { type PointerEvent as ReactPointerEvent, useState, useEffect, useCallbac
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { ClerkProvider } from '@clerk/react';
+import { useCloudStore } from './store/useCloudStore';
 import { ToastContainer, toast, Slide } from 'react-toastify';
 import {
   DndContext,
@@ -38,7 +38,7 @@ import LibraryView from './components/views/LibraryView';
 
 import { ContextMenuProvider } from './context/ContextMenuContext';
 import { useSettingsStore } from './store/useSettingsStore';
-import { useUIStore } from './store/useUIStore';
+import { DEFAULT_BOTTOM_PANEL_HEIGHT, DEFAULT_PANEL_WIDTH, useUIStore } from './store/useUIStore';
 import { useLibraryStore } from './store/useLibraryStore';
 import { useEditorStore } from './store/useEditorStore';
 import { useProcessStore } from './store/useProcessStore';
@@ -77,8 +77,6 @@ import {
 
 import ImageProcessingManager from './components/managers/ImageProcessingManager';
 import ImageLoaderManager from './components/managers/ImageLoaderManager';
-
-const CLERK_PUBLISHABLE_KEY = 'pk_test_YnJpZWYtc2Vhc25haWwtMTIuY2xlcmsuYWNjb3VudHMuZGV2JA'; // local dev key
 
 const insertChildrenIntoTree = (node: any, targetPath: string, newChildren: any[]): any => {
   if (!node) return null;
@@ -141,9 +139,6 @@ function ImageDragOverlayNode({ activeItem }: { activeItem: { path: string; path
 }
 
 function App() {
-  const COMPACT_EDITOR_MAX_WIDTH = 900;
-  const ANDROID_PHONE_MAX_WIDTH = 600;
-
   const [activeImageDragItem, setActiveImageDragItem] = useState<{ path: string; paths: string[] } | null>(null);
 
   const { appSettings, theme, osPlatform, handleSettingsChange } = useSettingsStore(
@@ -162,7 +157,6 @@ function App() {
     isInstantTransition,
     isLayoutReady,
     uiVisibility,
-    isLibraryExportPanelVisible,
     leftPanelWidth,
     rightPanelWidth,
     compactEditorPanelHeightOverride,
@@ -181,7 +175,6 @@ function App() {
       isInstantTransition: state.isInstantTransition,
       isLayoutReady: state.isLayoutReady,
       uiVisibility: state.uiVisibility,
-      isLibraryExportPanelVisible: state.isLibraryExportPanelVisible,
       leftPanelWidth: state.leftPanelWidth,
       rightPanelWidth: state.rightPanelWidth,
       compactEditorPanelHeightOverride: state.compactEditorPanelHeightOverride,
@@ -253,7 +246,7 @@ function App() {
   const [libraryViewMode, setLibraryViewMode] = useState<LibraryViewMode>(defaultLibraryViewMode);
   const [isResizing, setIsResizing] = useState(false);
   const [thumbnailSize, setThumbnailSize] = useState(defaultThumbnailSize);
-  const [thumbnailAspectRatio, setThumbnailAspectRatio] = useState(ThumbnailAspectRatio.Cover);
+  const [thumbnailAspectRatio, setThumbnailAspectRatio] = useState(ThumbnailAspectRatio.Contain);
 
   const { requestThumbnails, clearThumbnailQueue, markGenerated } = useThumbnails();
 
@@ -276,11 +269,25 @@ function App() {
   });
 
   const isAndroid = osPlatform === 'android';
-  const isPortraitViewport = viewportSize.width > 0 && viewportSize.height > viewportSize.width;
-  const compactEditorMaxWidth = isAndroid ? ANDROID_PHONE_MAX_WIDTH : COMPACT_EDITOR_MAX_WIDTH;
-  const isCompactPortrait = viewportSize.width > 0 && viewportSize.width <= compactEditorMaxWidth && isPortraitViewport;
-  const useCompactAndroidPanels = isAndroid && isCompactPortrait;
+  const COMPACT_EDITOR_MAX_WIDTH = 900;
+  const ANDROID_COMPACT_MAX_WIDTH = 600;
+  const ANDROID_FULL_MIN_WIDTH = 1000;
 
+  const isPortraitViewport = viewportSize.width > 0 && viewportSize.height > viewportSize.width;
+
+  type LayoutMode = 'compact' | 'wide' | 'full';
+  const layoutMode: LayoutMode = isAndroid
+    ? viewportSize.width >= ANDROID_FULL_MIN_WIDTH
+      ? 'full'
+      : isPortraitViewport && viewportSize.width < ANDROID_COMPACT_MAX_WIDTH
+        ? 'compact'
+        : 'wide'
+    : isPortraitViewport && viewportSize.width > 0 && viewportSize.width <= COMPACT_EDITOR_MAX_WIDTH
+      ? 'compact'
+      : 'full';
+
+  const useCompactPanels = layoutMode === 'compact';
+  const useWidePanels = layoutMode === 'wide';
   const compactEditorPanelMinHeight = 220;
   const compactEditorPanelMaxHeight =
     viewportSize.height > 0
@@ -319,17 +326,20 @@ function App() {
   const { handleCopyAdjustments, handlePasteAdjustments, handleResetAdjustments, handleZoomChange } =
     useEditorActions();
 
-  const navigationRefs = {
-    transformWrapperRef,
-    preloadedDataRef,
-    cachedEditStateRef,
-    selectedImagePathRef,
-    isBackendReadyRef,
-    latestRenderedJobIdRef,
-    previewJobIdRef,
-    currentResRef,
-    prevAdjustmentsRef,
-  };
+  const navigationRefs = useMemo(
+    () => ({
+      transformWrapperRef,
+      preloadedDataRef,
+      cachedEditStateRef,
+      selectedImagePathRef,
+      isBackendReadyRef,
+      latestRenderedJobIdRef,
+      previewJobIdRef,
+      currentResRef,
+      prevAdjustmentsRef,
+    }),
+    [],
+  );
 
   const {
     handleGoHome,
@@ -338,6 +348,8 @@ function App() {
     handleSelectSubfolder,
     handleSelectAlbum,
     handleOpenFolder,
+    handleNavBack,
+    handleNavForward,
     handleContinueSession,
   } = useAppNavigation({
     clearThumbnailQueue,
@@ -355,12 +367,18 @@ function App() {
     handleClearSelection,
     handleLibraryImageSingleClick,
     handleImageClick,
-    handleSetColorLabel,
+    handleSetFlag,
     refreshAllFolderTrees,
     handleTogglePinFolder,
     handleCreateAlbumItem,
     handleRenameAlbumItem,
   } = useLibraryActions(handleImageSelect);
+
+  useEffect(() => {
+    const { setImageSelectHandler } = useUIStore.getState();
+    setImageSelectHandler(handleImageSelect);
+    return () => setImageSelectHandler(null);
+  }, [handleImageSelect]);
 
   const { displayList: sortedImageList, badges: groupBadgeInfo } = useSortedLibrary();
 
@@ -391,6 +409,7 @@ function App() {
   const {
     executeDelete,
     handleDeleteSelected,
+    handleDeleteRejected,
     handleCreateFolder,
     handleRenameFolder,
     handleSaveRename,
@@ -434,6 +453,7 @@ function App() {
     refreshAllFolderTrees,
     refreshImageList: handleLibraryRefresh,
     executeDelete,
+    handleDeleteRejected,
     handleTogglePinFolder,
   });
 
@@ -446,31 +466,14 @@ function App() {
 
   useAndroidBackHandler();
 
-  const handleToggleFullScreen = useCallback(() => {
-    const { zoom, selectedImage } = useEditorStore.getState();
-    const currentlyZoomed = zoom > 1.01;
-    setUI({ isInstantTransition: currentlyZoomed });
-
-    if (isFullScreen) {
-      setUI({ isFullScreen: false });
-    } else {
-      if (!selectedImage) return;
-      setUI({ isFullScreen: true });
-    }
-
-    if (currentlyZoomed) {
-      setTimeout(() => setUI({ isInstantTransition: false }), 100);
-    }
-  }, [isFullScreen, setUI]);
-
   useKeyboardShortcuts({
     sortedImageList,
     handleBackToLibrary,
     handleDeleteSelected,
+    handleDeleteRejected,
     handleGoHome,
     handleImageSelect,
     handlePasteFiles,
-    handleToggleFullScreen,
     handleZoomChange,
   });
 
@@ -519,6 +522,17 @@ function App() {
       setEditor({ isMaskControlHovered: false });
     }
   }, [activePanel, activeMaskContainerId, activeAiPatchContainerId, setEditor]);
+
+  useEffect(() => {
+    setEditor({
+      isWbPickerActive: false,
+      isRelightPickerActive: false,
+      isStraightenActive: false,
+      isGuidedPerspectiveActive: false,
+      activeMaskId: null,
+      activeAiSubMaskId: null,
+    });
+  }, [activePanel, activeView, setEditor]);
 
   useEffect(() => {
     const unlisten = listen('ai-connector-status-update', (event: any) => {
@@ -613,12 +627,34 @@ function App() {
       window.removeEventListener('pointercancel', stopDrag);
       setIsResizing(false);
     };
+
     document.documentElement.style.cursor =
       stateKey === 'bottom' || stateKey === 'compact' ? 'row-resize' : 'col-resize';
 
     window.addEventListener('pointermove', doDrag, { passive: false });
     window.addEventListener('pointerup', stopDrag);
     window.addEventListener('pointercancel', stopDrag);
+  };
+
+  const createResizeResetHandler = (stateKey: string) => () => {
+    if (stateKey === 'left') {
+      setUI((state) => ({
+        leftPanelWidth: DEFAULT_PANEL_WIDTH,
+        uiVisibility: { ...state.uiVisibility, leftPanel: true },
+      }));
+    } else if (stateKey === 'right') {
+      setUI((state) => ({
+        rightPanelWidth: DEFAULT_PANEL_WIDTH,
+        uiVisibility: { ...state.uiVisibility, rightPanel: true },
+      }));
+    } else if (stateKey === 'bottom') {
+      setUI((state) => ({
+        bottomPanelHeight: DEFAULT_BOTTOM_PANEL_HEIGHT,
+        uiVisibility: { ...state.uiVisibility, filmstrip: true },
+      }));
+    } else if (stateKey === 'compact') {
+      setUI({ compactEditorPanelHeightOverride: null });
+    }
   };
 
   useEffect(() => {
@@ -636,9 +672,8 @@ function App() {
   const handlePanelSelect = useCallback(
     (panelId: Panel) => {
       setPanel(panelId);
-      setEditor({ activeMaskId: null, activeAiSubMaskId: null, isWbPickerActive: false });
     },
-    [setPanel, setEditor],
+    [setPanel],
   );
 
   const handleToggleFolder = useCallback(
@@ -682,10 +717,14 @@ function App() {
               isResizing={isResizing}
               onContextMenu={handleFolderTreeContextMenu}
               onAlbumContextMenu={handleAlbumTreeContextMenu}
-              onSelectAlbum={handleSelectAlbum}
-              onFolderSelect={(path) => handleSelectSubfolder(path, false)}
+              onSelectAlbum={(id, name, images, skipHistory) => handleSelectAlbum(id, name, images, false, skipHistory)}
+              onFolderSelect={(path, skipHistory) =>
+                handleSelectSubfolder(path, false, undefined, true, false, skipHistory)
+              }
               onToggleFolder={handleToggleFolder}
               onOpenFolder={handleOpenFolder}
+              onNavBack={handleNavBack}
+              onNavForward={handleNavForward}
               style={{ width: '100%', height: '100%' }}
               isInstantTransition={isInstantTransition}
             />
@@ -730,6 +769,8 @@ function App() {
       handleSelectSubfolder,
       handleToggleFolder,
       handleOpenFolder,
+      handleNavBack,
+      handleNavForward,
       setUI,
       isInstantTransition,
       exportState,
@@ -745,7 +786,7 @@ function App() {
   const hasRoots = rootPaths && rootPaths.length > 0;
   const hasMainContent = hasRoots || (activeView === 'editor' && !!selectedImage);
 
-  const shouldHideFolderTree = useCompactAndroidPanels;
+  const shouldHideFolderTree = useCompactPanels || useWidePanels;
   const isWgpuActive =
     activeView === 'editor' &&
     appSettings?.useWgpuRenderer !== false &&
@@ -807,7 +848,7 @@ function App() {
 
   const ActiveOverlayIcon = activeLayoutDragItem ? PANEL_ICONS[activeLayoutDragItem] : null;
   const effectiveLeftWidth = uiVisibility.leftPanel ? leftPanelWidth : 48;
-  const effectiveRightWidth = uiVisibility.rightPanel ? rightPanelWidth : 48;
+  const effectiveRightWidth = uiVisibility.rightPanel ? rightPanelWidth : useWidePanels ? 58 : 48;
 
   return (
     <>
@@ -864,6 +905,7 @@ function App() {
                   bottomRegion="leftBottom"
                   renderPanel={renderAppPanel}
                   onWidthChange={createResizeHandler('left', effectiveLeftWidth)}
+                  onWidthReset={createResizeResetHandler('left')}
                   isResizing={isResizing}
                 />
               )}
@@ -886,13 +928,14 @@ function App() {
                     <EditorView
                       transformWrapperRef={transformWrapperRef}
                       isResizing={isResizing}
-                      isCompactPortrait={isCompactPortrait}
+                      layoutMode={layoutMode}
                       isAndroid={isAndroid}
                       compactEditorPanelHeight={compactEditorPanelHeight}
                       compactEditorPanelCollapsedHeight={compactEditorPanelCollapsedHeight}
                       thumbnailAspectRatio={thumbnailAspectRatio}
                       sortedImageList={sortedImageList}
                       createResizeHandler={createResizeHandler}
+                      createResizeResetHandler={createResizeResetHandler}
                       handleBackToLibrary={handleBackToLibrary}
                       handleEditorContextMenu={handleEditorContextMenu}
                       handleThumbnailContextMenu={handleThumbnailContextMenu}
@@ -922,6 +965,7 @@ function App() {
                     thumbnailAspectRatio={thumbnailAspectRatio}
                     libraryViewMode={libraryViewMode}
                     isAndroid={isAndroid}
+                    layoutMode={layoutMode}
                     setThumbnailSize={setThumbnailSize}
                     setThumbnailAspectRatio={setThumbnailAspectRatio}
                     setLibraryViewMode={setLibraryViewMode}
@@ -956,7 +1000,7 @@ function App() {
                   </div>
                 )}
               </div>
-              {!useCompactAndroidPanels && hasMainContent && (
+              {!useCompactPanels && hasMainContent && (
                 <SidePanelArea
                   side="right"
                   width={effectiveRightWidth}
@@ -964,7 +1008,9 @@ function App() {
                   bottomRegion="rightBottom"
                   renderPanel={renderAppPanel}
                   onWidthChange={createResizeHandler('right', effectiveRightWidth)}
+                  onWidthReset={createResizeResetHandler('right')}
                   isResizing={isResizing}
+                  showAdditionalTabs={useWidePanels}
                 />
               )}
             </div>
@@ -994,7 +1040,7 @@ function App() {
           handleRenameFolder={handleRenameFolder}
           handleSaveRename={handleSaveRename}
           handleStartImport={handleStartImport}
-          handleSetColorLabel={handleSetColorLabel}
+          handleSetFlag={handleSetFlag}
           handleRate={handleRate}
           executeDelete={executeDelete}
           handleSaveCollage={handleSaveCollage}
@@ -1025,13 +1071,17 @@ function App() {
   );
 }
 
-const AppWrapper = () => (
-  <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} routerPush={(to) => {}} routerReplace={(to) => {}}>
+const AppWrapper = () => {
+  useEffect(() => {
+    useCloudStore.getState().initAuth();
+  }, []);
+
+  return (
     <ContextMenuProvider>
       <App />
       <GlobalTooltip />
     </ContextMenuProvider>
-  </ClerkProvider>
-);
+  );
+};
 
 export default AppWrapper;

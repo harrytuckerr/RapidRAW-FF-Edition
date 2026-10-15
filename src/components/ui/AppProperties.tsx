@@ -1,6 +1,7 @@
 import { ExportPreset } from './ExportImportProperties';
 import { Adjustments, CopyPasteSettings } from '../../utils/adjustments';
 import { ToolType } from '../panel/right/Masks';
+import type { WhiteBalance, WhiteBalanceMode } from '../../utils/whiteBalance';
 
 export const GLOBAL_KEYS = [
   ' ',
@@ -36,6 +37,8 @@ export enum Invokes {
   ApplyAutoAdjustmentsToPaths = 'apply_auto_adjustments_to_paths',
   ApplyDenoising = 'apply_denoising',
   CalculateAutoAdjustments = 'calculate_auto_adjustments',
+  SampleWhiteBalance = 'sample_white_balance',
+  CancelAiTask = 'cancel_ai_task',
   CancelExport = 'cancel_export',
   CheckAIConnectorStatus = 'check_ai_connector_status',
   ClearAllSidecars = 'clear_all_sidecars',
@@ -54,11 +57,9 @@ export enum Invokes {
   GenerateAiForegroundMask = 'generate_ai_foreground_mask',
   GenerateAiSkyMask = 'generate_ai_sky_mask',
   GenerateAiSubjectMask = 'generate_ai_subject_mask',
-  GenerateFullscreenPreview = 'generate_fullscreen_preview',
   GeneratePreviewForPath = 'generate_preview_for_path',
   GenerateMaskOverlay = 'generate_mask_overlay',
   GeneratePresetPreview = 'generate_preset_preview',
-  GenerateThumbnailsProgressive = 'generate_thumbnails_progressive',
   GenerateUncroppedPreview = 'generate_uncropped_preview',
   GetFolderTree = 'get_folder_tree',
   GetFolderChildren = 'get_folder_children',
@@ -71,9 +72,9 @@ export enum Invokes {
   HandleImportPresetsFromFiles = 'handle_import_presets_from_files',
   HandleImportLegacyPresetsFromFile = 'handle_import_legacy_presets_from_file',
   ImportFiles = 'import_files',
-  InvokeGenerativeReplace = 'invoke_generative_replace',
   InvokeGenerativeReplaseWithMaskDef = 'invoke_generative_replace_with_mask_def',
   IsTetheringSupported = 'is_tethering_supported',
+  IsRaw9Available = 'is_raw9_available',
   ListImagesInDir = 'list_images_in_dir',
   ListImagesRecursive = 'list_images_recursive',
   LoadImage = 'load_image',
@@ -95,6 +96,7 @@ export enum Invokes {
   SaveSettings = 'save_settings',
   SetColorLabelForPaths = 'set_color_label_for_paths',
   SetRatingForPaths = 'set_rating_for_paths',
+  SetFlagForPaths = 'set_flag_for_paths',
   ShowInFinder = 'show_in_finder',
   StartBackgroundIndexing = 'start_background_indexing',
   StitchPanorama = 'stitch_panorama',
@@ -151,7 +153,7 @@ export enum SortDirection {
   Descending = 'desc',
 }
 
-export type FolderSortKey = 'name' | 'modified' | 'created' | 'imageCount';
+type FolderSortKey = 'name' | 'modified' | 'created' | 'imageCount';
 
 export interface FolderTreeSort {
   key: FolderSortKey;
@@ -172,6 +174,7 @@ export enum Theme {
 export enum ThumbnailAspectRatio {
   Cover = 'cover',
   Contain = 'contain',
+  Justified = 'justified',
 }
 
 export interface WorkspaceState {
@@ -184,6 +187,11 @@ export interface WorkspaceState {
   panelSwitcherPlacement: Record<PanelRegion, 'left' | 'right' | 'top' | 'bottom'>;
 }
 
+export interface CustomAspectRatio {
+  width: number;
+  height: number;
+}
+
 export type GroupPreference = 'jpeg' | 'raw';
 export type GroupingMode = 'off' | GroupPreference;
 
@@ -192,6 +200,8 @@ export interface AppSettings {
   aiProvider?: string;
   decorations?: any;
   editorPreviewResolution?: number;
+  smallThumbnailResolution?: number;
+  mediumThumbnailResolution?: number;
   enableZoomHifi?: boolean;
   useFullDpiRendering?: boolean;
   highResZoomMultiplier?: number;
@@ -211,12 +221,13 @@ export interface AppSettings {
   thumbnailSize?: ThumbnailSize;
   thumbnailAspectRatio?: ThumbnailAspectRatio;
   uiVisibility?: UiVisibility;
-  adjustmentVisibility?: { [key: string]: boolean };
   rawHighlightCompression?: number;
   processingBackend?: string;
   linuxGpuOptimization?: boolean;
   exportPresets?: ExportPreset[];
   myLenses?: any;
+  customAspectRatios?: CustomAspectRatio[];
+  adjustmentLayout?: AdjustmentLayout;
   enableFolderImageCounts?: boolean;
   displayEditIcon?: boolean;
   linearRawMode?: string;
@@ -226,14 +237,21 @@ export interface AppSettings {
   waveformHeight?: number;
   activeWaveformChannel?: string;
   useWgpuRenderer?: boolean;
+  editorNeutralGreyBg?: boolean;
   canvasInputMode?: 'mouse' | 'trackpad';
+  whiteBalanceMode?: WhiteBalanceMode;
   zoomSpeedMultiplier?: number;
+  zoomPhotoToPixelClick?: boolean;
   keybinds?: { [action: string]: string[] };
+  enableBaselineExposure?: boolean;
+  baselineExposure?: number;
+  compensateHighlightPreservation?: boolean;
   tonemapperOverrideEnabled?: boolean;
   defaultRawTonemapper?: string;
   defaultNonRawTonemapper?: string;
   copyPasteSettings?: CopyPasteSettings;
   enableFocusMode?: boolean;
+  enableToolFocusMode?: boolean;
   openTreeSections?: string[];
   folderIcons?: Record<string, string>;
   exifOverlay?: ExifOverlay;
@@ -269,11 +287,52 @@ export const EditedStatus = {
 
 export type EditedStatus = (typeof EditedStatus)[keyof typeof EditedStatus];
 
+export const ImageFlag = {
+  Pick: 'pick',
+  Reject: 'reject',
+} as const;
+
+export type ImageFlag = (typeof ImageFlag)[keyof typeof ImageFlag];
+
+export const FlagStatus = {
+  All: 'all',
+  Picked: 'picked',
+  ExcludeRejected: 'excludeRejected',
+  Rejected: 'rejected',
+} as const;
+
+export type FlagStatus = (typeof FlagStatus)[keyof typeof FlagStatus];
+
+export type RatingOperator = 'gte' | 'eq' | 'lte';
+
+export const RATING_OPERATORS = {
+  lte: {
+    symbol: '≤',
+    next: 'eq',
+    labelKey: 'library.header.viewOptions.ratingOperator.lte',
+    suffixKey: 'library.filters.rating.andDownSuffix',
+  },
+  eq: {
+    symbol: '=',
+    next: 'gte',
+    labelKey: 'library.header.viewOptions.ratingOperator.eq',
+    suffixKey: 'library.filters.rating.onlySuffix',
+  },
+  gte: {
+    symbol: '≥',
+    next: 'lte',
+    labelKey: 'library.header.viewOptions.ratingOperator.gte',
+    suffixKey: 'library.filters.rating.andUpSuffix',
+  },
+} as const;
+
 export interface FilterCriteria {
   colors: Array<string>;
   rating: number;
+  ratingOperator?: RatingOperator;
   rawStatus: RawStatus;
   editedStatus?: EditedStatus;
+  flagStatus?: FlagStatus;
 }
 
 export interface Folder {
@@ -288,6 +347,7 @@ export interface ImageFile {
   modified: number;
   path: string;
   rating: number;
+  flag: ImageFlag | null;
   tags: Array<string> | null;
   exif: { [key: string]: string } | null;
   is_virtual_copy: boolean;
@@ -320,6 +380,7 @@ export interface Preset {
   name: string;
   includeMasks?: boolean;
   includeCropTransform?: boolean;
+  includeProfile?: boolean;
   presetType?: 'tool' | 'style';
 }
 
@@ -330,6 +391,7 @@ export interface Progress {
 }
 
 export interface SelectedImage {
+  asShotWhiteBalance?: WhiteBalance;
   exif: any;
   group_id?: string | null;
   height: number;
@@ -337,7 +399,6 @@ export interface SelectedImage {
   isReady: boolean;
   metadata?: any;
   original_base64?: string;
-  originalUrl: string | null;
   path: string;
   thumbnailUrl: string;
   width: number;
@@ -376,6 +437,24 @@ export interface UiVisibility {
   filmstrip: boolean;
   leftPanel: boolean;
   rightPanel: boolean;
+  quickFilter?: boolean;
+}
+
+export interface CollapsibleSectionsState {
+  basic: boolean;
+  color: boolean;
+  curves: boolean;
+  details: boolean;
+  effects: boolean;
+}
+
+export interface AdjustmentLayout {
+  collapsedTools?: string[];
+  hiddenSections?: string[];
+  hiddenTools?: string[];
+  openSections?: Partial<CollapsibleSectionsState>;
+  sectionOrder?: string[];
+  toolOrder?: Record<string, string[]>;
 }
 
 export interface WaveformData {
@@ -397,7 +476,7 @@ export interface CullingSettings {
   filterBlurry: boolean;
 }
 
-export interface ImageAnalysisResult {
+interface ImageAnalysisResult {
   path: string;
   qualityScore: number;
   sharpnessMetric: number;
@@ -407,7 +486,7 @@ export interface ImageAnalysisResult {
   height: number;
 }
 
-export interface CullGroup {
+interface CullGroup {
   representative: ImageAnalysisResult;
   duplicates: ImageAnalysisResult[];
 }
@@ -418,7 +497,7 @@ export interface CullingSuggestions {
   failedPaths: string[];
 }
 
-export interface KeybindHandler {
+interface KeybindHandler {
   shouldFire?: () => boolean;
   execute: (event: KeyboardEvent) => void;
 }

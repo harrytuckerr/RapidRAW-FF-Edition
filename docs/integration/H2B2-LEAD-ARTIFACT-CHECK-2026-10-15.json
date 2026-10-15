@@ -1,0 +1,16 @@
+{
+  "package": "H2b2 lead worker-artifact check only",
+  "created_utc": "2026-10-15T07:33:22.331033+00:00",
+  "worker_manifest_sha256": "539a24390d9d40154ff4ebb96b27bd7e07b6cbc1450740d78748506f0b20a904",
+  "all_manifest_files_verified": 13,
+  "binary_sha256": "2f184eab17f8b7d091b0c4284ba7b1ab8eacdea6d21f6c8f137bcb9964f1c464",
+  "command": [
+    "/private/tmp/rapidraw-integration-20261015/target/h2b2-candidate-lab-20261015/validation-final-test-binary",
+    "dcp::validation",
+    "--nocapture"
+  ],
+  "exit": 0,
+  "log": "/private/tmp/rapidraw-h2b2-lead-check-20261015/validation-tests.log",
+  "log_sha256": "c60390c1fcc71bd3c940beb3d8167c47af3f467bbebf58b63f5bdcce6bfb6f0c",
+  "limits": "Independent source review pending; worker artifact rerun is not canonical rebuild/integration or actual image/Adobe/ICC/GPU/device acceptance. No Cargo/cache writes or source imports."
+}

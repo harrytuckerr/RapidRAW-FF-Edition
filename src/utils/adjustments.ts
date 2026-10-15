@@ -1,6 +1,8 @@
 import { Crop } from 'react-image-crop';
 import { v4 as uuidv4 } from 'uuid';
 import { SubMask, SubMaskMode } from '../components/panel/right/Masks';
+import type { AdjustmentLayout, AppSettings } from '../components/ui/AppProperties';
+import type { WhiteBalance } from './whiteBalance';
 
 export enum ActiveChannel {
   Blue = 'blue',
@@ -48,6 +50,7 @@ export enum ColorAdjustment {
   Temperature = 'temperature',
   Tint = 'tint',
   Vibrance = 'vibrance',
+  WhiteBalance = 'whiteBalance',
 }
 
 export enum ColorGrading {
@@ -95,7 +98,72 @@ export enum Effect {
   LensBlurMaxDepth = 'lensBlurMaxDepth',
   LensBlurMinFade = 'lensBlurMinFade',
   LensBlurMaxFade = 'lensBlurMaxFade',
+  RelightEnabled = 'relightEnabled',
+  RelightNormalMap = 'relightNormalMap',
+  RelightLights = 'relightLights',
+  RelightAmbient = 'relightAmbient',
+  RelightSoftness = 'relightSoftness',
+  RelightShine = 'relightShine',
+  RelightShadows = 'relightShadows',
+  RelightShadowSoftness = 'relightShadowSoftness',
+  FogEnabled = 'fogEnabled',
+  FogDepthMap = 'fogDepthMap',
+  FogAmount = 'fogAmount',
+  FogStart = 'fogStart',
+  FogDensity = 'fogDensity',
+  FogHeight = 'fogHeight',
+  FogVariation = 'fogVariation',
+  FogGlow = 'fogGlow',
+  FogTemperature = 'fogTemperature',
+  FogTint = 'fogTint',
 }
+
+export interface RelightLight {
+  id: string;
+  type: 'point' | 'spot' | 'directional';
+  x: number;
+  y: number;
+  depth: number;
+  intensity: number;
+  radius: number;
+  angle: number;
+  elevation: number;
+  cone: number;
+  feather: number;
+  temperature: number;
+  tint: number;
+  color: string;
+}
+
+export const createRelightLight = (x: number, y: number): RelightLight => ({
+  id: uuidv4(),
+  type: 'point',
+  x,
+  y,
+  depth: 0,
+  intensity: 60,
+  radius: 30,
+  angle: 135,
+  elevation: 60,
+  cone: 40,
+  feather: 50,
+  temperature: 0,
+  tint: 0,
+  color: '#ffffff',
+});
+
+export const getRelightLightColor = (light: RelightLight): string => {
+  const hex = parseInt((light.color || '#ffffff').slice(1), 16);
+  const t = light.temperature / 100;
+  const m = light.tint / 100;
+  const rgb = [
+    (((hex >> 16) & 255) / 255) * (1 + 0.45 * t + 0.15 * m),
+    (((hex >> 8) & 255) / 255) * (1 - 0.35 * m),
+    ((hex & 255) / 255) * (1 - 0.45 * t + 0.15 * m),
+  ].map((c) => Math.max(0, c));
+  const peak = Math.max(...rgb, 1e-3);
+  return `rgb(${rgb.map((c) => Math.round((c / peak) * 255)).join(', ')})`;
+};
 
 export enum CreativeAdjustment {
   GlowAmount = 'glowAmount',
@@ -103,7 +171,7 @@ export enum CreativeAdjustment {
   FlareAmount = 'flareAmount',
 }
 
-export enum TransformAdjustment {
+enum TransformAdjustment {
   TransformDistortion = 'transformDistortion',
   TransformVertical = 'transformVertical',
   TransformHorizontal = 'transformHorizontal',
@@ -121,10 +189,24 @@ export enum LensAdjustment {
   LensDistortionAmount = 'lensDistortionAmount',
   LensVignetteAmount = 'lensVignetteAmount',
   LensTcaAmount = 'lensTcaAmount',
-  LensDistortionParams = 'lensDistortionParams',
   LensDistortionEnabled = 'lensDistortionEnabled',
   LensTcaEnabled = 'lensTcaEnabled',
   LensVignetteEnabled = 'lensVignetteEnabled',
+}
+
+export type GuideOrientation = 'vertical' | 'horizontal';
+
+export interface GuideLine {
+  id: string;
+  type: GuideOrientation;
+  p1: Coord;
+  p2: Coord;
+}
+
+export interface GuidedPerspective {
+  enabled: boolean;
+  lines: GuideLine[];
+  autoCrop: boolean;
 }
 
 export interface ColorCalibration {
@@ -161,6 +243,7 @@ export interface Adjustments {
   [index: string]: any;
   aiPatches: Array<AiPatch>;
   aspectRatio: number | null;
+  baselineExposure: boolean;
   blacks: number;
   brightness: number;
   centré: number;
@@ -185,6 +268,7 @@ export interface Adjustments {
   grainAmount: number;
   grainRoughness: number;
   grainSize: number;
+  guidedPerspective: GuidedPerspective;
   halationAmount: number;
   highlights: number;
   hsl: Hsl;
@@ -198,6 +282,24 @@ export interface Adjustments {
   lensBlurMaxFade: number;
   lensBlurMinDepth: number;
   lensBlurMinFade: number;
+  relightEnabled: boolean;
+  relightNormalMap: string | null;
+  relightLights: Array<RelightLight>;
+  relightAmbient: number;
+  relightSoftness: number;
+  relightShine: number;
+  relightShadows: boolean;
+  relightShadowSoftness: number;
+  fogEnabled: boolean;
+  fogDepthMap: string | null;
+  fogAmount: number;
+  fogStart: number;
+  fogDensity: number;
+  fogHeight: number;
+  fogVariation: number;
+  fogGlow: number;
+  fogTemperature: number;
+  fogTint: number;
   lensCorrectionMode: 'auto' | 'manual';
   lensDistortionAmount: number;
   lensVignetteAmount: number;
@@ -227,6 +329,7 @@ export interface Adjustments {
   lutIsSceneReferred?: boolean;
   masks: Array<MaskContainer>;
   orientationSteps: number;
+  profile: ProfileSelection;
   rotation: number;
   saturation: number;
   sectionVisibility: SectionVisibility;
@@ -251,6 +354,7 @@ export interface Adjustments {
   vignetteFeather: number;
   vignetteMidpoint: number;
   vignetteRoundness: number;
+  whiteBalance: WhiteBalance | null;
   whites: number;
 }
 
@@ -355,6 +459,39 @@ export interface MaskContainer {
   visible: boolean;
 }
 
+export interface ProfileSelection {
+  base: string | null;
+  look: string | null;
+  amount: number;
+}
+
+/** Canonical wire identity; never coerce malformed IDs into an empty selection. */
+export function normalizeProfileBaseId(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'string' && /^[0-9a-fA-F]{64}$/.test(value)) return value.toLowerCase();
+  if (
+    Array.isArray(value) &&
+    value.length === 32 &&
+    Array.from(value).every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+  ) {
+    return value.map((byte: number) => byte.toString(16).padStart(2, '0')).join('');
+  }
+  throw new Error('Invalid profile.base: expected a 64-character hex ID or exactly 32 integer bytes (0–255).');
+}
+
+/** Preserve invalid input for explicit render validation, not a silent profile reset.
+ * This also works on partial presets without adding uncaptured adjustment defaults.
+ */
+export function normalizeProfileBaseInAdjustments<T extends { profile?: ProfileSelection }>(adjustments: T): T {
+  if (!adjustments.profile || typeof adjustments.profile !== 'object') return adjustments;
+  try {
+    const base = normalizeProfileBaseId(adjustments.profile.base);
+    return { ...adjustments, profile: { ...adjustments.profile, base } };
+  } catch {
+    return adjustments;
+  }
+}
+
 export interface Sections {
   [index: string]: Array<string>;
   basic: Array<string>;
@@ -412,7 +549,7 @@ export const DEFAULT_PARAMETRIC_CURVE_SETTINGS: ParametricCurveSettings = {
   split3: 75,
 };
 
-export const getDefaultParametricCurve = (): ParametricCurve => ({
+const getDefaultParametricCurve = (): ParametricCurve => ({
   luma: { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS },
   red: { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS },
   green: { ...DEFAULT_PARAMETRIC_CURVE_SETTINGS },
@@ -499,6 +636,7 @@ export const INITIAL_MASK_CONTAINER: MaskContainer = {
 export const INITIAL_ADJUSTMENTS: Adjustments = {
   aiPatches: [],
   aspectRatio: null,
+  baselineExposure: true,
   blacks: 0,
   brightness: 0,
   centré: 0,
@@ -523,6 +661,7 @@ export const INITIAL_ADJUSTMENTS: Adjustments = {
   grainAmount: 0,
   grainRoughness: 50,
   grainSize: 25,
+  guidedPerspective: { enabled: false, lines: [], autoCrop: true },
   halationAmount: 0,
   highlights: 0,
   hsl: {
@@ -545,6 +684,24 @@ export const INITIAL_ADJUSTMENTS: Adjustments = {
   lensBlurMaxFade: 20,
   lensBlurMinDepth: 20,
   lensBlurMinFade: 20,
+  relightEnabled: false,
+  relightNormalMap: null,
+  relightLights: [],
+  relightAmbient: 0,
+  relightSoftness: 25,
+  relightShine: 0,
+  relightShadows: false,
+  relightShadowSoftness: 15,
+  fogEnabled: false,
+  fogDepthMap: null,
+  fogAmount: 50,
+  fogStart: 0,
+  fogDensity: 50,
+  fogHeight: 0,
+  fogVariation: 25,
+  fogGlow: 25,
+  fogTemperature: 0,
+  fogTint: 0,
   lensCorrectionMode: 'manual',
   lensDistortionAmount: 100,
   lensVignetteAmount: 100,
@@ -564,6 +721,11 @@ export const INITIAL_ADJUSTMENTS: Adjustments = {
   lutIsSceneReferred: false,
   masks: [],
   orientationSteps: 0,
+  profile: {
+    base: null,
+    look: null,
+    amount: 100,
+  },
   rotation: 0,
   saturation: 0,
   sectionVisibility: {
@@ -594,6 +756,7 @@ export const INITIAL_ADJUSTMENTS: Adjustments = {
   vignetteFeather: 50,
   vignetteMidpoint: 50,
   vignetteRoundness: 0,
+  whiteBalance: null,
   whites: 0,
 };
 
@@ -627,6 +790,8 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
   if (!loadedAdjustments) {
     return INITIAL_ADJUSTMENTS;
   }
+
+  loadedAdjustments = normalizeProfileBaseInAdjustments(loadedAdjustments);
 
   const normalizeSubMasks = (subMasks: any[]) => {
     return (subMasks || []).map((subMask: Partial<SubMask>) => ({
@@ -682,6 +847,23 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
   return {
     ...INITIAL_ADJUSTMENTS,
     ...loadedAdjustments,
+    guidedPerspective: {
+      enabled: loadedAdjustments.guidedPerspective?.enabled ?? false,
+      lines: (() => {
+        const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+        const raw = (loadedAdjustments.guidedPerspective?.lines || []).map((l: any) => ({
+          id: l.id || uuidv4(),
+          type: (l.type === 'horizontal' ? 'horizontal' : 'vertical') as 'vertical' | 'horizontal',
+          p1: { x: clamp01(l.p1?.x ?? 0), y: clamp01(l.p1?.y ?? 0) },
+          p2: { x: clamp01(l.p2?.x ?? 1), y: clamp01(l.p2?.y ?? 1) },
+        }));
+        const verts = raw.filter((l) => l.type === 'vertical').slice(0, 2);
+        const hors = raw.filter((l) => l.type === 'horizontal').slice(0, 2);
+        return [...verts, ...hors];
+      })(),
+      autoCrop: loadedAdjustments.guidedPerspective?.autoCrop ?? true,
+    },
+    baselineExposure: loadedAdjustments.baselineExposure ?? false,
     lutIsSceneReferred: loadedAdjustments.lutIsSceneReferred ?? false,
     flareAmount: loadedAdjustments.flareAmount ?? INITIAL_ADJUSTMENTS.flareAmount,
     glowAmount: loadedAdjustments.glowAmount ?? INITIAL_ADJUSTMENTS.glowAmount,
@@ -695,6 +877,26 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
     lensBlurMaxFade: loadedAdjustments.lensBlurMaxFade ?? INITIAL_ADJUSTMENTS.lensBlurMaxFade,
     lensBlurMinDepth: loadedAdjustments.lensBlurMinDepth ?? INITIAL_ADJUSTMENTS.lensBlurMinDepth,
     lensBlurMinFade: loadedAdjustments.lensBlurMinFade ?? INITIAL_ADJUSTMENTS.lensBlurMinFade,
+    relightEnabled: loadedAdjustments.relightEnabled ?? INITIAL_ADJUSTMENTS.relightEnabled,
+    relightNormalMap: loadedAdjustments.relightNormalMap ?? INITIAL_ADJUSTMENTS.relightNormalMap,
+    relightLights: (loadedAdjustments.relightLights ?? INITIAL_ADJUSTMENTS.relightLights).map(
+      (light: RelightLight) => ({ ...createRelightLight(light.x, light.y), ...light }),
+    ),
+    relightAmbient: loadedAdjustments.relightAmbient ?? INITIAL_ADJUSTMENTS.relightAmbient,
+    relightSoftness: loadedAdjustments.relightSoftness ?? INITIAL_ADJUSTMENTS.relightSoftness,
+    relightShine: loadedAdjustments.relightShine ?? INITIAL_ADJUSTMENTS.relightShine,
+    relightShadows: loadedAdjustments.relightShadows ?? INITIAL_ADJUSTMENTS.relightShadows,
+    relightShadowSoftness: loadedAdjustments.relightShadowSoftness ?? INITIAL_ADJUSTMENTS.relightShadowSoftness,
+    fogEnabled: loadedAdjustments.fogEnabled ?? INITIAL_ADJUSTMENTS.fogEnabled,
+    fogDepthMap: loadedAdjustments.fogDepthMap ?? INITIAL_ADJUSTMENTS.fogDepthMap,
+    fogAmount: loadedAdjustments.fogAmount ?? INITIAL_ADJUSTMENTS.fogAmount,
+    fogStart: loadedAdjustments.fogStart ?? INITIAL_ADJUSTMENTS.fogStart,
+    fogDensity: loadedAdjustments.fogDensity ?? INITIAL_ADJUSTMENTS.fogDensity,
+    fogHeight: loadedAdjustments.fogHeight ?? INITIAL_ADJUSTMENTS.fogHeight,
+    fogVariation: loadedAdjustments.fogVariation ?? INITIAL_ADJUSTMENTS.fogVariation,
+    fogGlow: loadedAdjustments.fogGlow ?? INITIAL_ADJUSTMENTS.fogGlow,
+    fogTemperature: loadedAdjustments.fogTemperature ?? INITIAL_ADJUSTMENTS.fogTemperature,
+    fogTint: loadedAdjustments.fogTint ?? INITIAL_ADJUSTMENTS.fogTint,
     lensCorrectionMode: loadedAdjustments.lensCorrectionMode || 'manual',
     lensMaker: loadedAdjustments.lensMaker ?? INITIAL_ADJUSTMENTS.lensMaker,
     lensModel: loadedAdjustments.lensModel ?? INITIAL_ADJUSTMENTS.lensModel,
@@ -729,6 +931,13 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
       ...(loadedAdjustments.sectionVisibility || {}),
     },
     sharpnessThreshold: loadedAdjustments.sharpnessThreshold ?? INITIAL_ADJUSTMENTS.sharpnessThreshold,
+    profile: loadedAdjustments.profile
+      ? {
+          base: loadedAdjustments.profile.base ?? null,
+          look: loadedAdjustments.profile.look ?? null,
+          amount: loadedAdjustments.profile.amount ?? INITIAL_ADJUSTMENTS.profile.amount,
+        }
+      : { ...INITIAL_ADJUSTMENTS.profile },
   };
 };
 
@@ -760,7 +969,10 @@ export const ADJUSTMENT_GROUPS: Record<string, AdjustmentGroup[]> = {
     },
   ],
   color: [
-    { label: 'modals.copyPaste.groups.whiteBalance', keys: [ColorAdjustment.Temperature, ColorAdjustment.Tint] },
+    {
+      label: 'modals.copyPaste.groups.whiteBalance',
+      keys: [ColorAdjustment.Temperature, ColorAdjustment.Tint, ColorAdjustment.WhiteBalance],
+    },
     { label: 'modals.copyPaste.groups.presence', keys: [ColorAdjustment.Saturation, ColorAdjustment.Vibrance] },
     {
       label: 'modals.copyPaste.groups.hueShift',
@@ -848,6 +1060,10 @@ export const ADJUSTMENT_GROUPS: Record<string, AdjustmentGroup[]> = {
         LensAdjustment.LensVignetteEnabled,
       ],
     },
+    {
+      label: 'modals.copyPaste.groups.guidedPerspective',
+      keys: ['guidedPerspective'],
+    },
   ],
   masks: [{ label: 'modals.copyPaste.groups.masks', keys: ['masks'] }],
 };
@@ -872,6 +1088,7 @@ export const ADJUSTMENT_SECTIONS: Sections = {
     ColorAdjustment.Saturation,
     ColorAdjustment.Temperature,
     ColorAdjustment.Tint,
+    ColorAdjustment.WhiteBalance,
     ColorAdjustment.Vibrance,
     ColorAdjustment.Hsl,
     ColorAdjustment.ColorGrading,
@@ -915,5 +1132,79 @@ export const ADJUSTMENT_SECTIONS: Sections = {
     Effect.LensBlurMaxDepth,
     Effect.LensBlurMinFade,
     Effect.LensBlurMaxFade,
+    Effect.RelightEnabled,
+    Effect.RelightNormalMap,
+    Effect.RelightLights,
+    Effect.RelightAmbient,
+    Effect.RelightSoftness,
+    Effect.RelightShine,
+    Effect.RelightShadows,
+    Effect.RelightShadowSoftness,
+    Effect.FogEnabled,
+    Effect.FogDepthMap,
+    Effect.FogAmount,
+    Effect.FogStart,
+    Effect.FogDensity,
+    Effect.FogHeight,
+    Effect.FogVariation,
+    Effect.FogGlow,
+    Effect.FogTemperature,
+    Effect.FogTint,
   ],
 };
+
+const reconcileOrder = (defaultOrder: string[], order: string[] = []): string[] => {
+  const savedOrder = order.filter((id, index) => defaultOrder.includes(id) && order.indexOf(id) === index);
+  return [...savedOrder, ...defaultOrder.filter((id) => !savedOrder.includes(id))];
+};
+
+export const getAdjustmentSectionOrder = (order?: string[]): string[] =>
+  reconcileOrder(Object.keys(ADJUSTMENT_SECTIONS), order);
+
+export const getVisibleAdjustmentSections = (layout?: AdjustmentLayout): string[] =>
+  getAdjustmentSectionOrder(layout?.sectionOrder).filter((section) => !layout?.hiddenSections?.includes(section));
+
+export const DEFAULT_HIDDEN_ADJUSTMENT_TOOLS = ['chromaticAberration', 'colorCalibration'];
+
+export const getHiddenAdjustmentTools = (layout?: AdjustmentLayout): string[] =>
+  layout?.hiddenTools ?? DEFAULT_HIDDEN_ADJUSTMENT_TOOLS;
+
+export const withAdjustmentLayout = (settings: AppSettings, changes: Partial<AdjustmentLayout>): AppSettings => ({
+  ...settings,
+  adjustmentLayout: { ...settings.adjustmentLayout, ...changes },
+});
+
+export interface AdjustmentSectionTool {
+  id: string;
+  label: string;
+}
+
+export const ADJUSTMENT_SECTION_TOOLS: Record<string, Array<AdjustmentSectionTool>> = {
+  color: [
+    { id: 'whiteBalance', label: 'adjustments.color.whiteBalance' },
+    { id: 'colorPresence', label: 'adjustments.color.presence' },
+    { id: 'hue', label: 'adjustments.color.hue' },
+    { id: 'colorGrading', label: 'adjustments.color.colorGrading' },
+    { id: 'colorMixer', label: 'adjustments.color.colorMixer' },
+    { id: 'colorCalibration', label: 'adjustments.color.calibration.title' },
+  ],
+  details: [
+    { id: 'sharpening', label: 'adjustments.details.sharpening' },
+    { id: 'presence', label: 'adjustments.details.presence' },
+    { id: 'noiseReduction', label: 'adjustments.details.noiseReduction' },
+    { id: 'chromaticAberration', label: 'adjustments.details.chromaticAberration' },
+  ],
+  effects: [
+    { id: 'creative', label: 'adjustments.effects.creative' },
+    { id: 'spatial', label: 'adjustments.effects.spatial' },
+    { id: 'lut', label: 'adjustments.effects.lut' },
+    { id: 'vignette', label: 'adjustments.effects.vignette' },
+    { id: 'grain', label: 'adjustments.effects.grain' },
+  ],
+};
+
+export const getAdjustmentSectionToolIds = (section: string): string[] =>
+  (ADJUSTMENT_SECTION_TOOLS[section] ?? []).map((tool) => tool.id);
+
+export const getAdjustmentToolOrder = (section: string, toolOrder?: Record<string, string[]>): string[] =>
+  reconcileOrder(getAdjustmentSectionToolIds(section), toolOrder?.[section]);

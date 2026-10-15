@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -8,17 +8,92 @@ use image::{DynamicImage, GrayImage};
 use serde::{Deserialize, Serialize};
 use sysinfo::Disks;
 use tokio::sync::Mutex as TokioMutex;
+use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use wgpu::{Texture, TextureView};
 
 use crate::ai_processing::AiState;
+use crate::as_shot::AsShot;
 use crate::cache_utils::DecodedImageCache;
 use crate::camera_tethering::CameraSession;
+use crate::dcp::registry::ProfileRegistry;
 use crate::gpu_processing::GpuProcessor;
 use crate::image_processing::GpuContext;
 use crate::launch_request::ExternalEditSession;
 use crate::lens_correction::LensDatabase;
 use crate::lut_processing::Lut;
+
+pub struct AiTaskToken {
+    cancelled: AtomicBool,
+    notify: Notify,
+}
+
+impl AiTaskToken {
+    pub fn new() -> Self {
+        Self {
+            cancelled: AtomicBool::new(false),
+            notify: Notify::new(),
+        }
+    }
+
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::SeqCst);
+        self.notify.notify_waiters();
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::SeqCst)
+    }
+
+    pub async fn wait_for_cancel(&self) {
+        let notified = self.notify.notified();
+        if self.is_cancelled() {
+            return;
+        }
+        notified.await;
+    }
+}
+
+impl Default for AiTaskToken {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+pub struct AiTaskGuard<'a> {
+    active_ai_tasks: &'a Mutex<HashMap<String, Arc<AiTaskToken>>>,
+    task_id: String,
+    pub token: Arc<AiTaskToken>,
+}
+
+impl<'a> AiTaskGuard<'a> {
+    pub fn new(
+        active_ai_tasks: &'a Mutex<HashMap<String, Arc<AiTaskToken>>>,
+        task_id: String,
+    ) -> Self {
+        let token = Arc::new(AiTaskToken::new());
+        active_ai_tasks
+            .lock()
+            .unwrap()
+            .insert(task_id.clone(), Arc::clone(&token));
+        Self {
+            active_ai_tasks,
+            task_id,
+            token,
+        }
+    }
+}
+
+impl<'a> Drop for AiTaskGuard<'a> {
+    fn drop(&mut self) {
+        let mut tasks = self.active_ai_tasks.lock().unwrap();
+        if let Some(existing) = tasks.get(&self.task_id)
+            && Arc::ptr_eq(existing, &self.token)
+        {
+            tasks.remove(&self.task_id);
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct WindowState {
@@ -35,6 +110,15 @@ pub struct LoadedImage {
     pub path: String,
     pub image: Arc<DynamicImage>,
     pub is_raw: bool,
+    /// Camera metadata for DCP profile rendering (§4.1, W4).
+    pub raw_meta: Option<crate::raw_processing::RawImageMeta>,
+    /// Raw file bytes, available only for RAW images. Retained so the image
+    /// can be re-developed with DCP profile (Calibrate stripped) when a
+    /// profile is selected after initial load (W4).
+    pub raw_bytes: Option<Arc<Vec<u8>>>,
+    pub as_shot: AsShot,
+    pub raw_linear_mode: String,
+    pub raw_highlight_compression: f32,
 }
 
 #[derive(Clone)]
@@ -51,6 +135,9 @@ pub struct CachedPreview {
 pub struct GpuImageCache {
     pub texture: Texture,
     pub texture_view: TextureView,
+    pub gf_coeffs_view: TextureView,
+    pub gf_dehaze_view: TextureView,
+    pub is_raw: u32,
     pub width: u32,
     pub height: u32,
     pub transform_hash: u64,
@@ -70,7 +157,7 @@ pub struct PreviewJob {
     pub request_analytics: bool,
     pub compute_waveform: bool,
     pub active_waveform_channel: Option<String>,
-    pub responder: tokio::sync::oneshot::Sender<Vec<u8>>,
+    pub responder: tokio::sync::oneshot::Sender<Result<Vec<u8>, String>>,
 }
 
 pub struct AnalyticsJob {
@@ -134,7 +221,9 @@ impl MetadataManager {
     }
 }
 
-pub type TransformedImageCache = (u64, Arc<DynamicImage>, (f32, f32));
+pub type ThumbnailGeometryEntry = (u64, Arc<DynamicImage>, f32);
+pub type TransformedImageCache = (u64, Arc<DynamicImage>, f32, (f32, f32));
+pub type TransformedPreview = (Arc<DynamicImage>, f32, (f32, f32));
 
 pub struct AppState {
     pub window_setup_complete: AtomicBool,
@@ -146,6 +235,7 @@ pub struct AppState {
     pub gpu_processor: Mutex<Option<GpuProcessorState>>,
     pub ai_state: Mutex<Option<AiState>>,
     pub ai_init_lock: TokioMutex<()>,
+    pub active_ai_tasks: Mutex<HashMap<String, Arc<AiTaskToken>>>,
     pub export_task_token: Arc<Mutex<Option<Arc<AtomicBool>>>>,
     pub hdr_result: Arc<Mutex<Option<DynamicImage>>>,
     pub panorama_result: Arc<Mutex<Option<DynamicImage>>>,
@@ -162,10 +252,14 @@ pub struct AppState {
     pub mask_cache: Mutex<HashMap<u64, GrayImage>>,
     pub patch_cache: Mutex<HashMap<String, serde_json::Value>>,
     pub geometry_cache: Mutex<HashMap<u64, DynamicImage>>,
-    pub thumbnail_geometry_cache: Mutex<HashMap<String, (u64, DynamicImage, f32)>>,
+    pub thumbnail_geometry_cache: Mutex<HashMap<String, ThumbnailGeometryEntry>>,
     pub lens_db: Mutex<Option<Arc<LensDatabase>>>,
     pub load_image_generation: Arc<AtomicUsize>,
     pub full_warped_cache: Mutex<Option<(u64, Arc<DynamicImage>)>>,
+    pub patched_cache: Mutex<Option<(u64, Arc<DynamicImage>)>>,
+    pub patched_warped_cache: Mutex<Option<(u64, Arc<DynamicImage>)>>,
+    pub working_cache: Mutex<Option<(u64, Arc<DynamicImage>)>>,
+    pub effects_cache: Mutex<Option<(u64, Arc<DynamicImage>)>>,
     pub full_transformed_cache: Mutex<Option<TransformedImageCache>>,
     pub decoded_image_cache: Mutex<DecodedImageCache>,
     pub thumbnail_manager: Arc<ThumbnailManager>,
@@ -173,4 +267,5 @@ pub struct AppState {
     pub disks_cache: Mutex<Option<Disks>>,
     pub disks_cache_refreshing: AtomicBool,
     pub camera_session: Mutex<CameraSession>,
+    pub profile_registry: Arc<ProfileRegistry>,
 }

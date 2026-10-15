@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "observed_at_utc": "2026-10-15T05:48:31.229058+00:00",
+  "base_sha": "4c1e965a53de9c835df920b2e3d69c2c8a864708",
+  "scope": "Reviewed continuation documentation and diagnostic receipts only; no production source or lock changes.",
+  "files": {
+    "docs/BUILD.md": {
+      "sha256": "6441a2271e8d658de7fbcd67ead565ef4afbf11f60b56e83554e52b947f2a447",
+      "bytes": 4928
+    },
+    "docs/profiles.md": {
+      "sha256": "f548fdfc7e891a157b5382cdd63a657cf80383241fc800a90cfb7b01a1ec708a",
+      "bytes": 6909
+    },
+    "docs/integration/H0-ASSET-INVENTORY-2026-10-15.md": {
+      "sha256": "447a331b4c3cbb80a64c8df375df90cde1c3d0adbf73c87f64a9266a685e9316",
+      "bytes": 9189
+    },
+    "docs/integration/H0-REMOTE-SNAPSHOT-2026-10-15.json": {
+      "sha256": "0bccfbbf24703b51c5f3b9dafcc90cc91b0fb3f21fca601eec53a3cd31b41eda",
+      "bytes": 9285
+    },
+    "docs/integration/H0-SOURCE-RECEIPT-CHECK-2026-10-15.json": {
+      "sha256": "3e94992a31411f01a143ed41b3027ea56056e7d62377cff5a5268ee6ded98701",
+      "bytes": 541
+    },
+    "docs/integration/H6-DOC-AUDIT-2026-10-15.md": {
+      "sha256": "9ae03cd8c1c202d42d052e126c9b041d8d8a4a263df3e0e04410f8c532b3b797",
+      "bytes": 13599
+    },
+    "docs/integration/H6B-RECEIPT-2026-10-15.md": {
+      "sha256": "ce3103b021618cb0fda0a6764bf40f925f45c54ff0c16cca788d0491250c25b1",
+      "bytes": 5447
+    },
+    "docs/integration/TEAM-LEDGER-2026-10-15.md": {
+      "sha256": "3fce4300016c7ad11bbac63a6b6ed06d7200774e9073d4dfe8fbc866557a0ce3",
+      "bytes": 17704
+    },
+    "docs/integration/fold8-preflight-2026-10-15.md": {
+      "sha256": "40d3d15669d650b4bf6ef9cd411dfb58236919204eb2b8c0c46b5d1f85b7637e",
+      "bytes": 22608
+    },
+    "docs/integration/ANDROID-RAF-DEVICE-2026-10-15.md": {
+      "sha256": "51f10e64afd1277ed2874753a392610a10d5b6385318125214ecf7cd3ca10713",
+      "bytes": 12022
+    },
+    "docs/integration/ANDROID-RAF-PAYLOAD-2026-10-15.md": {
+      "sha256": "7b2a133f6d4f6481295eb932e31db2bf7e9c2822791432f522bb10e380ea14ed",
+      "bytes": 6333
+    }
+  },
+  "checks": {
+    "whitespace": "Pass",
+    "guide_relative_links": "Pass",
+    "worker_handoff_hashes_and_selected_private_evidence_manifests": "Pass",
+    "native_frontend_android_build_and_runtime_tests": "Not exercised - prose/evidence batch only"
+  },
+  "acceptance": "Does not close physical profile/export, genuine X-T5 RAW, Adobe fidelity, performance or release gates.",
+  "private_payloads": "Remain outside Git; only hashes/metadata and format header evidence are recorded."
+}

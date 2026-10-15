@@ -1,7 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { toast } from 'react-toastify';
 import { Status } from '../components/ui/ExportImportProperties';
+import {
+  IMPORT_EVENT_NAMES,
+  IMPORT_UNKNOWN_RESULT_MESSAGE,
+  ImportEffect,
+  beginImportListenerGeneration,
+  consumeImportEvent,
+  endImportListenerGeneration,
+  markImportListenersReady,
+} from '../utils/imageImport';
 import { useProcessStore } from '../store/useProcessStore';
 import { useEditorStore } from '../store/useEditorStore';
 import { useUIStore } from '../store/useUIStore';
@@ -27,6 +37,7 @@ export function useTauriListeners({
   });
 
   const thumbnailBuffer = useRef<Record<string, string>>({});
+  const mediumThumbnailBuffer = useRef<Record<string, string>>({});
   const ratingBuffer = useRef<Record<string, number>>({});
   const editStatusBuffer = useRef<Record<string, boolean>>({});
   const flushHandle = useRef<number | null>(null);
@@ -39,16 +50,19 @@ export function useTauriListeners({
       if (!isEffectActive) return;
 
       const pendingThumbs = thumbnailBuffer.current;
+      const pendingMediumThumbs = mediumThumbnailBuffer.current;
       const pendingRatings = ratingBuffer.current;
       const pendingEdits = editStatusBuffer.current;
 
       thumbnailBuffer.current = {};
+      mediumThumbnailBuffer.current = {};
       ratingBuffer.current = {};
       editStatusBuffer.current = {};
 
       if (Object.keys(pendingThumbs).length > 0) {
         useProcessStore.getState().setProcess((state) => ({
           thumbnails: { ...state.thumbnails, ...pendingThumbs },
+          mediumThumbnails: { ...state.mediumThumbnails, ...pendingMediumThumbs },
         }));
       }
 
@@ -99,13 +113,15 @@ export function useTauriListeners({
       }),
       listen('thumbnail-generated', (event: any) => {
         if (!isEffectActive) return;
-        const { path, thumbnailPath, rating, is_edited, data } = event.payload;
+        const { path, thumbnailPath, previewPath, rating, is_edited, data } = event.payload;
 
-        if (thumbnailPath) {
+        if (thumbnailPath && previewPath) {
           thumbnailBuffer.current[path] = convertFileSrc(thumbnailPath.replace(/\\/g, '/'));
+          mediumThumbnailBuffer.current[path] = convertFileSrc(previewPath.replace(/\\/g, '/'));
           refs.current.markGenerated(path);
         } else if (data) {
           thumbnailBuffer.current[path] = data;
+          mediumThumbnailBuffer.current[path] = data;
           refs.current.markGenerated(path);
         }
         if (rating !== undefined) {
@@ -120,12 +136,12 @@ export function useTauriListeners({
       }),
       listen('image-metadata-loaded', (event: any) => {
         if (!isEffectActive) return;
-        const { path, rating, is_edited, tags } = event.payload;
+        const { path, rating, flag, is_edited, tags } = event.payload;
 
         useLibraryStore.getState().setLibrary((state) => ({
           imageRatings: { ...state.imageRatings, [path]: rating },
           imageList: state.imageList.map((img) =>
-            img.path === path ? { ...img, is_edited, tags: tags ?? img.tags } : img,
+            img.path === path ? { ...img, flag, is_edited, tags: tags ?? img.tags } : img,
           ),
         }));
       }),
@@ -169,39 +185,6 @@ export function useTauriListeners({
       }),
       listen('export-cancelled', () => {
         if (isEffectActive) useProcessStore.getState().setExportState({ status: Status.Cancelled });
-      }),
-      listen('import-start', (event: any) => {
-        if (isEffectActive)
-          useProcessStore.getState().setImportState({
-            errorMessage: '',
-            path: '',
-            progress: { current: 0, total: event.payload.total },
-            status: Status.Importing,
-          });
-      }),
-      listen('import-progress', (event: any) => {
-        if (isEffectActive)
-          useProcessStore.getState().setImportState({
-            path: event.payload.path,
-            progress: { current: event.payload.current, total: event.payload.total },
-          });
-      }),
-      listen('import-complete', () => {
-        if (isEffectActive) {
-          useProcessStore.getState().setImportState({ status: Status.Success });
-          refs.current.refreshAllFolderTrees();
-          const currentPath = useLibraryStore.getState().currentFolderPath;
-          if (currentPath) {
-            refs.current.handleSelectSubfolder(currentPath, false);
-          }
-        }
-      }),
-      listen('import-error', (event: any) => {
-        if (isEffectActive)
-          useProcessStore.getState().setImportState({
-            status: Status.Error,
-            errorMessage: typeof event.payload === 'string' ? event.payload : 'Unknown error',
-          });
       }),
       listen('denoise-progress', (event: any) => {
         if (isEffectActive)
@@ -386,8 +369,109 @@ export function useTauriListeners({
       }),
     ];
 
+    // Import listeners form their own group: imports are admitted only after all
+    // four are registered for this generation (see utils/imageImport).
+    const importUnlisteners: Array<() => void> = [];
+    let importRegistrationOpen = true;
+
+    const runRefresh = (refresh: () => unknown) => {
+      try {
+        void Promise.resolve(refresh()).catch((err) => console.error('Folder refresh after import failed:', err));
+      } catch (err) {
+        console.error('Folder refresh after import failed:', err);
+      }
+    };
+
+    const refreshAfterImport = () => {
+      runRefresh(() => refs.current.refreshAllFolderTrees());
+      const currentPath = useLibraryStore.getState().currentFolderPath;
+      if (currentPath) {
+        runRefresh(() => refs.current.handleSelectSubfolder(currentPath, false));
+      }
+    };
+
+    const applyImportEffect = (effect: ImportEffect) => {
+      const { setImportState } = useProcessStore.getState();
+      switch (effect.kind) {
+        case 'progress':
+          setImportState({
+            status: Status.Importing,
+            path: effect.path,
+            progress: { current: effect.current, total: effect.total },
+          });
+          break;
+        case 'itemError':
+          // Item failures are shown but the run stays Importing until its terminal result.
+          setImportState({ status: Status.Importing, errorMessage: effect.errorMessage });
+          break;
+        case 'terminal':
+          setImportState({
+            status: effect.failed > 0 ? Status.Error : Status.Success,
+            errorMessage: effect.errorMessage,
+            path: '',
+            progress: { current: effect.total, total: effect.total },
+          });
+          if (effect.failed > 0) toast.error(effect.errorMessage, { toastId: `import-${effect.runId}` });
+          refreshAfterImport();
+          break;
+        case 'unknownResult':
+          setImportState({ status: Status.Error, errorMessage: IMPORT_UNKNOWN_RESULT_MESSAGE, path: '' });
+          toast.error(IMPORT_UNKNOWN_RESULT_MESSAGE, { toastId: `import-${effect.runId}` });
+          if (effect.refresh) refreshAfterImport();
+          break;
+        default:
+          break;
+      }
+    };
+
+    const { generation: importGeneration, effect: supersededRun } = beginImportListenerGeneration();
+    applyImportEffect(supersededRun);
+
+    const disposeImportListener = (unlisten: () => void) => {
+      try {
+        void Promise.resolve(unlisten()).catch((err) => console.error('Could not dispose import listener:', err));
+      } catch (err) {
+        console.error('Could not dispose import listener:', err);
+      }
+    };
+    const closeImportRegistration = () => {
+      importRegistrationOpen = false;
+      importUnlisteners.splice(0).forEach(disposeImportListener);
+    };
+
+    const importRegistrations = IMPORT_EVENT_NAMES.map((name) =>
+      Promise.resolve()
+        .then(() =>
+          listen<unknown>(name, (event) => {
+            if (isEffectActive && importRegistrationOpen)
+              applyImportEffect(consumeImportEvent(importGeneration, name, event?.payload));
+          }),
+        )
+        .then(
+          (unlisten) => {
+            if (importRegistrationOpen) {
+              importUnlisteners.push(unlisten);
+            } else {
+              disposeImportListener(unlisten);
+            }
+            return true;
+          },
+          (err) => {
+            console.error(`Failed to register ${name} listener:`, err);
+            closeImportRegistration();
+            return false;
+          },
+        ),
+    );
+
+    Promise.all(importRegistrations).then((registered) => {
+      if (importRegistrationOpen && registered.every(Boolean)) markImportListenersReady(importGeneration);
+    });
+
     return () => {
       isEffectActive = false;
+      closeImportRegistration();
+      applyImportEffect(endImportListenerGeneration(importGeneration));
       if (flushHandle.current !== null) {
         cancelAnimationFrame(flushHandle.current);
         flushHandle.current = null;

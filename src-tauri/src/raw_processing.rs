@@ -1,9 +1,14 @@
+use crate::as_shot::AsShot;
 use crate::image_processing::apply_orientation;
+use crate::white_balance::WhiteBalance;
 use anyhow::{Result, anyhow};
 use image::{DynamicImage, ImageBuffer, Rgba};
 use rawler::{
-    decoders::{Orientation, RawDecodeParams},
-    imgop::develop::{DemosaicAlgorithm, Intermediate, ProcessingStep, RawDevelop},
+    decoders::{Decoder, Orientation, RawDecodeParams},
+    imgop::{
+        develop::{DemosaicAlgorithm, Intermediate, ProcessingStep, RawDevelop},
+        xyz::Illuminant,
+    },
     rawimage::{RawImage, RawPhotometricInterpretation},
     rawsource::RawSource,
 };
@@ -12,6 +17,16 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+/// Camera metadata captured from RawImage before it is dropped,
+/// needed by the DCP profile stage (§4.1).
+#[derive(Clone, Debug)]
+pub struct RawImageMeta {
+    pub wb_coeffs: [f32; 4],
+    pub make: String,
+    pub model: String,
+    pub clean_model: String,
+}
+
 pub fn develop_raw_image(
     file_bytes: &[u8],
     fast_demosaic: bool,
@@ -19,14 +34,56 @@ pub fn develop_raw_image(
     linear_mode: String,
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
 ) -> Result<DynamicImage> {
-    let (developed_image, orientation) = develop_internal(
+    let (developed_image, orientation, _meta) = develop_internal(
         file_bytes,
         fast_demosaic,
         highlight_compression,
         linear_mode,
+        false, // no DCP profile
         cancel_token,
     )?;
     Ok(apply_orientation(developed_image, orientation))
+}
+
+/// Like `develop_raw_image` but returns camera metadata for DCP profile
+/// rendering and strips `Calibrate` when a profile is active (§3.1).
+#[allow(dead_code)]
+pub fn develop_raw_image_with_meta(
+    file_bytes: &[u8],
+    fast_demosaic: bool,
+    highlight_compression: f32,
+    linear_mode: String,
+    has_dcp_profile: bool,
+    cancel_token: Option<(Arc<AtomicUsize>, usize)>,
+) -> Result<(DynamicImage, Orientation, RawImageMeta)> {
+    develop_internal(
+        file_bytes,
+        fast_demosaic,
+        highlight_compression,
+        linear_mode,
+        has_dcp_profile,
+        cancel_token,
+    )
+}
+
+fn metadata_orientation(decoder: &dyn Decoder, source: &RawSource) -> Result<Orientation> {
+    let metadata = decoder.raw_metadata(source, &RawDecodeParams::default())?;
+    Ok(metadata
+        .exif
+        .orientation
+        .map(Orientation::from_u16)
+        .unwrap_or(Orientation::Normal))
+}
+
+pub fn extract_embedded_preview(file_bytes: &[u8]) -> Option<DynamicImage> {
+    let source = RawSource::new_from_slice(file_bytes);
+    let decoder = rawler::get_decoder(&source).ok()?;
+    let preview = decoder
+        .full_image(&source, &RawDecodeParams::default())
+        .ok()??;
+    let orientation =
+        metadata_orientation(decoder.as_ref(), &source).unwrap_or(Orientation::Normal);
+    Some(apply_orientation(preview, orientation))
 }
 
 fn is_linear_raw_format(raw_image: &RawImage) -> bool {
@@ -45,13 +102,76 @@ fn srgb_to_linear(value: f32) -> f32 {
     }
 }
 
+#[inline]
+fn smootherstep(edge0: f32, edge1: f32, x: f32) -> f32 {
+    let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * t * (t * (t * 6.0 - 15.0) + 10.0)
+}
+
+#[inline]
+fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
+    let t = ((x - edge0) / (edge1 - edge0)).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+#[inline]
+fn recover_clipped_pixel(r: f32, g: f32, b: f32) -> (f32, f32, f32) {
+    let max_c = r.max(g).max(b);
+
+    if max_c <= 0.50 {
+        return (r, g, b);
+    }
+
+    let mut cur_r = r;
+    let mut cur_g = g;
+    let mut cur_b = b;
+
+    let outer_blend = smootherstep(0.50, 1.5, max_c);
+
+    let magenta = (cur_r.min(cur_b) - cur_g).max(0.0);
+    if magenta > 0.0 {
+        let target_g = cur_r.min(cur_b) * 0.80 + ((cur_r + cur_b) * 0.5) * 0.20;
+        let correction = (target_g - cur_g).max(0.0);
+        let magenta_weight = smoothstep(0.0, 0.25, magenta / max_c);
+        cur_g += correction * outer_blend * magenta_weight;
+    }
+
+    let residual = (cur_r.min(cur_b) - cur_g).max(0.0);
+    if residual > 0.0 {
+        cur_g += residual * outer_blend;
+    }
+
+    let new_max = cur_r.max(cur_g).max(cur_b);
+    let min_c = cur_r.min(cur_g).min(cur_b);
+
+    let knee = smoothstep(0.50, 1.5, new_max);
+
+    if knee > 0.0 {
+        let neutrality = (min_c / new_max.max(1e-5)).clamp(0.0, 1.0);
+
+        let core_burn = smoothstep(0.60, 3.0, new_max);
+
+        let desat = (knee * (neutrality * 0.85 + core_burn * 0.15)).clamp(0.0, 1.0);
+        let smooth_desat = desat * desat * (3.0 - 2.0 * desat);
+
+        let neutral_value = min_c + (new_max - min_c) * 1.0;
+
+        cur_r = cur_r * (1.0 - smooth_desat) + neutral_value * smooth_desat;
+        cur_g = cur_g * (1.0 - smooth_desat) + neutral_value * smooth_desat;
+        cur_b = cur_b * (1.0 - smooth_desat) + neutral_value * smooth_desat;
+    }
+
+    (cur_r, cur_g, cur_b)
+}
+
 fn develop_internal(
     file_bytes: &[u8],
     fast_demosaic: bool,
-    highlight_compression: f32,
+    _highlight_compression: f32,
     linear_mode: String,
+    has_dcp_profile: bool,
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
-) -> Result<(DynamicImage, Orientation)> {
+) -> Result<(DynamicImage, Orientation, RawImageMeta)> {
     let check_cancel = || -> Result<()> {
         if let Some((tracker, generation)) = &cancel_token
             && tracker.load(Ordering::SeqCst) != *generation
@@ -69,12 +189,7 @@ fn develop_internal(
     check_cancel()?;
     let mut raw_image: RawImage = decoder.raw_image(&source, &RawDecodeParams::default(), false)?;
 
-    let metadata = decoder.raw_metadata(&source, &RawDecodeParams::default())?;
-    let orientation = metadata
-        .exif
-        .orientation
-        .map(Orientation::from_u16)
-        .unwrap_or(Orientation::Normal);
+    let orientation = metadata_orientation(decoder.as_ref(), &source)?;
 
     let is_linear_format = is_linear_raw_format(&raw_image);
 
@@ -84,6 +199,9 @@ fn develop_internal(
         "gamma_skip_calib" => (true, false),
         _ => (false, true),
     };
+
+    // DCP profile replaces the camera calibration step (§3.1).
+    let keep_calibrate = keep_calibration(is_linear_format, apply_calibration, has_dcp_profile);
 
     let original_white_level = raw_image
         .whitelevel
@@ -108,17 +226,41 @@ fn develop_internal(
         developer.steps.retain(|&step| {
             step != ProcessingStep::SRgb
                 && step != ProcessingStep::Demosaic
-                && (apply_calibration || step != ProcessingStep::Calibrate)
+                && (keep_calibrate || step != ProcessingStep::Calibrate)
         });
     } else if fast_demosaic {
         developer.demosaic_algorithm = DemosaicAlgorithm::Speed;
-        developer.steps.retain(|&step| step != ProcessingStep::SRgb);
+        developer.steps.retain(|&step| {
+            step != ProcessingStep::SRgb && (keep_calibrate || step != ProcessingStep::Calibrate)
+        });
     } else {
-        developer.steps.retain(|&step| step != ProcessingStep::SRgb);
+        developer.steps.retain(|&step| {
+            step != ProcessingStep::SRgb && (keep_calibrate || step != ProcessingStep::Calibrate)
+        });
+    }
+
+    if has_dcp_profile {
+        // DcpRenderer owns both camera calibration and white balance.
+        developer
+            .steps
+            .retain(|step| *step != ProcessingStep::WhiteBalance);
+        if is_linear_format {
+            return Err(anyhow!(
+                "DCP profiles require camera-native RAW data; linear RAW input is not supported"
+            ));
+        }
     }
 
     raw_image.wb_coeffs =
         crate::multi_exposure::neutralize_wb_if_multiexposure(raw_image.wb_coeffs, file_bytes);
+
+    // Capture camera metadata BEFORE drop for DCP profile rendering (§4.1).
+    let raw_meta = RawImageMeta {
+        wb_coeffs: raw_image.wb_coeffs,
+        make: raw_image.make.clone(),
+        model: raw_image.model.clone(),
+        clean_model: raw_image.clean_model.clone(),
+    };
 
     check_cancel()?;
     let mut developed_intermediate = developer.develop_intermediate(&raw_image)?;
@@ -128,12 +270,17 @@ fn develop_internal(
     let denominator = (original_white_level - original_black_level).max(1.0);
     let rescale_factor = (u32::MAX as f32 - original_black_level) / denominator;
 
-    let safe_highlight_compression = highlight_compression.max(1.01);
+    let safe_highlight_compression = 1000.0;
 
     let clamp_limit = if fast_demosaic {
         1.0
     } else {
         safe_highlight_compression
+    };
+
+    let (width, height) = {
+        let dim = developed_intermediate.dim();
+        (dim.w as u32, dim.h as u32)
     };
 
     check_cancel()?;
@@ -143,7 +290,7 @@ fn develop_internal(
             pixels.data.iter_mut().for_each(|p| {
                 let mut linear_val = *p * rescale_factor;
                 if is_linear_format && apply_ungamma {
-                    linear_val = srgb_to_linear(linear_val.clamp(0.0, 1.0));
+                    linear_val = srgb_to_linear(linear_val.max(0.0));
                 }
                 *p = linear_val.clamp(0.0, clamp_limit);
             });
@@ -155,39 +302,21 @@ fn develop_internal(
                 let mut b = (p[2] * rescale_factor).max(0.0);
 
                 if is_linear_format && apply_ungamma {
-                    r = srgb_to_linear(r.clamp(0.0, 1.0));
-                    g = srgb_to_linear(g.clamp(0.0, 1.0));
-                    b = srgb_to_linear(b.clamp(0.0, 1.0));
+                    r = srgb_to_linear(r.max(0.0));
+                    g = srgb_to_linear(g.max(0.0));
+                    b = srgb_to_linear(b.max(0.0));
                 }
 
-                let max_c = r.max(g).max(b);
-
-                let (final_r, final_g, final_b) = if max_c > 1.0 {
-                    let min_c = r.min(g).min(b);
-                    let compression_factor =
-                        (1.0 - (max_c - 1.0) / (safe_highlight_compression - 1.0)).clamp(0.0, 1.0);
-                    let compressed_r = min_c + (r - min_c) * compression_factor;
-                    let compressed_g = min_c + (g - min_c) * compression_factor;
-                    let compressed_b = min_c + (b - min_c) * compression_factor;
-                    let compressed_max = compressed_r.max(compressed_g).max(compressed_b);
-
-                    if compressed_max > 1e-6 {
-                        let rescale = max_c / compressed_max;
-                        (
-                            compressed_r * rescale,
-                            compressed_g * rescale,
-                            compressed_b * rescale,
-                        )
-                    } else {
-                        (max_c, max_c, max_c)
-                    }
-                } else {
+                let (rec_r, rec_g, rec_b) = if has_dcp_profile {
+                    // Upstream highlight recovery assumes calibrated RGB, not sensor channels.
                     (r, g, b)
+                } else {
+                    recover_clipped_pixel(r, g, b)
                 };
 
-                p[0] = final_r.clamp(0.0, clamp_limit);
-                p[1] = final_g.clamp(0.0, clamp_limit);
-                p[2] = final_b.clamp(0.0, clamp_limit);
+                p[0] = rec_r.clamp(0.0, clamp_limit);
+                p[1] = rec_g.clamp(0.0, clamp_limit);
+                p[2] = rec_b.clamp(0.0, clamp_limit);
             });
         }
         Intermediate::FourColor(pixels) => {
@@ -195,18 +324,13 @@ fn develop_internal(
                 p.iter_mut().for_each(|c| {
                     let mut linear_val = *c * rescale_factor;
                     if is_linear_format && apply_ungamma {
-                        linear_val = srgb_to_linear(linear_val.clamp(0.0, 1.0));
+                        linear_val = srgb_to_linear(linear_val.max(0.0));
                     }
                     *c = linear_val.clamp(0.0, clamp_limit);
                 });
             });
         }
     }
-
-    let (width, height) = {
-        let dim = developed_intermediate.dim();
-        (dim.w as u32, dim.h as u32)
-    };
 
     check_cancel()?;
 
@@ -230,7 +354,47 @@ fn develop_internal(
         }
     };
 
-    Ok((dynamic_image, orientation))
+    Ok((dynamic_image, orientation, raw_meta))
+}
+
+pub fn read_as_shot(file_bytes: &[u8]) -> Option<AsShot> {
+    let source = RawSource::new_from_slice(file_bytes);
+    let decoder = rawler::get_decoder(&source).ok()?;
+    let raw_image = decoder
+        .raw_image(&source, &RawDecodeParams::default(), true)
+        .ok()?;
+    let is_monochrome = raw_image.cpp == 1
+        && !matches!(raw_image.photometric, RawPhotometricInterpretation::Cfa(_));
+
+    Some(AsShot {
+        white_balance: (!is_monochrome)
+            .then(|| as_shot_white_balance(&raw_image, file_bytes))
+            .flatten()
+            .unwrap_or_else(WhiteBalance::reference),
+        exposure: crate::baseline_exposure::read(decoder.as_ref(), file_bytes, is_monochrome),
+    })
+}
+
+fn as_shot_white_balance(raw_image: &RawImage, file_bytes: &[u8]) -> Option<WhiteBalance> {
+    let wb_coeffs =
+        crate::multi_exposure::neutralize_wb_if_multiexposure(raw_image.wb_coeffs, file_bytes);
+    let neutral = if wb_coeffs[0].is_nan() {
+        [1.0; 4]
+    } else {
+        wb_coeffs.map(|c| 1.0 / c)
+    };
+
+    let matrices = &raw_image.color_matrix;
+    if let (Some(matrix_a), Some(matrix_d65)) =
+        (matrices.get(&Illuminant::A), matrices.get(&Illuminant::D65))
+    {
+        return WhiteBalance::from_dual_illuminant_camera_neutral(matrix_a, matrix_d65, &neutral);
+    }
+
+    let color_matrix = matrices
+        .get(&Illuminant::D65)
+        .or_else(|| matrices.values().next())?;
+    WhiteBalance::from_camera_neutral(color_matrix, &neutral)
 }
 
 pub fn get_fast_demosaic_scale_factor(
@@ -254,4 +418,21 @@ pub fn get_fast_demosaic_scale_factor(
         }
     }
     1.0
+}
+
+// Linear-RAW mode controls must not change CFA development when no profile is selected.
+fn keep_calibration(is_linear: bool, linear_calibration: bool, has_dcp: bool) -> bool {
+    !has_dcp && (!is_linear || linear_calibration)
+}
+
+#[cfg(test)]
+mod integration_tests {
+    use super::keep_calibration;
+    #[test]
+    fn linear_skip_calibration_setting_does_not_change_cfa_rendering() {
+        assert!(keep_calibration(false, false, false));
+        assert!(!keep_calibration(true, false, false));
+        assert!(keep_calibration(true, true, false));
+        assert!(!keep_calibration(false, true, true));
+    }
 }

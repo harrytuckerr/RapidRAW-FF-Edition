@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import debounce from 'lodash.debounce';
-import { Adjustments, COPYABLE_ADJUSTMENT_KEYS, ADJUSTMENT_GROUPS, INITIAL_ADJUSTMENTS } from '../utils/adjustments';
+import {
+  Adjustments,
+  COPYABLE_ADJUSTMENT_KEYS,
+  ADJUSTMENT_GROUPS,
+  INITIAL_ADJUSTMENTS,
+  normalizeProfileBaseInAdjustments,
+} from '../utils/adjustments';
 import { Folder, Invokes, Preset } from '../components/ui/AppProperties';
 
 export enum PresetListType {
@@ -26,6 +32,18 @@ export interface PresetImportResult {
   failures: Array<PresetImportFailure>;
 }
 
+function normalizePresetProfiles(items: Array<UserPreset>): Array<UserPreset> {
+  const normalize = (preset: Preset): Preset => ({
+    ...preset,
+    adjustments: normalizeProfileBaseInAdjustments(preset.adjustments),
+  });
+  return items.map((item) => ({
+    ...item,
+    ...(item.preset ? { preset: normalize(item.preset) } : {}),
+    ...(item.folder ? { folder: { ...item.folder, children: item.folder.children.map(normalize) } } : {}),
+  }));
+}
+
 function arrayMove(array: any, from: any, to: any) {
   const newArray = array.slice();
   const [item] = newArray.splice(from, 1);
@@ -41,7 +59,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     setIsLoading(true);
     try {
       const loadedPresets: Array<UserPreset> = await invoke(Invokes.LoadPresets);
-      setPresets(loadedPresets);
+      setPresets(normalizePresetProfiles(loadedPresets));
     } catch (error) {
       console.error('Failed to load presets:', error);
       setPresets([]);
@@ -69,6 +87,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     includeMasks: boolean = false,
     includeCropTransform: boolean = false,
     presetType: 'tool' | 'style' = 'style',
+    includeProfile: boolean = false,
   ) => {
     const GEOMETRY_KEYS = ADJUSTMENT_GROUPS.geometry.flatMap((group) => group.keys);
     const MASK_KEYS = ADJUSTMENT_GROUPS.masks.flatMap((group) => group.keys);
@@ -93,12 +112,18 @@ export function usePresets(currentAdjustments: Adjustments) {
       }
     }
 
+    // Profile is captured separately — opt-in per §5.3
+    if (includeProfile && Object.prototype.hasOwnProperty.call(currentAdjustments, 'profile')) {
+      presetAdjustments['profile'] = currentAdjustments['profile'];
+    }
+
     const newPresetData: Preset = {
       adjustments: presetAdjustments,
       id: crypto.randomUUID(),
       name,
       includeMasks,
       includeCropTransform,
+      includeProfile,
       presetType,
     };
 
@@ -193,6 +218,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     includeMasks: boolean,
     includeCropTransform: boolean,
     presetType: 'tool' | 'style',
+    includeProfile: boolean = false,
   ) => {
     let existingPreset: Preset | null = null;
 
@@ -212,7 +238,7 @@ export function usePresets(currentAdjustments: Adjustments) {
 
     if (!existingPreset) return null;
 
-    let newAdjustments: Record<string, any> = { ...existingPreset.adjustments };
+    const newAdjustments: Record<string, any> = { ...existingPreset.adjustments };
     const oldType = existingPreset.presetType || 'style';
 
     const GEOMETRY_KEYS = ADJUSTMENT_GROUPS.geometry.flatMap((group) => group.keys);
@@ -221,6 +247,7 @@ export function usePresets(currentAdjustments: Adjustments) {
     if (oldType !== presetType) {
       if (presetType === 'tool') {
         for (const key of Object.keys(newAdjustments)) {
+          if (key === 'profile') continue;
           if (JSON.stringify(newAdjustments[key]) === JSON.stringify(INITIAL_ADJUSTMENTS[key as keyof Adjustments])) {
             delete newAdjustments[key];
           }
@@ -242,6 +269,12 @@ export function usePresets(currentAdjustments: Adjustments) {
     if (!includeCropTransform) {
       for (const k of GEOMETRY_KEYS) delete newAdjustments[k];
     }
+    // Profile is opt-in per §5.3; remove if not explicitly included
+    if (!includeProfile) {
+      delete newAdjustments['profile'];
+    } else if (!existingPreset.includeProfile) {
+      newAdjustments.profile = structuredClone(currentAdjustments.profile);
+    }
 
     let updatedPreset: Preset | null = null;
     const updatedPresets = presets.map((item: UserPreset) => {
@@ -252,6 +285,7 @@ export function usePresets(currentAdjustments: Adjustments) {
           adjustments: newAdjustments,
           includeMasks,
           includeCropTransform,
+          includeProfile,
           presetType,
         };
         return { preset: updatedPreset };
@@ -267,6 +301,7 @@ export function usePresets(currentAdjustments: Adjustments) {
               adjustments: newAdjustments,
               includeMasks,
               includeCropTransform,
+              includeProfile,
               presetType,
             };
             return updatedPreset;
@@ -335,6 +370,10 @@ export function usePresets(currentAdjustments: Adjustments) {
           presetAdjustments[key] = currentValue;
         }
       }
+    }
+
+    if (existingPreset.includeProfile) {
+      presetAdjustments.profile = structuredClone(currentAdjustments.profile);
     }
 
     let updatedPreset: Preset | null = null;
@@ -407,6 +446,7 @@ export function usePresets(currentAdjustments: Adjustments) {
         name: `${presetToDuplicate.name} Copy`,
         includeMasks: presetToDuplicate.includeMasks,
         includeCropTransform: presetToDuplicate.includeCropTransform,
+        includeProfile: presetToDuplicate.includeProfile,
         presetType: presetToDuplicate.presetType || 'style',
       };
 
@@ -582,7 +622,7 @@ export function usePresets(currentAdjustments: Adjustments) {
       setIsLoading(true);
       try {
         const updatedPresetList: Array<any> = await invoke(Invokes.HandleImportPresetsFromFile, { filePath });
-        setPresets(updatedPresetList);
+        setPresets(normalizePresetProfiles(updatedPresetList));
       } catch (error) {
         console.error('Failed to import presets from file:', error);
         throw error;
@@ -600,7 +640,7 @@ export function usePresets(currentAdjustments: Adjustments) {
         const updatedPresetList: Array<UserPreset> = await invoke(Invokes.HandleImportLegacyPresetsFromFile, {
           filePath,
         });
-        setPresets(updatedPresetList);
+        setPresets(normalizePresetProfiles(updatedPresetList));
       } catch (error) {
         console.error('Failed to import legacy presets from file:', error);
         throw error;
@@ -616,8 +656,9 @@ export function usePresets(currentAdjustments: Adjustments) {
       setIsLoading(true);
       try {
         const result: PresetImportResult = await invoke(Invokes.HandleImportPresetsFromFiles, { filePaths });
-        setPresets(result.presets);
-        return result;
+        const normalized = { ...result, presets: normalizePresetProfiles(result.presets) };
+        setPresets(normalized.presets);
+        return normalized;
       } catch (error) {
         console.error('Failed to import presets from files:', error);
         throw error;

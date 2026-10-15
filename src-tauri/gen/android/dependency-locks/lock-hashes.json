@@ -1,0 +1,16 @@
+{
+  "source_manifest_sha256": "5815b4c6bca1330a193d3e986cf27b4912a88138b302e53741567a7a15e4268a",
+  "locks": {
+    "Cargo.lock": "2958d08a0cdf5303f165ae0e9b05c2ba99aa902d428fab21db875165149c8c49",
+    "package-lock.json": "1fab8b696139c37da88d1c76980799f210a4b00914cd91f717e3b100923bd37c"
+  },
+  "npm_root_pins": {
+    "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/cli": "2.11.4",
+    "@tauri-apps/plugin-http": "2.7.0"
+  },
+  "nested_http_api": "2.12.4 (HTTP plugin declares ^2.12.0)",
+  "npm_store_fs": "absent from source manifest and resolved tree; not added",
+  "cargo_pins_unchanged": true,
+  "status": "dependency resolution verified; APK build in progress"
+}

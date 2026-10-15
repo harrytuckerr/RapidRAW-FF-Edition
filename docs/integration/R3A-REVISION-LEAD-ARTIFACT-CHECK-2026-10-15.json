@@ -1,0 +1,26 @@
+{
+  "package": "R3A revision lead worker-artifact verification only",
+  "created_utc": "2026-10-15T08:01:02.381184+00:00",
+  "source_sha256": "ad1f52f03e2ca136a6639ee7ac9e9a9a870fee853a58e0022fd8894972a63a20",
+  "manifest_sha256": "e357cf34de9929d73f5dc78c7aeb6a0430f3f6b8b83690babf5c732412e15699",
+  "manifest_entries_verified": 26,
+  "worker_binary_sha256": "df3bf0498f31d81eb0bd038cef36fcf36078234f50b6f6a68e59695f21aba221",
+  "checks": [
+    {
+      "filter": "file_management::r3_terminal_tests",
+      "exit": 0,
+      "passed": 17,
+      "ignored": 0,
+      "log_sha256": "64c58e52c40a0c795055f8b31584cb07b1edaaa907cbc1340107f80313556ce0"
+    },
+    {
+      "filter": "file_management::tests",
+      "exit": 0,
+      "passed": 13,
+      "ignored": 2,
+      "log_sha256": "3bf54b910e0781d169055c1ebc18ea5af2d9acfdf2ecca9ce4fcfc30457024f5"
+    }
+  ],
+  "private_evidence": "/private/tmp/rapidraw-r3a-revision-lead-check-20261015",
+  "limits": "Independent native source rereview pending; not canonical rebuild/atomicfrontendintegration/nativeTauri/provider/device acceptance. No Cargo/cachewrites/sourceimports."
+}

@@ -1,5 +1,5 @@
 #[cfg(target_os = "android")]
-use jni::objects::{JObject, JString, JValue};
+use jni::objects::{GlobalRef, JObject, JString, JValue};
 #[cfg(target_os = "android")]
 use jni::{JNIEnv, JavaVM};
 #[cfg(target_os = "android")]
@@ -11,6 +11,8 @@ use std::fs;
 #[cfg(target_os = "android")]
 use std::path::PathBuf;
 #[cfg(target_os = "android")]
+static APPLICATION_CONTEXT: std::sync::OnceLock<GlobalRef> = std::sync::OnceLock::new();
+#[cfg(target_os = "android")]
 static INIT_NDK_CONTEXT: std::sync::Once = std::sync::Once::new();
 #[cfg(target_os = "android")]
 static INIT_RUSTLS_PLATFORM_VERIFIER: std::sync::Once = std::sync::Once::new();
@@ -19,14 +21,40 @@ static INIT_RUSTLS_PLATFORM_VERIFIER: std::sync::Once = std::sync::Once::new();
 pub fn initialize_android(window: &tauri::WebviewWindow) {
     let _ = window.with_webview(|webview| {
         webview.jni_handle().exec(|env, context, _webview| {
-            if let Ok(vm) = env.get_java_vm() {
-                let vm_ptr = vm.get_java_vm_pointer() as *mut std::ffi::c_void;
-                let context_ptr = context.as_raw() as *mut std::ffi::c_void;
-
+            // The Android build pins tao 0.35, which leaves context ownership to us.
+            // Keep our own application reference: wry's activity reference can be
+            // replaced on recreation while ndk-context retains the raw pointer.
+            let initialized = (|| -> Result<(), jni::errors::Error> {
+                let vm = env.get_java_vm()?;
+                let application = env
+                    .call_method(
+                        context,
+                        "getApplicationContext",
+                        "()Landroid/content/Context;",
+                        &[],
+                    )?
+                    .l()?;
+                if application.is_null() {
+                    return Err(jni::errors::Error::NullPtr("application context"));
+                }
+                let owned = env.new_global_ref(application)?;
+                let application = APPLICATION_CONTEXT.get_or_init(|| owned);
                 INIT_NDK_CONTEXT.call_once(|| unsafe {
-                    ndk_context::initialize_android_context(vm_ptr, context_ptr);
+                    ndk_context::initialize_android_context(
+                        vm.get_java_vm_pointer().cast(),
+                        application.as_obj().as_raw().cast(),
+                    );
                     log::info!("Successfully initialized ndk-context on Android.");
                 });
+                Ok(())
+            })();
+            if let Err(error) = initialized {
+                clear_pending_android_exception(env);
+                log::error!(
+                    "Failed to initialize Android application context: {}",
+                    error
+                );
+                return;
             }
 
             INIT_RUSTLS_PLATFORM_VERIFIER.call_once(|| {

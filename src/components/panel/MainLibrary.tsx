@@ -31,6 +31,7 @@ import {
   ThumbnailAspectRatio,
   RawStatus,
   EditedStatus,
+  FlagStatus,
   LibraryDisplayMode,
 } from '../ui/AppProperties';
 import { GroupBadgeInfo, GroupId } from '../../utils/imageGrouping';
@@ -50,6 +51,10 @@ export interface ColumnWidths {
   date: number;
   rating: number;
   color: number;
+  shutter: number;
+  aperture: number;
+  iso: number;
+  focal: number;
 }
 
 interface MainLibraryProps {
@@ -89,18 +94,6 @@ interface MainLibraryProps {
   thumbnailProgress: Progress;
   thumbnailSize: ThumbnailSize;
   onNavigateToCommunity(): void;
-}
-
-export interface ColumnWidths {
-  thumbnail: number;
-  name: number;
-  date: number;
-  rating: number;
-  color: number;
-  shutter: number;
-  aperture: number;
-  iso: number;
-  focal: number;
 }
 
 interface DisplayModeSwitchProps {
@@ -223,6 +216,16 @@ export default function MainLibrary(props: MainLibraryProps) {
     [t],
   );
 
+  const translatedFlagStatusOptions = useMemo(
+    () => [
+      { key: FlagStatus.All, label: t('library.filters.flag.all') },
+      { key: FlagStatus.Picked, label: t('library.filters.flag.picked') },
+      { key: FlagStatus.ExcludeRejected, label: t('library.filters.flag.excludeRejected') },
+      { key: FlagStatus.Rejected, label: t('library.filters.flag.rejected') },
+    ],
+    [t],
+  );
+
   const translatedThumbnailSizeOptions = useMemo(
     () => [
       { id: ThumbnailSize.Small, label: t('library.thumbnailSize.small'), size: 160 },
@@ -234,8 +237,9 @@ export default function MainLibrary(props: MainLibraryProps) {
 
   const translatedThumbnailAspectRatioOptions = useMemo(
     () => [
-      { id: ThumbnailAspectRatio.Cover, label: t('library.thumbnailFit.fillSquare') },
       { id: ThumbnailAspectRatio.Contain, label: t('library.thumbnailFit.originalRatio') },
+      { id: ThumbnailAspectRatio.Cover, label: t('library.thumbnailFit.fillSquare') },
+      { id: ThumbnailAspectRatio.Justified, label: t('library.thumbnailFit.justified') },
     ],
     [t],
   );
@@ -508,7 +512,7 @@ export default function MainLibrary(props: MainLibraryProps) {
   }
 
   return (
-    <div className="relative z-20 flex-1 flex flex-col h-full min-w-0 bg-bg-secondary rounded-lg overflow-visible">
+    <div className="relative z-20 flex-1 flex flex-col min-w-0 min-h-0 bg-bg-secondary rounded-lg overflow-visible">
       <header
         className="p-3 shrink-0 flex justify-between items-center border-b border-surface gap-4"
         onMouseEnter={() => setIsProgressHovered(true)}
@@ -590,6 +594,7 @@ export default function MainLibrary(props: MainLibraryProps) {
               ratingFilterOptions={translatedRatingFilterOptions}
               rawStatusOptions={translatedRawStatusOptions}
               editedStatusOptions={translatedEditedStatusOptions}
+              flagStatusOptions={translatedFlagStatusOptions}
               sortOptions={translatedSortOptions}
             />
             {!props.isAndroid && (

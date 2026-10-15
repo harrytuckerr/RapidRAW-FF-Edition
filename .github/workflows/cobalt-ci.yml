@@ -1,0 +1,130 @@
+name: Cobalt CI
+
+# Quality gate for the Cobalt DCP fork. Runs on every PR or push targeting
+# `cobalt/main`. Mirrors the structure of upstream `pr-ci.yml` (build matrix via
+# the reusable `build.yml`) and `lint.yml` (fmt / clippy / frontend lint), and
+# adds `cargo test` per COBALT_DCP_SPEC.md section 6.W0.
+#
+# The build matrix is trimmed to representative desktop platforms to keep the
+# gate fast; Android ARM64 checks packaging only, and the full release matrix
+# (all platforms + tethering) stays in ci.yml for tagged releases.
+
+on:
+  pull_request:
+    branches:
+      - cobalt/main
+  push:
+    branches:
+      - cobalt/main
+
+jobs:
+  quality:
+    name: Lint, format, test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
+          rustflags: ''
+          rust-src-dir: src-tauri
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: quality
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            pkg-config \
+            libgphoto2-dev
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Profile UI regression tests
+        run: npm run test:profiles
+
+      # --- Hard gates (Rust). The baseline passes these clean. ---
+      - name: cargo fmt
+        working-directory: src-tauri
+        run: cargo fmt -p RapidRAW -- --check
+
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test --all-features --no-fail-fast
+
+      # --- Advisory gates (frontend). The upstream main baseline does NOT pass
+      # these clean: 890 lint errors, TypeScript typecheck errors, and missing
+      # i18n plural keys are pre-existing upstream debt (see issue on the fork
+      # and docs/BUILD.md). Upstream's own lint.yml runs all three with
+      # continue-on-error, so we match that here to keep CI green on the
+      # baseline. They stay advisory until the debt is paid down.
+      # New Cobalt files (src/components/panel/right/Profile*, src/hooks/useProfiles.ts,
+      # src/components/ui/ProfileBrowser.tsx) MUST pass lint + typecheck clean -
+      # enforce with a scoped job added when W6 lands them. ---
+      - name: Frontend lint
+        continue-on-error: true
+        run: npm run lint
+
+      - name: Frontend typecheck
+        continue-on-error: true
+        run: npm run typecheck
+
+      - name: i18n check
+        continue-on-error: true
+        run: npm run i18n:check
+
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-14'
+            target: aarch64-apple-darwin
+            asset-prefix: '02'
+          - platform: 'ubuntu-24.04'
+            target: ''
+            asset-prefix: '03'
+          - platform: 'windows-latest'
+            args: '--bundles nsis'
+            target: ''
+            asset-prefix: '01'
+          - platform: 'ubuntu-24.04'
+            target: aarch64-linux-android
+            mobile: android
+            args: '--debug --target aarch64'
+            asset-prefix: '04'
+    uses: ./.github/workflows/build.yml
+    with:
+      platform: ${{ matrix.platform }}
+      target: ${{ matrix.target }}
+      build-args: ${{ matrix.args }}
+      asset-prefix: ${{ matrix.asset-prefix }}
+      mobile: ${{ matrix.mobile }}
