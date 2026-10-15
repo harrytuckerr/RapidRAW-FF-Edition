@@ -1,0 +1,42 @@
+{
+  "source_head": "4710485193650fe881509c239f2cfe770bf9cead",
+  "scope": "GD1a1 strict received-revision envelopes combined with accepted PS1; this worktree has no revised UI1",
+  "checks": [
+    {
+      "name": "library",
+      "exit": 0,
+      "elapsed_seconds": 268.987179709,
+      "log_sha256": "8e69739ed6e5451d9f6269dc4991fcfa4b0e1e492baf43ca12ca121fd54b3940"
+    },
+    {
+      "name": "fmt",
+      "exit": 0,
+      "elapsed_seconds": 1.7942540419999773,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "clippy",
+      "exit": 0,
+      "elapsed_seconds": 102.99468645799999,
+      "log_sha256": "0cdfe58e52ee0ca849789213739801f59a3a0e8b5bf30e7b2150ed91b1688a75"
+    }
+  ],
+  "library": {
+    "passed": 227,
+    "failed": 0,
+    "ignored_not_passed": 14
+  },
+  "source_hashes": {
+    "src-tauri/src/drive/model.rs": "f5bcf2019a34b410056e0cb2e514dcc6d471b1357f6aefe55fd1f1cf60cdd1d0",
+    "src-tauri/src/drive/mod.rs": "f689981fc6c7f414dfb47e13e827b00234de1e17b72f6d08fc9b816430851481",
+    "src-tauri/src/lib.rs": "33ed33787818079b1722f0891408fd9418afaec73af15eb217521294e6f85592",
+    "src-tauri/src/file_management.rs": "e9fca39553855ce61d9456bfbc2b8953bd61bf982a835a8492c64cc033381235",
+    "src-tauri/src/preset_converter.rs": "6d35e0f63dd9f9053783a7b16357212105c28f2cca5ea936a18e914317012cdd"
+  },
+  "limitations": [
+    "Syntax/structural model only; payload applicability stays Unvalidated",
+    "No filesystem durability/graph/acknowledgements/provider/auth/account ownership/Google sync acceptance",
+    "No native app or device executed; UI1 product artifact does not contain this module"
+  ],
+  "evidence_root": "/private/tmp/rapidraw-gd1a1-canonical-20261015"
+}
