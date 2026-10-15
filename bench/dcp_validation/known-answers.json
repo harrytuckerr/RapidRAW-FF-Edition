@@ -1,0 +1,211 @@
+{
+  "scope": "synthetic_candidate_colour_only; no rendering, ICC, Adobe or image-route acceptance",
+  "provenance": {
+    "source_document": "docs/integration/H2B2-KNOWN-ANSWER-DESIGN-2026-10-15.md",
+    "source_sha256": "3019ff22a4275b6ed18d0bbd434ea7c8482eac9c89fbb93d51d81f15569fa2b9",
+    "contract_sha256": "f29936252b3ec103a41a76961d97902c82970416ea5802f88d497ef4341a6880",
+    "independent_review_sha256": "7d64cd842c6deb2349bb7e59a407e5759fd5b0c4a323e338b971b17fdaf6fbe8",
+    "primary_reference": "https://www.w3.org/TR/2026/CRD-css-color-4-20261009/#color-conversion-code",
+    "source_sections": [
+      "6.1 analytic decimal domain",
+      "6.2 f32-widened domain",
+      "7 fault witnesses"
+    ],
+    "source_json_fence_sha256": [
+      "869c2e15b4e8b4f8dacdb0f21029c546e4ee3cc29c6f6fec166de777b6c7974d",
+      "146220417d246cbb01c3abe5250d4efeabc68fe5a5c59482f5c4b7a0c06d5403"
+    ],
+    "derive_stdout_sha256": "7bfa41f4cd4f6a09d117aa15abe9adbc389d675373dceace1e07f3ced3ded94f",
+    "amend_script_sha256": "7a4a9ed7770439df9a226c3f3c92eb37ce14222b528cdc87a6130fff20f8e28d",
+    "amend_stdout_sha256": "71c3cbbc9542fddce77031132bfccecf0d6c10b0505529c5c97be602c4b4d33a"
+  },
+  "formula": {
+    "input": "already linear sRGB; no inverse transfer",
+    "primaries_xy": [
+      [
+        "0.64",
+        "0.33"
+      ],
+      [
+        "0.30",
+        "0.60"
+      ],
+      [
+        "0.15",
+        "0.06"
+      ]
+    ],
+    "source_white_xy": [
+      "0.3127",
+      "0.3290"
+    ],
+    "destination_white_xyz_exact_decimal": [
+      "0.9642956764",
+      "1",
+      "0.8251046025"
+    ],
+    "rgb_matrix": "P columns=(x/y,1,(1-x-y)/y); scales=inv(P)*W65; M=P*diag(scales)",
+    "bradford_cone_matrix": [
+      [
+        "0.8951",
+        "0.2664",
+        "-0.1614"
+      ],
+      [
+        "-0.7502",
+        "1.7135",
+        "0.0367"
+      ],
+      [
+        "0.0389",
+        "-0.0685",
+        "1.0296"
+      ]
+    ],
+    "adaptation": "A=inv(B)*diag((B*Wc)/(B*W65))*B; apply once",
+    "lab": "t=XYZ/Wc; f(t)=cbrt(t) if t>(6/29)^3 else t/(3*(6/29)^2)+4/29; L=116*fy-16,a=500*(fx-fy),b=200*(fy-fz)",
+    "range": "retain finite negative and >1 RGB/XYZ; no RGB/XYZ/L clipping or gamut mapping",
+    "white_distinction": "Wc is neither full-quotient xy D50 nor ICC nominal [0.9642,1,0.8249]"
+  },
+  "rounding": {
+    "author_decimal_precision": 80,
+    "mode": "ROUND_HALF_EVEN",
+    "quantum": "1e-12",
+    "maximum_component_rounding_error": "5e-13",
+    "acceptance": "strict absolute error <1e-6 per component within one input domain"
+  },
+  "domain_binding": "analytic_decimal_f64 uses section6.1 helper literals; f32_widened_to_f64 uses section6.2 exact little-endian bits widened exactly. Do not cross domains or loosen tolerance.",
+  "fault_witnesses": {
+    "columns": [
+      "omit",
+      "reversed",
+      "doubled",
+      "M_transpose",
+      "A_transpose",
+      "R_B_swap",
+      "RGB_0_1_clip"
+    ],
+    "samples": [
+      {
+        "name": "white",
+        "max_abs_lab_deltas": [
+          "19.386868530838",
+          "40.401861875214",
+          "17.865720390552",
+          "91.584738868839",
+          "7.805195879611",
+          "0",
+          "0"
+        ]
+      },
+      {
+        "name": "gray18",
+        "max_abs_lab_deltas": [
+          "10.946245064819",
+          "22.811764595071",
+          "10.087371941654",
+          "51.710723382743",
+          "4.406982321113",
+          "0",
+          "0"
+        ]
+      },
+      {
+        "name": "primary_r",
+        "max_abs_lab_deltas": [
+          "7.744869992808",
+          "15.778391337356",
+          "7.572734281622",
+          "55.198832595156",
+          "41.813101659300",
+          "181.920674292989",
+          "0"
+        ]
+      },
+      {
+        "name": "chroma",
+        "max_abs_lab_deltas": [
+          "15.654544311545",
+          "32.600501330961",
+          "14.438254010936",
+          "86.849336032102",
+          "5.338016102498",
+          "51.171920675122",
+          "0"
+        ]
+      },
+      {
+        "name": "extended",
+        "max_abs_lab_deltas": [
+          "17.443864004468",
+          "36.164455106004",
+          "16.225445320329",
+          "349.758033412904",
+          "8.023236527475",
+          "275.098102645411",
+          "13.621693774145"
+        ]
+      }
+    ]
+  },
+  "clip_witnesses": {
+    "columns": [
+      "XYZ_D65_negative_clip",
+      "XYZ_Wc_negative_clip",
+      "L_0_100_clip",
+      "RGB_0_1_clip"
+    ],
+    "samples": [
+      {
+        "name": "negative_blue",
+        "max_abs_lab_deltas": [
+          "1253.472242328370",
+          "1253.472242328370",
+          "54.757649669435",
+          "1253.472242328370"
+        ]
+      },
+      {
+        "name": "double_white",
+        "max_abs_lab_deltas": [
+          "0",
+          "0",
+          "30.150841787805",
+          "30.150841787805"
+        ]
+      }
+    ],
+    "nonseparability": [
+      "negative_blue: both XYZ clips and RGB clip produce black; L-only clip leaves a/b unchanged",
+      "double_white: L-only and RGB clips are indistinguishable at1e-6; XYZ negative clips do nothing"
+    ]
+  },
+  "domains": [
+{
+  "domain": "analytic_decimal_f64",
+  "tolerance_abs": "1e-6",
+  "samples": [
+    {"name": "black", "rgb": [0, 0, 0], "xyz_d65": [0, 0, 0], "xyz_wc": [0, 0, 0], "lab": [0, 0, 0]},
+    {"name": "white", "rgb": [1, 1, 1], "xyz_d65": [0.950455927052, 1.000000000000, 1.089057750760], "xyz_wc": [0.964295676400, 1.000000000000, 0.825104602500], "lab": [100, 0, 0]},
+    {"name": "gray18", "rgb": [0.18, 0.18, 0.18], "xyz_d65": [0.171082066869, 0.180000000000, 0.196030395137], "xyz_wc": [0.173573221752, 0.180000000000, 0.148518828450], "lab": [49.496107610120, 0, 0]},
+    {"name": "primary_r", "rgb": [1, 0, 0], "xyz_d65": [0.412390799266, 0.212639005872, 0.019330818716], "xyz_wc": [0.436065746863, 0.222493177106, 0.013923921463], "lab": [54.290541404228, 80.804928172989, 69.890964767746]},
+    {"name": "primary_g", "rgb": [0, 1, 0], "xyz_d65": [0.357584339384, 0.715168678768, 0.119194779795], "xyz_wc": [0.385151509574, 0.716887013099, 0.097081324231], "lab": [87.818534365260, -79.271060777848, 80.994581484389]},
+    {"name": "primary_b", "rgb": [0, 0, 1], "xyz_d65": [0.180480788402, 0.072192315361, 0.950532152250], "xyz_wc": [0.143078419963, 0.060619809794, 0.714099356806], "lab": [29.568301978949, 68.287364604347, -112.029709525243]},
+    {"name": "chroma", "rgb": [0.2, 0.4, 0.6], "xyz_d65": [0.333800368648, 0.371910661898, 0.621863367011], "xyz_wc": [0.327120805180, 0.367625326538, 0.470076928068], "lab": [67.098489639706, -9.469196039036, -22.526275571832]},
+    {"name": "extended", "rgb": [-0.1, 0.2, 1.2], "xyz_d65": [0.246854734032, 0.208400613599, 1.162544456787], "xyz_wc": [0.205117831184, 0.193871856662, 0.874943100867], "lab": [51.137151709233, 9.085989427183, -88.194671466775]},
+    {"name": "negative_blue", "rgb": [0, 0, -1], "xyz_d65": [-0.180480788402, -0.072192315361, -0.950532152250], "xyz_wc": [-0.143078419963, -0.060619809794, -0.714099356806], "lab": [-54.757649669435, -341.680693595618, 1253.472242328370]},
+    {"name": "double_white", "rgb": [2, 2, 2], "xyz_d65": [1.900911854103, 2.000000000000, 2.178115501520], "xyz_wc": [1.928591352800, 2.000000000000, 1.650209205000], "lab": [130.150841787805, 0, 0]}
+  ]
+}
+,
+{
+  "domain": "f32_widened_to_f64",
+  "tolerance_abs": "1e-6",
+  "samples": [
+    {"name": "chroma", "f32_le_hex": ["cdcc4c3e", "cdcccc3e", "9a99193f"], "rgb_exact": ["0.20000000298023223876953125", "0.4000000059604644775390625", "0.60000002384185791015625"], "xyz_d65": [0.333800376311, 0.371910668515, 0.621863390441], "xyz_wc": [0.327120812186, 0.367625332919, 0.470076945714], "lab": [67.098490120522, -9.469195621849, -22.526276817416]},
+    {"name": "extended", "f32_le_hex": ["cdccccbd", "cdcc4c3e", "9a99993f"], "rgb_exact": ["-0.100000001490116119384765625", "0.20000000298023223876953125", "1.2000000476837158203125"], "xyz_d65": [0.246854743090, 0.208400618856, 1.162544502438], "xyz_wc": [0.205117838504, 0.193871861358, 0.874943135186], "lab": [51.137152251248, 9.085990641669, -88.194673198879]}
+  ]
+}
+
+  ]
+}

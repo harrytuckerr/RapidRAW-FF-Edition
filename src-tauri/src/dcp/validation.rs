@@ -1322,3 +1322,511 @@ mod tests {
         [rgb_prime[0] + m, rgb_prime[1] + m, rgb_prime[2] + m]
     }
 }
+
+// H2b2 is a private, unwired comparison core. Keep it test-scoped until a later
+// owned slice connects it to actual candidate pixels; helper tests are not render,
+// ICC, GPU, or Adobe acceptance.
+#[cfg(test)]
+mod candidate_lab {
+    use crate::dcp::delta_e::{D50_XYZ, xyz_to_lab};
+    use nalgebra::{Matrix3, Vector3};
+    use serde::Deserialize;
+
+    #[derive(Debug, PartialEq)]
+    enum ColourError {
+        NonFinite(&'static str),
+        SingularMatrix,
+    }
+
+    fn finite(values: &[f64], stage: &'static str) -> Result<(), ColourError> {
+        if values.iter().all(|value| value.is_finite()) {
+            Ok(())
+        } else {
+            Err(ColourError::NonFinite(stage))
+        }
+    }
+
+    fn inverse(matrix: Matrix3<f64>) -> Result<Matrix3<f64>, ColourError> {
+        finite(matrix.as_slice(), "matrix inverse")?;
+        finite(&[matrix.determinant()], "matrix inverse")?;
+        let result = matrix.try_inverse().ok_or(ColourError::SingularMatrix)?;
+        finite(result.as_slice(), "matrix inverse")?;
+        Ok(result)
+    }
+
+    // Check each product and partial sum as well as the final vector.
+    fn multiply(
+        matrix: &Matrix3<f64>,
+        vector: [f64; 3],
+        stage: &'static str,
+    ) -> Result<[f64; 3], ColourError> {
+        finite(matrix.as_slice(), stage)?;
+        finite(&vector, stage)?;
+        let mut result = [0.0; 3];
+        for (row, output) in result.iter_mut().enumerate() {
+            for (column, value) in vector.iter().enumerate() {
+                let product = matrix[(row, column)] * value;
+                finite(&[product], stage)?;
+                *output += product;
+                finite(&[*output], stage)?;
+            }
+        }
+        Ok(result)
+    }
+
+    fn xyz_from_xy(x: f64, y: f64) -> [f64; 3] {
+        [x / y, 1.0, (1.0 - x - y) / y]
+    }
+
+    fn bradford(source: [f64; 3], destination: [f64; 3]) -> Result<Matrix3<f64>, ColourError> {
+        let cone = Matrix3::new(
+            0.8951, 0.2664, -0.1614, -0.7502, 1.7135, 0.0367, 0.0389, -0.0685, 1.0296,
+        );
+        let source_cone = multiply(&cone, source, "source white")?;
+        let destination_cone = multiply(&cone, destination, "destination white")?;
+        let ratios: [f64; 3] = std::array::from_fn(|i| destination_cone[i] / source_cone[i]);
+        finite(&ratios, "cone scaling")?;
+        let cone_inverse = inverse(cone)?;
+        let mut result = Matrix3::zeros();
+        for column in 0..3 {
+            let scaled = std::array::from_fn(|row| cone[(row, column)] * ratios[row]);
+            let adapted = multiply(&cone_inverse, scaled, "adaptation matrix")?;
+            result.set_column(column, &Vector3::from(adapted));
+        }
+        Ok(result)
+    }
+
+    fn finish_lab(xyz_wc: [f64; 3]) -> Result<[f64; 3], ColourError> {
+        finite(&xyz_wc, "XYZ Wc")?;
+        let relative: [f64; 3] = std::array::from_fn(|i| xyz_wc[i] / D50_XYZ[i]);
+        finite(&relative, "XYZ relative to Wc")?;
+        let lab = xyz_to_lab(xyz_wc);
+        finite(&lab, "Lab")?;
+        Ok(lab)
+    }
+
+    #[derive(Debug)]
+    struct CandidateLab {
+        xyz_d65: [f64; 3],
+        xyz_wc: [f64; 3],
+        lab: [f64; 3],
+    }
+
+    struct CandidateLabConverter {
+        rgb_to_xyz: Matrix3<f64>,
+        d65_to_wc: Matrix3<f64>,
+    }
+
+    impl CandidateLabConverter {
+        fn new() -> Result<Self, ColourError> {
+            // Published sRGB primary xy values, normalized to unit D65 white.
+            // Derive these independently of the production renderer's matrices.
+            let primaries = Matrix3::from_columns(&[
+                Vector3::from(xyz_from_xy(0.64, 0.33)),
+                Vector3::from(xyz_from_xy(0.30, 0.60)),
+                Vector3::from(xyz_from_xy(0.15, 0.06)),
+            ]);
+            let white = xyz_from_xy(0.3127, 0.3290);
+            let scales = multiply(&inverse(primaries)?, white, "primary scales")?;
+            let rgb_to_xyz =
+                Matrix3::from_fn(|row, column| primaries[(row, column)] * scales[column]);
+            finite(rgb_to_xyz.as_slice(), "RGB matrix")?;
+            let d65_to_wc = bradford(white, D50_XYZ)?;
+            Ok(Self {
+                rgb_to_xyz,
+                d65_to_wc,
+            })
+        }
+
+        fn convert(&self, linear_srgb: [f64; 3]) -> Result<CandidateLab, ColourError> {
+            finite(&linear_srgb, "RGB")?;
+            let xyz_d65 = multiply(&self.rgb_to_xyz, linear_srgb, "XYZ D65")?;
+            let xyz_wc = multiply(&self.d65_to_wc, xyz_d65, "XYZ Wc")?;
+            let lab = finish_lab(xyz_wc)?;
+            Ok(CandidateLab {
+                xyz_d65,
+                xyz_wc,
+                lab,
+            })
+        }
+    }
+
+    // This is only a reader for the frozen test data, not a comparator manifest.
+    #[derive(Deserialize)]
+    struct Answers {
+        domains: Vec<Domain>,
+        fault_witnesses: Witnesses,
+        clip_witnesses: Witnesses,
+    }
+
+    #[derive(Deserialize)]
+    struct Domain {
+        domain: String,
+        tolerance_abs: String,
+        samples: Vec<Sample>,
+    }
+
+    #[derive(Deserialize)]
+    struct Sample {
+        name: String,
+        rgb: Option<[f64; 3]>,
+        f32_le_hex: Option<[String; 3]>,
+        rgb_exact: Option<[String; 3]>,
+        xyz_d65: [f64; 3],
+        xyz_wc: [f64; 3],
+        lab: [f64; 3],
+    }
+
+    #[derive(Deserialize)]
+    struct Witnesses {
+        columns: Vec<String>,
+        samples: Vec<Witness>,
+    }
+
+    #[derive(Deserialize)]
+    struct Witness {
+        name: String,
+        max_abs_lab_deltas: Vec<String>,
+    }
+
+    const TOLERANCE: f64 = 1e-6;
+
+    fn answers() -> Answers {
+        serde_json::from_str(include_str!(
+            "../../../bench/dcp_validation/known-answers.json"
+        ))
+        .expect("frozen independent known answers")
+    }
+
+    fn input(sample: &Sample, domain: &str) -> [f64; 3] {
+        match domain {
+            "analytic_decimal_f64" => {
+                assert!(sample.f32_le_hex.is_none() && sample.rgb_exact.is_none());
+                sample.rgb.expect("analytic helper RGB")
+            }
+            "f32_widened_to_f64" => {
+                assert!(sample.rgb.is_none());
+                let hex = sample.f32_le_hex.as_ref().expect("f32 bit binding");
+                let exact = sample.rgb_exact.as_ref().expect("exact widened input");
+                std::array::from_fn(|channel| {
+                    assert_eq!(hex[channel].len(), 8);
+                    let bytes = std::array::from_fn(|i| {
+                        u8::from_str_radix(&hex[channel][i * 2..i * 2 + 2], 16).unwrap()
+                    });
+                    let widened = f64::from(f32::from_bits(u32::from_le_bytes(bytes)));
+                    assert_eq!(widened, exact[channel].parse::<f64>().unwrap());
+                    widened
+                })
+            }
+            other => panic!("unexpected fixture input domain: {other}"),
+        }
+    }
+
+    fn max_error(actual: [f64; 3], expected: [f64; 3]) -> f64 {
+        finite(&actual, "test result").unwrap();
+        actual
+            .into_iter()
+            .zip(expected)
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0, f64::max)
+    }
+
+    fn assert_close(actual: [f64; 3], expected: [f64; 3], context: &str) {
+        assert!(
+            max_error(actual, expected) < TOLERANCE,
+            "{context}: actual {actual:?}, frozen expected {expected:?}"
+        );
+    }
+
+    fn analytic_sample<'a>(answers: &'a Answers, name: &str) -> &'a Sample {
+        answers.domains[0]
+            .samples
+            .iter()
+            .find(|sample| sample.name == name)
+            .unwrap()
+    }
+
+    #[test]
+    fn frozen_answers_match_both_bound_input_domains() {
+        let answers = answers();
+        assert_eq!(answers.domains.len(), 2);
+        assert_eq!(answers.domains[0].domain, "analytic_decimal_f64");
+        assert_eq!(answers.domains[1].domain, "f32_widened_to_f64");
+        assert_eq!(answers.domains[0].samples.len(), 10);
+        assert_eq!(answers.domains[1].samples.len(), 2);
+        let converter = CandidateLabConverter::new().unwrap();
+        let mut largest: f64 = 0.0;
+        for domain in &answers.domains {
+            assert_eq!(domain.tolerance_abs, "1e-6");
+            for sample in &domain.samples {
+                let result = converter.convert(input(sample, &domain.domain)).unwrap();
+                for (stage, actual, expected) in [
+                    ("XYZ D65", result.xyz_d65, sample.xyz_d65),
+                    ("XYZ Wc", result.xyz_wc, sample.xyz_wc),
+                    ("Lab", result.lab, sample.lab),
+                ] {
+                    let context = format!("{} / {} / {stage}", domain.domain, sample.name);
+                    assert_close(actual, expected, &context);
+                    largest = largest.max(max_error(actual, expected));
+                }
+            }
+        }
+        eprintln!("candidate Lab: 12 bound rows / 108 components; maximum error {largest:e}");
+    }
+
+    #[test]
+    fn f32_rows_cannot_use_analytic_decimal_expected_lab() {
+        let answers = answers();
+        let converter = CandidateLabConverter::new().unwrap();
+        for sample in &answers.domains[1].samples {
+            let actual = converter
+                .convert(input(sample, "f32_widened_to_f64"))
+                .unwrap();
+            let analytic = analytic_sample(&answers, &sample.name);
+            assert!(max_error(actual.lab, analytic.lab) > TOLERANCE);
+            assert_close(actual.lab, sample.lab, "correct f32 domain");
+        }
+    }
+
+    #[test]
+    fn negative_and_above_one_values_survive_every_stage() {
+        let answers = answers();
+        let converter = CandidateLabConverter::new().unwrap();
+        let negative = converter.convert([0.0, 0.0, -1.0]).unwrap();
+        assert!(negative.xyz_d65.iter().all(|v| *v < 0.0));
+        assert!(negative.xyz_wc.iter().all(|v| *v < 0.0));
+        assert!(negative.lab[0] < 0.0);
+        assert_close(
+            negative.lab,
+            analytic_sample(&answers, "negative_blue").lab,
+            "negative blue",
+        );
+        let doubled = converter.convert([2.0; 3]).unwrap();
+        assert!(doubled.lab[0] > 100.0);
+        assert_close(
+            doubled.lab,
+            analytic_sample(&answers, "double_white").lab,
+            "double white",
+        );
+    }
+
+    #[test]
+    fn independent_witnesses_detect_adaptation_transpose_channel_and_rgb_clip_faults() {
+        let answers = answers();
+        let converter = CandidateLabConverter::new().unwrap();
+        let reverse = bradford(D50_XYZ, xyz_from_xy(0.3127, 0.3290)).unwrap();
+        let table = &answers.fault_witnesses;
+        assert_eq!(
+            table.columns,
+            [
+                "omit",
+                "reversed",
+                "doubled",
+                "M_transpose",
+                "A_transpose",
+                "R_B_swap",
+                "RGB_0_1_clip"
+            ]
+        );
+        assert_eq!(table.samples.len(), 5);
+        for witness in &table.samples {
+            let sample = analytic_sample(&answers, &witness.name);
+            let rgb = input(sample, "analytic_decimal_f64");
+            let correct = converter.convert(rgb).unwrap();
+            let swapped = converter.convert([rgb[2], rgb[1], rgb[0]]).unwrap();
+            let clipped = converter.convert(rgb.map(|v| v.clamp(0.0, 1.0))).unwrap();
+            let faults = [
+                finish_lab(correct.xyz_d65).unwrap(),
+                finish_lab(multiply(&reverse, correct.xyz_d65, "reversed").unwrap()).unwrap(),
+                finish_lab(multiply(&converter.d65_to_wc, correct.xyz_wc, "doubled").unwrap())
+                    .unwrap(),
+                finish_lab(
+                    multiply(
+                        &converter.d65_to_wc,
+                        multiply(&converter.rgb_to_xyz.transpose(), rgb, "M transpose").unwrap(),
+                        "adapt",
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+                finish_lab(
+                    multiply(
+                        &converter.d65_to_wc.transpose(),
+                        correct.xyz_d65,
+                        "A transpose",
+                    )
+                    .unwrap(),
+                )
+                .unwrap(),
+                swapped.lab,
+                clipped.lab,
+            ];
+            assert_eq!(witness.max_abs_lab_deltas.len(), faults.len());
+            for ((label, actual), frozen) in table
+                .columns
+                .iter()
+                .zip(faults)
+                .zip(&witness.max_abs_lab_deltas)
+            {
+                let expected: f64 = frozen.parse().unwrap();
+                let error = max_error(actual, sample.lab);
+                assert!(
+                    (error - expected).abs() < TOLERANCE,
+                    "{} / {label}: {error} vs {expected}",
+                    sample.name
+                );
+                if expected == 0.0 {
+                    assert!(error < TOLERANCE);
+                } else {
+                    assert!(error > TOLERANCE);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn independent_clipping_witnesses_preserve_stated_nonseparability() {
+        let answers = answers();
+        let converter = CandidateLabConverter::new().unwrap();
+        let table = &answers.clip_witnesses;
+        assert_eq!(
+            table.columns,
+            [
+                "XYZ_D65_negative_clip",
+                "XYZ_Wc_negative_clip",
+                "L_0_100_clip",
+                "RGB_0_1_clip"
+            ]
+        );
+        assert_eq!(table.samples.len(), 2);
+        for witness in &table.samples {
+            let sample = analytic_sample(&answers, &witness.name);
+            let rgb = input(sample, "analytic_decimal_f64");
+            let correct = converter.convert(rgb).unwrap();
+            let d65_clip = finish_lab(
+                multiply(
+                    &converter.d65_to_wc,
+                    correct.xyz_d65.map(|v| v.max(0.0)),
+                    "D65 clip",
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let wc_clip = finish_lab(correct.xyz_wc.map(|v| v.max(0.0))).unwrap();
+            let l_clip = [
+                correct.lab[0].clamp(0.0, 100.0),
+                correct.lab[1],
+                correct.lab[2],
+            ];
+            let rgb_clip = converter
+                .convert(rgb.map(|v| v.clamp(0.0, 1.0)))
+                .unwrap()
+                .lab;
+            let faults = [d65_clip, wc_clip, l_clip, rgb_clip];
+            assert_eq!(witness.max_abs_lab_deltas.len(), faults.len());
+            for (actual, frozen) in faults.into_iter().zip(&witness.max_abs_lab_deltas) {
+                let expected: f64 = frozen.parse().unwrap();
+                assert!((max_error(actual, sample.lab) - expected).abs() < TOLERANCE);
+            }
+            if sample.name == "negative_blue" {
+                assert_close(d65_clip, [0.0; 3], "XYZ clip produces black");
+                assert_close(wc_clip, rgb_clip, "XYZ and RGB clips are not separable");
+                assert_close(l_clip, [0.0, correct.lab[1], correct.lab[2]], "L-only clip");
+            } else {
+                assert_eq!(sample.name, "double_white");
+                assert_close(d65_clip, correct.lab, "positive XYZ unaffected");
+                assert_close(wc_clip, correct.lab, "positive Wc XYZ unaffected");
+                assert_close(l_clip, rgb_clip, "L and RGB clips are not separable");
+            }
+        }
+    }
+
+    #[test]
+    fn nonfinite_input_channels_are_errors() {
+        let converter = CandidateLabConverter::new().unwrap();
+        for channel in 0..3 {
+            for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+                let mut rgb = [0.2, 0.4, 0.6];
+                rgb[channel] = invalid;
+                assert_eq!(
+                    converter.convert(rgb).unwrap_err(),
+                    ColourError::NonFinite("RGB")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn finite_extremes_succeed_only_when_every_stage_stays_finite() {
+        let converter = CandidateLabConverter::new().unwrap();
+        for rgb in [
+            [f64::MAX / 32.0; 3],
+            [-f64::MAX / 4096.0; 3],
+            [f64::MIN_POSITIVE; 3],
+            [f64::from_bits(1); 3],
+        ] {
+            let result = converter.convert(rgb).unwrap();
+            assert!(
+                result
+                    .xyz_d65
+                    .into_iter()
+                    .chain(result.xyz_wc)
+                    .chain(result.lab)
+                    .all(f64::is_finite)
+            );
+        }
+        for rgb in [[f64::MAX; 3], [-f64::MAX; 3], [0.0, 0.0, -f64::MAX]] {
+            assert!(matches!(
+                converter.convert(rgb),
+                Err(ColourError::NonFinite(_))
+            ));
+        }
+        assert_eq!(
+            finish_lab([0.0, 0.0, f64::MAX]),
+            Err(ColourError::NonFinite("XYZ relative to Wc"))
+        );
+        assert_eq!(
+            finish_lab([0.0, -f64::MAX, 0.0]),
+            Err(ColourError::NonFinite("Lab"))
+        );
+        assert!(multiply(&Matrix3::identity(), [0.0, f64::NAN, 0.0], "probe").is_err());
+        assert!(multiply(&Matrix3::repeat(2.0), [f64::MAX, 0.0, 0.0], "probe").is_err());
+        assert!(
+            multiply(
+                &Matrix3::repeat(1.0),
+                [f64::MAX, f64::MAX, -f64::MAX],
+                "probe"
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn required_inverses_and_cone_scaling_fail_closed() {
+        assert_eq!(inverse(Matrix3::zeros()), Err(ColourError::SingularMatrix));
+        assert_eq!(
+            inverse(Matrix3::identity() * f64::MAX),
+            Err(ColourError::NonFinite("matrix inverse"))
+        );
+        for invalid in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            let mut matrix = Matrix3::identity();
+            matrix[(1, 2)] = invalid;
+            assert_eq!(
+                inverse(matrix),
+                Err(ColourError::NonFinite("matrix inverse"))
+            );
+        }
+        assert!(
+            inverse(Matrix3::from_diagonal(&Vector3::new(
+                f64::from_bits(1),
+                1.0,
+                1.0
+            )))
+            .is_err()
+        );
+        assert_eq!(
+            bradford([0.0; 3], D50_XYZ),
+            Err(ColourError::NonFinite("cone scaling"))
+        );
+    }
+}
