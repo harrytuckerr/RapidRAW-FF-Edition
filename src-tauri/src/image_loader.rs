@@ -4,7 +4,7 @@ use crate::app_state::{AppState, LoadedImage};
 use crate::baseline_exposure::BaselineOptions;
 use crate::exif_processing;
 use crate::file_management::{parse_virtual_path, read_file_mapped};
-use crate::formats::is_raw_file;
+use crate::formats::{is_raw_file, validate_image_content};
 use crate::image_processing::ImageMetadata;
 use crate::image_processing::{
     apply_orientation, apply_srgb_to_linear, effective_baseline_exposure,
@@ -68,6 +68,26 @@ fn srgb_to_linear_lut() -> &'static [f32; 256] {
     })
 }
 
+/// Rejects empty content and a JPEG signature under a RAF name before any
+/// decoder runs. An already-cancelled request still reports cancellation.
+fn check_image_content(
+    bytes: &[u8],
+    path: &str,
+    cancel_token: &Option<(Arc<AtomicUsize>, usize)>,
+) -> Result<()> {
+    let Err(issue) = validate_image_content(path, bytes) else {
+        return Ok(());
+    };
+
+    if let Some((tracker, generation)) = cancel_token
+        && tracker.load(Ordering::SeqCst) != *generation
+    {
+        return Err(anyhow!("Load cancelled"));
+    }
+
+    Err(anyhow!(issue.open_error_message(path)))
+}
+
 pub fn load_and_composite(
     base_image: &[u8],
     path: &str,
@@ -93,6 +113,8 @@ pub fn load_and_composite_with_profiles(
     registry: &crate::dcp::registry::ProfileRegistry,
     cancel: Option<(Arc<AtomicUsize>, usize)>,
 ) -> Result<DynamicImage> {
+    check_image_content(bytes, path, &cancel)?;
+
     if crate::dcp::pipeline::has_selected_profile(adjustments).map_err(anyhow::Error::msg)? {
         if !is_raw_file(path) {
             return Err(anyhow!("Camera profiles require RAW input"));
@@ -121,6 +143,8 @@ pub fn load_base_image_from_bytes(
     settings: &AppSettings,
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
 ) -> Result<DynamicImage> {
+    check_image_content(bytes, path_for_ext_check, &cancel_token)?;
+
     let highlight_compression = settings.raw_highlight_compression.unwrap_or(2.5);
     let linear_mode = settings.linear_raw_mode.clone();
     let color_nr_setting = settings.raw_preprocessing_color_nr.unwrap_or(0.5);
@@ -1079,4 +1103,254 @@ pub async fn load_image(
         is_raw,
         as_shot_white_balance: as_shot.white_balance,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dcp::registry::ProfileRegistry;
+    use serde_json::json;
+    use std::path::PathBuf;
+
+    const RAF_JPEG_MESSAGE: &str = "has a JPEG signature, but its name identifies it as a RAF RAW file. Select the original RAW file and try again.";
+
+    /// A complete JPEG produced by the real encoder, not a marker literal.
+    fn encoded_jpeg() -> Vec<u8> {
+        let image = image::RgbImage::from_fn(32, 24, |x, y| {
+            image::Rgb([(x * 8) as u8, (y * 10) as u8, 128])
+        });
+        let mut bytes = Vec::new();
+        DynamicImage::ImageRgb8(image)
+            .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Jpeg)
+            .unwrap();
+        bytes
+    }
+
+    /// Settings with RAW enhancement disabled so outputs can be compared exactly.
+    fn settings(apple_raw: bool) -> AppSettings {
+        AppSettings {
+            use_apple_raw9: Some(apple_raw),
+            raw_preprocessing_color_nr: Some(0.0),
+            raw_preprocessing_sharpening: Some(0.0),
+            ..AppSettings::default()
+        }
+    }
+
+    fn path_in(dir: &tempfile::TempDir, name: &str) -> String {
+        dir.path().join(name).to_string_lossy().into_owned()
+    }
+
+    fn open(bytes: &[u8], path: &str, apple_raw: bool) -> Result<DynamicImage> {
+        load_base_image_from_bytes(bytes, path, false, &settings(apple_raw), None)
+    }
+
+    fn open_with_profiles(
+        bytes: &[u8],
+        path: &str,
+        adjustments: &Value,
+        cancel: Option<(Arc<AtomicUsize>, usize)>,
+    ) -> Result<DynamicImage> {
+        load_and_composite_with_profiles(
+            bytes,
+            path,
+            adjustments,
+            false,
+            &settings(false),
+            &ProfileRegistry::new(),
+            cancel,
+        )
+    }
+
+    fn selected_look() -> Value {
+        json!({ "profile": { "look": "00000000-0000-0000-0000-000000000001" } })
+    }
+
+    #[test]
+    fn misnamed_jpeg_raf_is_rejected_before_any_decoder() {
+        let dir = tempfile::tempdir().unwrap();
+        let jpeg = encoded_jpeg();
+        for name in ["DSCF5389.RAF", "dscf5389.raf", "DSCF5389.RaF"] {
+            let path = path_in(&dir, name);
+            for apple_raw in [false, true] {
+                let err = open(&jpeg, &path, apple_raw).unwrap_err().to_string();
+                assert_eq!(
+                    err,
+                    format!("“{name}” {RAF_JPEG_MESSAGE}"),
+                    "apple_raw={apple_raw}"
+                );
+            }
+            for adjustments in [json!({}), selected_look()] {
+                let err = open_with_profiles(&jpeg, &path, &adjustments, None)
+                    .unwrap_err()
+                    .to_string();
+                assert_eq!(err, format!("“{name}” {RAF_JPEG_MESSAGE}"), "{adjustments}");
+            }
+        }
+    }
+
+    #[test]
+    fn same_jpeg_named_jpg_opens_and_keeps_profile_raw_requirement() {
+        let dir = tempfile::tempdir().unwrap();
+        let jpeg = encoded_jpeg();
+        let path = path_in(&dir, "DSCF5389.jpg");
+
+        for apple_raw in [false, true] {
+            let image = open(&jpeg, &path, apple_raw).unwrap();
+            assert_eq!(image.dimensions(), (32, 24));
+        }
+        let composited = open_with_profiles(&jpeg, &path, &json!({}), None).unwrap();
+        assert_eq!(composited.dimensions(), (32, 24));
+
+        let err = open_with_profiles(&jpeg, &path, &selected_look(), None)
+            .unwrap_err()
+            .to_string();
+        assert_eq!(err, "Camera profiles require RAW input");
+    }
+
+    #[test]
+    fn empty_content_is_reported_at_both_entry_points() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["empty.RAF", "empty.jpg", "empty.dng"] {
+            let path = path_in(&dir, name);
+            let expected = format!("“{name}” is empty and cannot be opened.");
+            for apple_raw in [false, true] {
+                assert_eq!(
+                    open(&[], &path, apple_raw).unwrap_err().to_string(),
+                    expected
+                );
+            }
+            for adjustments in [json!({}), selected_look()] {
+                let err = open_with_profiles(&[], &path, &adjustments, None).unwrap_err();
+                assert_eq!(err.to_string(), expected);
+            }
+        }
+    }
+
+    #[test]
+    fn cancelled_request_still_reports_cancellation() {
+        let dir = tempfile::tempdir().unwrap();
+        let jpeg = encoded_jpeg();
+        let cancelled = || Some((Arc::new(AtomicUsize::new(2)), 1));
+        for (bytes, name) in [(&jpeg[..], "x.RAF"), (&[][..], "x.jpg")] {
+            let path = path_in(&dir, name);
+            let err =
+                load_base_image_from_bytes(bytes, &path, false, &settings(false), cancelled())
+                    .unwrap_err();
+            assert_eq!(err.to_string(), "Load cancelled");
+            let err = open_with_profiles(bytes, &path, &selected_look(), cancelled()).unwrap_err();
+            assert_eq!(err.to_string(), "Load cancelled");
+        }
+    }
+
+    #[test]
+    fn jpeg_signature_under_other_raw_names_still_reaches_rawler() {
+        // Minolta JFIF/EXIF RAW is a legitimate rawler input, so no blanket
+        // JPEG-under-RAW rejection: this synthetic JPEG (no Minolta EXIF) must
+        // fail in the decoder, not in the content guard.
+        let dir = tempfile::tempdir().unwrap();
+        let err = open(&encoded_jpeg(), &path_in(&dir, "x.MRW"), false)
+            .unwrap_err()
+            .to_string();
+        assert!(!err.contains("JPEG signature"), "{err}");
+        assert!(err.contains("No decoder found"), "{err}");
+    }
+
+    /// Minimal TIFF from an unknown maker carrying a JPEG preview via tags
+    /// 513/514, so rawler rejects it and the embedded-preview fallback runs.
+    fn tiff_with_jpeg_preview(jpeg: &[u8]) -> Vec<u8> {
+        let make = b"R1 Unknown Maker\0";
+        let make_offset = 8 + 2 + 3 * 12 + 4;
+        let jpeg_offset = make_offset + make.len() + 1;
+        let mut tiff = b"II*\0".to_vec();
+        tiff.extend_from_slice(&8u32.to_le_bytes());
+        tiff.extend_from_slice(&3u16.to_le_bytes());
+        for (tag, kind, count, value) in [
+            (271u16, 2u16, make.len() as u32, make_offset as u32),
+            (513, 4, 1, jpeg_offset as u32),
+            (514, 4, 1, jpeg.len() as u32),
+        ] {
+            tiff.extend_from_slice(&tag.to_le_bytes());
+            tiff.extend_from_slice(&kind.to_le_bytes());
+            tiff.extend_from_slice(&count.to_le_bytes());
+            tiff.extend_from_slice(&value.to_le_bytes());
+        }
+        tiff.extend_from_slice(&0u32.to_le_bytes());
+        tiff.extend_from_slice(make);
+        tiff.push(0);
+        tiff.extend_from_slice(jpeg);
+        tiff
+    }
+
+    #[test]
+    fn embedded_jpeg_preview_fallback_still_runs_under_raf_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let tiff = tiff_with_jpeg_preview(&encoded_jpeg());
+        for name in ["preview.RAF", "preview.dng"] {
+            let image = open(&tiff, &path_in(&dir, name), false).unwrap();
+            assert_eq!(image.dimensions(), (32, 24), "{name}");
+        }
+    }
+
+    fn env_path(var: &str) -> PathBuf {
+        PathBuf::from(std::env::var(var).unwrap_or_else(|_| panic!("set {var}")))
+    }
+
+    /// Guarded open must equal the unguarded rawler development of the same bytes.
+    fn assert_guard_preserves_raw_decode(bytes: &[u8], names: &[&str]) -> (u32, u32) {
+        let s = settings(false);
+        let direct = crate::raw_processing::develop_raw_image(
+            bytes,
+            false,
+            s.raw_highlight_compression.unwrap_or(2.5),
+            s.linear_raw_mode.clone(),
+            None,
+        )
+        .unwrap()
+        .into_rgb32f();
+        let dir = tempfile::tempdir().unwrap();
+        for name in names {
+            let guarded = open(bytes, &path_in(&dir, name), false)
+                .unwrap()
+                .into_rgb32f();
+            assert_eq!(guarded.dimensions(), direct.dimensions(), "{name}");
+            assert!(guarded.as_raw() == direct.as_raw(), "{name}: pixels differ");
+        }
+        direct.dimensions()
+    }
+
+    #[test]
+    #[ignore = "needs RAPIDRAW_R1_FIXTURE_DIR from scripts/integration-fixtures.py"]
+    fn synthetic_cfa_dng_decodes_identically_including_raf_alias() {
+        let dng =
+            fs::read(env_path("RAPIDRAW_R1_FIXTURE_DIR").join("synthetic-camera.dng")).unwrap();
+        let dims = assert_guard_preserves_raw_decode(
+            &dng,
+            &["synthetic-camera.dng", "synthetic-camera.RAF"],
+        );
+        println!(
+            "synthetic CFA DNG decoded {}x{} under .dng and .RAF",
+            dims.0, dims.1
+        );
+    }
+
+    #[test]
+    #[ignore = "needs RAPIDRAW_R1_NATIVE_RAF pointing at a genuine RAF"]
+    fn native_raf_control_decodes_identically_through_guard() {
+        let raf = fs::read(env_path("RAPIDRAW_R1_NATIVE_RAF")).unwrap();
+        let dims = assert_guard_preserves_raw_decode(&raf, &["native.RAF", "native.raf"]);
+        println!("native RAF control decoded {}x{}", dims.0, dims.1);
+    }
+
+    #[test]
+    #[ignore = "needs RAPIDRAW_R1_FAILED_PAYLOAD (private user payload, read-only)"]
+    fn reported_failed_payload_gets_precise_error_and_opens_as_jpg() {
+        let payload = fs::read(env_path("RAPIDRAW_R1_FAILED_PAYLOAD")).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let err = open(&payload, &path_in(&dir, "DSCF5389.RAF"), false)
+            .unwrap_err()
+            .to_string();
+        assert_eq!(err, format!("“DSCF5389.RAF” {RAF_JPEG_MESSAGE}"));
+        let image = open(&payload, &path_in(&dir, "DSCF5389.jpg"), false).unwrap();
+        println!("reported payload as .jpg opened {:?}", image.dimensions());
+    }
 }
