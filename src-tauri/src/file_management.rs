@@ -9,7 +9,7 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use anyhow::Result;
@@ -3936,164 +3936,532 @@ fn import_content_bytes(
     Ok(published.path)
 }
 
+/// Highest count JavaScript represents exactly (`Number.MAX_SAFE_INTEGER`).
+const MAX_SAFE_JS_INTEGER: u64 = 9_007_199_254_740_991;
+const IMPORT_DETAIL_MAX_CHARS: usize = 256;
+const IMPORT_SUMMARY_MAX_CHARS: usize = 1024;
+const IMPORT_SUMMARY_MAX_DETAILS: usize = 3;
+
+/// Process-wide flag: at most one native import batch runs at a time.
+static IMPORT_RUN_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Owns the single-active import flag; releases it on drop, including unwind.
+struct ImportRunGuard {
+    flag: &'static AtomicBool,
+}
+
+impl ImportRunGuard {
+    fn try_acquire(flag: &'static AtomicBool) -> Option<Self> {
+        flag.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed)
+            .ok()
+            .map(|_| ImportRunGuard { flag })
+    }
+}
+
+impl Drop for ImportRunGuard {
+    fn drop(&mut self) {
+        self.flag.store(false, Ordering::Release);
+    }
+}
+
+fn import_count_is_js_safe(count: usize) -> bool {
+    u64::try_from(count).is_ok_and(|count| count <= MAX_SAFE_JS_INTEGER)
+}
+
+fn is_canonical_run_id(run_id: &str) -> bool {
+    Uuid::parse_str(run_id).is_ok_and(|id| id.hyphenated().to_string() == run_id)
+}
+
+fn validate_import_request(
+    source_paths: &[String],
+    destination_folder: &str,
+    run_id: &str,
+) -> Result<(), String> {
+    if source_paths.is_empty() {
+        return Err("No files were selected for import.".to_string());
+    }
+    if destination_folder.trim().is_empty() {
+        return Err("No destination folder was selected for import.".to_string());
+    }
+    if !is_canonical_run_id(run_id) {
+        return Err("The import request has an invalid run ID.".to_string());
+    }
+    if !import_count_is_js_safe(source_paths.len()) {
+        return Err("Too many files were selected for import.".to_string());
+    }
+    Ok(())
+}
+
+/// Validates a request, then claims the single-active flag. Neither step emits
+/// events or touches files.
+fn admit_import_run(
+    source_paths: &[String],
+    destination_folder: &str,
+    run_id: &str,
+    flag: &'static AtomicBool,
+) -> Result<ImportRunGuard, String> {
+    validate_import_request(source_paths, destination_folder, run_id)?;
+    ImportRunGuard::try_acquire(flag).ok_or_else(|| "An import is already running.".to_string())
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct ImportStartPayload {
+    run_id: String,
+    total: u64,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct ImportProgressPayload {
+    run_id: String,
+    total: u64,
+    current: u64,
+    path: String,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct ImportItemErrorPayload {
+    run_id: String,
+    total: u64,
+    failed: u64,
+    error_message: String,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct ImportCompletePayload {
+    run_id: String,
+    total: u64,
+    imported: u64,
+    failed: u64,
+    error_message: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ImportEvent {
+    Start(ImportStartPayload),
+    Progress(ImportProgressPayload),
+    ItemError(ImportItemErrorPayload),
+    Complete(ImportCompletePayload),
+}
+
+fn emit_import_event(app_handle: &AppHandle, event: ImportEvent) {
+    let (name, result) = match &event {
+        ImportEvent::Start(p) => ("import-start", app_handle.emit("import-start", p)),
+        ImportEvent::Progress(p) => ("import-progress", app_handle.emit("import-progress", p)),
+        ImportEvent::ItemError(p) => ("import-error", app_handle.emit("import-error", p)),
+        ImportEvent::Complete(p) => ("import-complete", app_handle.emit("import-complete", p)),
+    };
+    // Transport failures are reported but never change the recorded outcomes.
+    if let Err(e) = result {
+        log::warn!("Could not emit {} for an import run: {}", name, e);
+    }
+}
+
+/// Replaces each run of control characters with one space and keeps at most
+/// `max_chars` Unicode scalar values.
+fn bound_display_text(text: &str, max_chars: usize) -> String {
+    let mut out = String::new();
+    let mut kept = 0;
+    let mut in_control = false;
+    for c in text.chars() {
+        let c = if c.is_control() {
+            if in_control {
+                continue;
+            }
+            in_control = true;
+            ' '
+        } else {
+            in_control = false;
+            c
+        };
+        if kept == max_chars {
+            break;
+        }
+        out.push(c);
+        kept += 1;
+    }
+    out
+}
+
+/// Replaces every `content://` token (ASCII case-insensitive) with a placeholder.
+fn redact_content_uris(text: &str) -> String {
+    replace_content_uri_tokens(text, None)
+}
+
+/// URI punctuation is not a safe terminator: consume the entire non-whitespace
+/// token, including any attached grant/query suffix or closing punctuation.
+/// Substitute a label only for an exact whole source token, never its prefix.
+fn replace_content_uri_tokens(text: &str, source_label: Option<(&str, &str)>) -> String {
+    const SCHEME: &str = "content://";
+    let lower = text.to_ascii_lowercase();
+    let mut out = String::with_capacity(text.len());
+    let mut rest = 0;
+    while let Some(offset) = lower[rest..].find(SCHEME) {
+        let start = rest + offset;
+        out.push_str(&text[rest..start]);
+        let end = text[start..]
+            .find(char::is_whitespace)
+            .map_or(text.len(), |len| start + len);
+        let replacement = source_label
+            .filter(|(source, _)| *source == &text[start..end])
+            .map_or("[content URI]", |(_, label)| label);
+        out.push_str(replacement);
+        rest = end;
+    }
+    out.push_str(&text[rest..]);
+    out
+}
+
+/// A bounded display name for an item: the resolved URI name or local basename,
+/// never a raw content URI; `Item N` when no usable name is available.
+fn import_item_label(source: &str, resolved_name: Option<&str>, index: usize) -> String {
+    let name = match resolved_name {
+        Some(name) if redact_content_uris(name) != name => None,
+        Some(name) => Path::new(name).file_name(),
+        None if redact_content_uris(source) != source => None,
+        None => Path::new(source.rsplit_once("?vc=").map_or(source, |(base, _)| base)).file_name(),
+    };
+    name.map(|name| bound_display_text(&name.to_string_lossy(), IMPORT_DETAIL_MAX_CHARS))
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| format!("Item {}", index + 1))
+}
+
+/// Retain both ends of a long basename, including its extension, while reserving
+/// at least 190 of the 256 detail scalars for the failure cause and action.
+fn import_detail_label(label: &str) -> String {
+    const MAX_LABEL_CHARS: usize = 64;
+    const SUFFIX_CHARS: usize = 16;
+    if label.chars().count() <= MAX_LABEL_CHARS {
+        return label.to_string();
+    }
+    let prefix: String = label
+        .chars()
+        .take(MAX_LABEL_CHARS - SUFFIX_CHARS - 1)
+        .collect();
+    let suffix: String = label.chars().rev().take(SUFFIX_CHARS).collect();
+    format!("{}…{}", prefix, suffix.chars().rev().collect::<String>())
+}
+
+/// `bounded label: reason`, compacting known repeated names before bounding the
+/// reason. Redact URI tokens before replacing local source/name strings so an
+/// exact source prefix cannot leave a grant suffix behind. Keep the full known
+/// resolved basename until normalization is complete; `label` may already be
+/// bounded for progress and is only a fallback for this internal context.
+fn import_failure_detail(
+    label: &str,
+    source: &str,
+    error: &str,
+    resolved_name: Option<&str>,
+) -> String {
+    let label = resolved_name
+        .filter(|name| redact_content_uris(name) == *name)
+        .and_then(|name| Path::new(name).file_name())
+        .map(|name| bound_display_text(&name.to_string_lossy(), usize::MAX))
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| bound_display_text(&redact_content_uris(label), usize::MAX));
+    let long_label = label.chars().count() > 64;
+    let reason_label = if long_label {
+        "the selected item"
+    } else {
+        label.as_str()
+    };
+    let redacted = replace_content_uri_tokens(error, Some((source, reason_label)));
+    let mut reason = bound_display_text(&redacted, usize::MAX);
+    if !source.is_empty() {
+        let clean_source = bound_display_text(source, usize::MAX);
+        if !clean_source.trim().is_empty() {
+            reason = reason.replace(&clean_source, reason_label);
+        }
+        let basename = import_display_basename(source);
+        let basename = bound_display_text(&basename, usize::MAX);
+        if basename.chars().count() > 64 {
+            reason = reason.replace(&basename, "the selected item");
+        }
+    }
+    if long_label && !label.is_empty() {
+        reason = reason.replace(&label, "the selected item");
+    }
+    let display_label = import_detail_label(&label);
+    let reason_budget = IMPORT_DETAIL_MAX_CHARS - display_label.chars().count() - 2;
+    format!(
+        "{}: {}",
+        display_label,
+        bound_display_text(&reason, reason_budget)
+    )
+}
+
+/// Empty when every item imported; otherwise a bounded summary naming up to the
+/// first three failures.
+fn import_summary(total: u64, imported: u64, failed: u64, details: &[String]) -> String {
+    if failed == 0 {
+        return String::new();
+    }
+    let mut summary = format!(
+        "{} of {} imported; {} failed: {}",
+        imported,
+        total,
+        failed,
+        details.join("; ")
+    );
+    let further = failed.saturating_sub(details.len() as u64);
+    if further > 0 {
+        summary.push_str(&format!(" +{} further failures", further));
+    }
+    bound_display_text(&summary, IMPORT_SUMMARY_MAX_CHARS)
+}
+
+type ImportBatchItem<'a> = dyn FnMut(usize, &str, &mut Option<String>) -> Result<(), String> + 'a;
+
+/// Runs every item once and reports one start, progress per attempt, an error
+/// per failed item and exactly one completion built from the actual outcomes.
+fn run_import_batch(
+    run_id: &str,
+    source_paths: &[String],
+    item: &mut ImportBatchItem<'_>,
+    emit: &mut dyn FnMut(ImportEvent),
+) -> ImportCompletePayload {
+    let total = source_paths.len() as u64;
+    let mut imported: u64 = 0;
+    let mut failed: u64 = 0;
+    let mut details: Vec<String> = Vec::new();
+
+    emit(ImportEvent::Start(ImportStartPayload {
+        run_id: run_id.to_string(),
+        total,
+    }));
+
+    for (i, source) in source_paths.iter().enumerate() {
+        emit(ImportEvent::Progress(ImportProgressPayload {
+            run_id: run_id.to_string(),
+            total,
+            current: i as u64,
+            path: import_item_label(source, None, i),
+        }));
+
+        let mut display_name = None;
+        match item(i, source, &mut display_name) {
+            Ok(()) => imported += 1,
+            Err(e) => {
+                failed += 1;
+                let label = import_item_label(source, display_name.as_deref(), i);
+                let detail = import_failure_detail(&label, source, &e, display_name.as_deref());
+                if details.len() < IMPORT_SUMMARY_MAX_DETAILS {
+                    details.push(detail.clone());
+                }
+                emit(ImportEvent::ItemError(ImportItemErrorPayload {
+                    run_id: run_id.to_string(),
+                    total,
+                    failed,
+                    error_message: detail,
+                }));
+            }
+        }
+    }
+
+    emit(ImportEvent::Progress(ImportProgressPayload {
+        run_id: run_id.to_string(),
+        total,
+        current: total,
+        path: String::new(),
+    }));
+
+    let complete = ImportCompletePayload {
+        run_id: run_id.to_string(),
+        total,
+        imported,
+        failed,
+        error_message: import_summary(total, imported, failed, &details),
+    };
+    emit(ImportEvent::Complete(complete.clone()));
+    complete
+}
+
+/// The real per-item operation used by `import_files`, including its existing
+/// failure log line.
+fn import_item_operation<'a>(
+    destination_folder: &'a str,
+    settings: &'a ImportSettings,
+    total_files: usize,
+) -> impl FnMut(usize, &str, &mut Option<String>) -> Result<(), String> + 'a {
+    move |i, source_path_str, display_name| {
+        let result = import_one_item(
+            source_path_str,
+            i,
+            total_files,
+            destination_folder,
+            settings,
+            display_name,
+        );
+        if let Err(e) = &result {
+            eprintln!("Failed to import {}: {}", source_path_str, e);
+        }
+        result
+    }
+}
+
+/// Imports one source item. This is the former per-item closure body of
+/// `import_files`, moved unchanged apart from recording the URI display name
+/// that the content-URI route already resolved.
+#[cfg_attr(not(target_os = "android"), allow(unused_variables))]
+fn import_one_item(
+    source_path_str: &str,
+    i: usize,
+    total_files: usize,
+    destination_folder: &str,
+    settings: &ImportSettings,
+    display_name: &mut Option<String>,
+) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    if is_android_content_uri(source_path_str) {
+        let resolved_name = resolve_android_content_uri_name(source_path_str)?;
+        *display_name = Some(resolved_name.clone());
+        import_content_bytes(
+            &resolved_name,
+            read_android_content_uri(source_path_str),
+            source_path_str,
+            &exif_processing::get_creation_date_from_bytes,
+            &destination_folder,
+            &settings,
+            i + 1,
+            total_files,
+            &ImportStagingOps::default(),
+        )?;
+
+        if settings.delete_after_import {
+            log::info!(
+                "Skipping delete_after_import for Android content URI source: {}",
+                source_path_str
+            );
+        }
+
+        return Ok(());
+    }
+
+    let (source_path, source_sidecar) = parse_virtual_path(source_path_str);
+    if !source_path.exists() {
+        return Err(format!("Source file not found: {}", source_path_str));
+    }
+
+    let file_date = exif_processing::get_creation_date_from_path(&source_path);
+
+    let mut final_dest_folder = PathBuf::from(&destination_folder);
+    if settings.organize_by_date {
+        let date_format_str = settings
+            .date_folder_format
+            .replace("YYYY", "%Y")
+            .replace("MM", "%m")
+            .replace("DD", "%d");
+        let subfolder = file_date.format(&date_format_str).to_string();
+        final_dest_folder.push(subfolder);
+    }
+
+    fs::create_dir_all(&final_dest_folder)
+        .map_err(|e| format!("Failed to create destination folder: {}", e))?;
+
+    let new_stem = generate_filename_from_template(
+        &settings.filename_template,
+        &source_path,
+        i + 1,
+        total_files,
+        &file_date,
+    );
+    let extension = source_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    let new_filename = format!("{}.{}", new_stem, extension);
+    let dest_file_path = final_dest_folder.join(new_filename);
+
+    if dest_file_path.exists() {
+        return Err(format!(
+            "File already exists at destination: {}",
+            dest_file_path.display()
+        ));
+    }
+
+    fs::copy(&source_path, &dest_file_path).map_err(|e| e.to_string())?;
+    if source_sidecar.exists()
+        && let Some(dest_str) = dest_file_path.to_str()
+    {
+        let (_, dest_sidecar) = parse_virtual_path(dest_str);
+        fs::copy(&source_sidecar, &dest_sidecar).map_err(|e| e.to_string())?;
+    }
+
+    let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
+    source_rrexif_name.push(".rrexif");
+    let source_rrexif = source_path.with_file_name(source_rrexif_name);
+
+    if source_rrexif.exists() {
+        let mut dest_rrexif_name = dest_file_path.file_name().unwrap().to_os_string();
+        dest_rrexif_name.push(".rrexif");
+        let dest_rrexif = dest_file_path.with_file_name(dest_rrexif_name);
+        let _ = fs::copy(&source_rrexif, &dest_rrexif);
+    }
+
+    if settings.delete_after_import {
+        #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+        {
+            if let Err(trash_error) = trash::delete(&source_path) {
+                log::warn!(
+                    "Failed to trash source file {}: {}. Deleting permanently.",
+                    source_path.display(),
+                    trash_error
+                );
+                fs::remove_file(&source_path).map_err(|e| e.to_string())?;
+            }
+            if source_sidecar.exists()
+                && let Err(trash_error) = trash::delete(&source_sidecar)
+            {
+                log::warn!(
+                    "Failed to trash source sidecar {}: {}. Deleting permanently.",
+                    source_sidecar.display(),
+                    trash_error
+                );
+                fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
+            }
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+        {
+            fs::remove_file(&source_path).map_err(|e| e.to_string())?;
+            if source_sidecar.exists() {
+                fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
+            }
+            if source_rrexif.exists() {
+                let _ = fs::remove_file(&source_rrexif);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Queues one import batch. Resolving only means the batch was admitted and
+/// queued; outcomes arrive through run-tagged `import-*` events.
 #[tauri::command]
 pub async fn import_files(
     source_paths: Vec<String>,
     destination_folder: String,
     settings: ImportSettings,
+    run_id: String,
     app_handle: AppHandle,
 ) -> Result<(), String> {
-    let total_files = source_paths.len();
-    let _ = app_handle.emit("import-start", serde_json::json!({ "total": total_files }));
+    let guard = admit_import_run(
+        &source_paths,
+        &destination_folder,
+        &run_id,
+        &IMPORT_RUN_ACTIVE,
+    )?;
 
     tauri::async_runtime::spawn_blocking(move || {
-        for (i, source_path_str) in source_paths.iter().enumerate() {
-            let _ = app_handle.emit(
-                "import-progress",
-                serde_json::json!({ "current": i, "total": total_files, "path": source_path_str }),
-            );
-
-            let import_result: Result<(), String> = (|| {
-                #[cfg(target_os = "android")]
-                if is_android_content_uri(source_path_str) {
-                    let resolved_name = resolve_android_content_uri_name(source_path_str)?;
-                    import_content_bytes(
-                        &resolved_name,
-                        read_android_content_uri(source_path_str),
-                        source_path_str,
-                        &exif_processing::get_creation_date_from_bytes,
-                        &destination_folder,
-                        &settings,
-                        i + 1,
-                        total_files,
-                        &ImportStagingOps::default(),
-                    )?;
-
-                    if settings.delete_after_import {
-                        log::info!(
-                            "Skipping delete_after_import for Android content URI source: {}",
-                            source_path_str
-                        );
-                    }
-
-                    return Ok(());
-                }
-
-                let (source_path, source_sidecar) = parse_virtual_path(source_path_str);
-                if !source_path.exists() {
-                    return Err(format!("Source file not found: {}", source_path_str));
-                }
-
-                let file_date = exif_processing::get_creation_date_from_path(&source_path);
-
-                let mut final_dest_folder = PathBuf::from(&destination_folder);
-                if settings.organize_by_date {
-                    let date_format_str = settings
-                        .date_folder_format
-                        .replace("YYYY", "%Y")
-                        .replace("MM", "%m")
-                        .replace("DD", "%d");
-                    let subfolder = file_date.format(&date_format_str).to_string();
-                    final_dest_folder.push(subfolder);
-                }
-
-                fs::create_dir_all(&final_dest_folder)
-                    .map_err(|e| format!("Failed to create destination folder: {}", e))?;
-
-                let new_stem = generate_filename_from_template(
-                    &settings.filename_template,
-                    &source_path,
-                    i + 1,
-                    total_files,
-                    &file_date,
-                );
-                let extension = source_path
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("");
-                let new_filename = format!("{}.{}", new_stem, extension);
-                let dest_file_path = final_dest_folder.join(new_filename);
-
-                if dest_file_path.exists() {
-                    return Err(format!(
-                        "File already exists at destination: {}",
-                        dest_file_path.display()
-                    ));
-                }
-
-                fs::copy(&source_path, &dest_file_path).map_err(|e| e.to_string())?;
-                if source_sidecar.exists()
-                    && let Some(dest_str) = dest_file_path.to_str()
-                {
-                    let (_, dest_sidecar) = parse_virtual_path(dest_str);
-                    fs::copy(&source_sidecar, &dest_sidecar).map_err(|e| e.to_string())?;
-                }
-
-                let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
-                source_rrexif_name.push(".rrexif");
-                let source_rrexif = source_path.with_file_name(source_rrexif_name);
-
-                if source_rrexif.exists() {
-                    let mut dest_rrexif_name = dest_file_path.file_name().unwrap().to_os_string();
-                    dest_rrexif_name.push(".rrexif");
-                    let dest_rrexif = dest_file_path.with_file_name(dest_rrexif_name);
-                    let _ = fs::copy(&source_rrexif, &dest_rrexif);
-                }
-
-                if settings.delete_after_import {
-                    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-                    {
-                        if let Err(trash_error) = trash::delete(&source_path) {
-                            log::warn!(
-                                "Failed to trash source file {}: {}. Deleting permanently.",
-                                source_path.display(),
-                                trash_error
-                            );
-                            fs::remove_file(&source_path).map_err(|e| e.to_string())?;
-                        }
-                        if source_sidecar.exists()
-                            && let Err(trash_error) = trash::delete(&source_sidecar)
-                        {
-                            log::warn!(
-                                "Failed to trash source sidecar {}: {}. Deleting permanently.",
-                                source_sidecar.display(),
-                                trash_error
-                            );
-                            fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
-                        }
-                    }
-
-                    #[cfg(not(any(
-                        target_os = "windows",
-                        target_os = "macos",
-                        target_os = "linux"
-                    )))]
-                    {
-                        fs::remove_file(&source_path).map_err(|e| e.to_string())?;
-                        if source_sidecar.exists() {
-                            fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
-                        }
-                        if source_rrexif.exists() {
-                            let _ = fs::remove_file(&source_rrexif);
-                        }
-                    }
-                }
-
-                Ok(())
-            })();
-
-            if let Err(e) = import_result {
-                eprintln!("Failed to import {}: {}", source_path_str, e);
-                let _ = app_handle.emit("import-error", e);
-                continue;
-            }
-        }
-
-        let _ = app_handle.emit(
-            "import-progress",
-            serde_json::json!({ "current": total_files, "total": total_files, "path": "" }),
-        );
-        let _ = app_handle.emit("import-complete", ());
+        // Held until the terminal event has been attempted.
+        let _guard = guard;
+        let mut item = import_item_operation(&destination_folder, &settings, source_paths.len());
+        let mut emit = |event: ImportEvent| emit_import_event(&app_handle, event);
+        run_import_batch(&run_id, &source_paths, &mut item, &mut emit);
     });
 
     Ok(())
@@ -5020,5 +5388,737 @@ mod tests {
     #[ignore = "needs RAPIDRAW_R2A_NATIVE_RAF pointing at a genuine RAF"]
     fn native_raf_imports_byte_identical() {
         assert_imported_byte_identical(&env_path("RAPIDRAW_R2A_NATIVE_RAF"), &["DSCF1893.RAF"]);
+    }
+}
+
+#[cfg(test)]
+mod r3_terminal_tests {
+    use super::*;
+    use std::sync::Barrier;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::mpsc;
+
+    const RUN_ID: &str = "3f2b8c1e-5d4a-4f6b-9a7c-2e1d0b9f8a76";
+
+    fn settings() -> ImportSettings {
+        ImportSettings {
+            filename_template: "{original_filename}".to_string(),
+            organize_by_date: false,
+            date_folder_format: "YYYY/MM-DD".to_string(),
+            delete_after_import: false,
+        }
+    }
+
+    /// A fresh flag per test so tests never contend on the process-wide one.
+    fn test_flag() -> &'static AtomicBool {
+        Box::leak(Box::new(AtomicBool::new(false)))
+    }
+
+    /// Runs the real batch driver with the real per-item operation on local files.
+    fn run_local_batch(
+        sources: &[String],
+        destination: &Path,
+    ) -> (Vec<ImportEvent>, ImportCompletePayload) {
+        let settings = settings();
+        let destination = destination.to_string_lossy().into_owned();
+        let mut item = import_item_operation(&destination, &settings, sources.len());
+        let mut events = Vec::new();
+        let complete =
+            run_import_batch(RUN_ID, sources, &mut item, &mut |event| events.push(event));
+        (events, complete)
+    }
+
+    fn write_source(dir: &Path, name: &str, bytes: &[u8]) -> String {
+        let path = dir.join(name);
+        fs::write(&path, bytes).unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    fn missing_source(dir: &Path, name: &str) -> String {
+        dir.join(name).to_string_lossy().into_owned()
+    }
+
+    fn progress_currents(events: &[ImportEvent]) -> Vec<u64> {
+        events
+            .iter()
+            .filter_map(|e| match e {
+                ImportEvent::Progress(p) => Some(p.current),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn count_kind(events: &[ImportEvent], kind: fn(&ImportEvent) -> bool) -> usize {
+        events.iter().filter(|e| kind(e)).count()
+    }
+
+    #[test]
+    fn single_failure_ends_with_an_error_terminal() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let sources = vec![missing_source(root.path(), "missing.RAF")];
+
+        let (events, complete) = run_local_batch(&sources, &library);
+
+        let detail = "missing.RAF: Source file not found: missing.RAF".to_string();
+        let expected_complete = ImportCompletePayload {
+            run_id: RUN_ID.to_string(),
+            total: 1,
+            imported: 0,
+            failed: 1,
+            error_message: format!("0 of 1 imported; 1 failed: {detail}"),
+        };
+        assert_eq!(
+            events,
+            vec![
+                ImportEvent::Start(ImportStartPayload {
+                    run_id: RUN_ID.to_string(),
+                    total: 1,
+                }),
+                ImportEvent::Progress(ImportProgressPayload {
+                    run_id: RUN_ID.to_string(),
+                    total: 1,
+                    current: 0,
+                    path: "missing.RAF".to_string(),
+                }),
+                ImportEvent::ItemError(ImportItemErrorPayload {
+                    run_id: RUN_ID.to_string(),
+                    total: 1,
+                    failed: 1,
+                    error_message: detail,
+                }),
+                ImportEvent::Progress(ImportProgressPayload {
+                    run_id: RUN_ID.to_string(),
+                    total: 1,
+                    current: 1,
+                    path: String::new(),
+                }),
+                ImportEvent::Complete(expected_complete.clone()),
+            ]
+        );
+        assert_eq!(complete, expected_complete);
+    }
+
+    #[test]
+    fn mixed_batch_counts_each_outcome_once_and_keeps_the_good_copy() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let good_bytes = b"not decoded by import; copied byte-for-byte".to_vec();
+        let sources = vec![
+            write_source(root.path(), "DSCF0001.JPG", &good_bytes),
+            missing_source(root.path(), "missing.RAF"),
+        ];
+
+        let (events, complete) = run_local_batch(&sources, &library);
+
+        assert_eq!(
+            (complete.total, complete.imported, complete.failed),
+            (2, 1, 1)
+        );
+        assert_eq!(
+            complete.error_message,
+            "1 of 2 imported; 1 failed: missing.RAF: Source file not found: missing.RAF"
+        );
+        assert_eq!(
+            count_kind(&events, |e| matches!(e, ImportEvent::Start(_))),
+            1
+        );
+        assert_eq!(
+            count_kind(&events, |e| matches!(e, ImportEvent::ItemError(_))),
+            1
+        );
+        assert_eq!(
+            count_kind(&events, |e| matches!(e, ImportEvent::Complete(_))),
+            1
+        );
+        assert!(matches!(events.last(), Some(ImportEvent::Complete(_))));
+        assert_eq!(progress_currents(&events), vec![0, 1, 2]);
+
+        assert_eq!(fs::read(library.join("DSCF0001.JPG")).unwrap(), good_bytes);
+        assert_eq!(fs::read(&sources[0]).unwrap(), good_bytes);
+    }
+
+    #[test]
+    fn all_good_batch_completes_with_an_empty_message() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let sources = vec![
+            write_source(root.path(), "a.JPG", b"first"),
+            write_source(root.path(), "b.RAF", b"second"),
+        ];
+
+        let (events, complete) = run_local_batch(&sources, &library);
+
+        assert_eq!(
+            complete,
+            ImportCompletePayload {
+                run_id: RUN_ID.to_string(),
+                total: 2,
+                imported: 2,
+                failed: 0,
+                error_message: String::new(),
+            }
+        );
+        assert_eq!(
+            count_kind(&events, |e| matches!(e, ImportEvent::ItemError(_))),
+            0
+        );
+        assert_eq!(fs::read(library.join("a.JPG")).unwrap(), b"first");
+        assert_eq!(fs::read(library.join("b.RAF")).unwrap(), b"second");
+        // delete_after_import is false: sources remain.
+        assert!(sources.iter().all(|s| Path::new(s).exists()));
+    }
+
+    #[test]
+    fn existing_destination_is_a_counted_failure_and_left_unchanged() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        fs::create_dir_all(&library).unwrap();
+        fs::write(library.join("a.JPG"), b"existing").unwrap();
+        let sources = vec![write_source(root.path(), "a.JPG", b"incoming")];
+
+        let (_, complete) = run_local_batch(&sources, &library);
+
+        assert_eq!((complete.imported, complete.failed), (0, 1));
+        assert!(
+            complete.error_message.starts_with(
+                "0 of 1 imported; 1 failed: a.JPG: File already exists at destination"
+            ),
+            "{}",
+            complete.error_message
+        );
+        assert_eq!(fs::read(library.join("a.JPG")).unwrap(), b"existing");
+    }
+
+    #[test]
+    fn many_failures_are_summarised_with_bounded_safe_details() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let long_name = format!("{}.RAF", "L".repeat(300));
+        let sources = vec![
+            "content://com.android.providers.media.documents/document/image%3A42".to_string(),
+            missing_source(root.path(), "bad\u{7}\nname.RAF"),
+            missing_source(root.path(), &long_name),
+            missing_source(root.path(), "fourth.RAF"),
+            missing_source(root.path(), "fifth.RAF"),
+        ];
+
+        let (events, complete) = run_local_batch(&sources, &library);
+
+        assert_eq!(
+            (complete.total, complete.imported, complete.failed),
+            (5, 0, 5)
+        );
+        let message = &complete.error_message;
+        assert!(
+            message.starts_with(
+                "0 of 5 imported; 5 failed: Item 1: Source file not found: Item 1; bad name.RAF: "
+            ),
+            "{message}"
+        );
+        assert!(message.ends_with(" +2 further failures"), "{message}");
+        assert!(message.chars().count() <= IMPORT_SUMMARY_MAX_CHARS);
+        assert!(!message.chars().any(char::is_control));
+        assert!(!message.contains("fourth.RAF") && !message.contains("fifth.RAF"));
+
+        let mut failed_counts = Vec::new();
+        for event in &events {
+            let json = match event {
+                ImportEvent::Start(p) => serde_json::to_string(p),
+                ImportEvent::Progress(p) => serde_json::to_string(p),
+                ImportEvent::ItemError(p) => {
+                    failed_counts.push(p.failed);
+                    assert!(p.error_message.chars().count() <= IMPORT_DETAIL_MAX_CHARS);
+                    assert!(!p.error_message.chars().any(char::is_control));
+                    serde_json::to_string(p)
+                }
+                ImportEvent::Complete(p) => serde_json::to_string(p),
+            }
+            .unwrap();
+            assert!(!json.contains("content://"), "{json}");
+        }
+        assert_eq!(failed_counts, vec![1, 2, 3, 4, 5]);
+    }
+
+    #[test]
+    fn resolved_uri_name_labels_failures_and_uri_text_is_redacted() {
+        let sources = vec!["content://provider/item/7".to_string()];
+        let mut item = |_: usize, _: &str, name: &mut Option<String>| -> Result<(), String> {
+            *name = Some("DSCF5389.RAF".to_string());
+            Err(
+                "read failed for content://provider/item/7 via CONTENT://other/grant?x=1"
+                    .to_string(),
+            )
+        };
+        let mut events = Vec::new();
+        let complete = run_import_batch(RUN_ID, &sources, &mut item, &mut |e| events.push(e));
+
+        assert_eq!(
+            complete.error_message,
+            "0 of 1 imported; 1 failed: DSCF5389.RAF: read failed for DSCF5389.RAF via [content URI]"
+        );
+        // Before the attempt the URI name is unknown, so progress uses `Item N`.
+        assert!(matches!(
+            &events[1],
+            ImportEvent::Progress(p) if p.path == "Item 1"
+        ));
+    }
+
+    #[test]
+    fn wire_payloads_use_the_contract_field_names() {
+        let keys = |value: serde_json::Value| -> Vec<String> {
+            let mut keys: Vec<String> = value.as_object().unwrap().keys().cloned().collect();
+            keys.sort();
+            keys
+        };
+        let id = RUN_ID.to_string();
+        assert_eq!(
+            keys(
+                serde_json::to_value(ImportStartPayload {
+                    run_id: id.clone(),
+                    total: 1
+                })
+                .unwrap()
+            ),
+            ["runId", "total"]
+        );
+        assert_eq!(
+            keys(
+                serde_json::to_value(ImportProgressPayload {
+                    run_id: id.clone(),
+                    total: 1,
+                    current: 0,
+                    path: String::new()
+                })
+                .unwrap()
+            ),
+            ["current", "path", "runId", "total"]
+        );
+        assert_eq!(
+            keys(
+                serde_json::to_value(ImportItemErrorPayload {
+                    run_id: id.clone(),
+                    total: 1,
+                    failed: 1,
+                    error_message: "x".to_string()
+                })
+                .unwrap()
+            ),
+            ["errorMessage", "failed", "runId", "total"]
+        );
+        assert_eq!(
+            keys(
+                serde_json::to_value(ImportCompletePayload {
+                    run_id: id,
+                    total: 1,
+                    imported: 1,
+                    failed: 0,
+                    error_message: String::new()
+                })
+                .unwrap()
+            ),
+            ["errorMessage", "failed", "imported", "runId", "total"]
+        );
+    }
+
+    #[test]
+    fn invalid_requests_are_rejected_without_claiming_the_run() {
+        let flag = test_flag();
+        let one = vec!["/tmp/a.RAF".to_string()];
+        let cases: Vec<(Vec<String>, &str, &str)> = vec![
+            (Vec::new(), "/tmp/lib", RUN_ID),
+            (one.clone(), "   ", RUN_ID),
+            (one.clone(), "/tmp/lib", ""),
+            (one.clone(), "/tmp/lib", "not-a-uuid"),
+            (
+                one.clone(),
+                "/tmp/lib",
+                "3F2B8C1E-5D4A-4F6B-9A7C-2E1D0B9F8A76",
+            ),
+            (one.clone(), "/tmp/lib", "3f2b8c1e5d4a4f6b9a7c2e1d0b9f8a76"),
+            (
+                one.clone(),
+                "/tmp/lib",
+                "{3f2b8c1e-5d4a-4f6b-9a7c-2e1d0b9f8a76}",
+            ),
+        ];
+        for (sources, destination, run_id) in cases {
+            assert!(admit_import_run(&sources, destination, run_id, flag).is_err());
+            assert!(!flag.load(Ordering::SeqCst), "{run_id:?} {destination:?}");
+        }
+
+        let guard = admit_import_run(&one, "/tmp/lib", RUN_ID, flag).unwrap();
+        assert!(flag.load(Ordering::SeqCst));
+        drop(guard);
+        assert!(!flag.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn counts_beyond_javascript_safe_integers_are_rejected() {
+        assert!(import_count_is_js_safe(1));
+        if let Ok(max) = usize::try_from(MAX_SAFE_JS_INTEGER) {
+            assert!(import_count_is_js_safe(max));
+            assert!(!import_count_is_js_safe(max + 1));
+        }
+    }
+
+    #[test]
+    fn busy_run_rejects_admission_until_the_worker_releases() {
+        let flag = test_flag();
+        let sources = vec!["/tmp/a.RAF".to_string()];
+        let guard = admit_import_run(&sources, "/tmp/lib", RUN_ID, flag).unwrap();
+
+        let (release_tx, release_rx) = mpsc::channel::<()>();
+        let (started_tx, started_rx) = mpsc::channel::<()>();
+        let worker_sources = sources.clone();
+        let worker = std::thread::spawn(move || {
+            // Mirrors import_files: the guard lives until the terminal attempt.
+            let _guard = guard;
+            let mut item = |_: usize, _: &str, _: &mut Option<String>| -> Result<(), String> {
+                started_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+                Ok(())
+            };
+            run_import_batch(RUN_ID, &worker_sources, &mut item, &mut |_| {})
+        });
+
+        started_rx.recv().unwrap();
+        let second = "0d6f1c52-7a3e-4b8f-9c21-5e4d3b2a1f00";
+        assert_eq!(
+            admit_import_run(&sources, "/tmp/lib", second, flag).err(),
+            Some("An import is already running.".to_string())
+        );
+
+        release_tx.send(()).unwrap();
+        let complete = worker.join().unwrap();
+        assert_eq!((complete.imported, complete.failed), (1, 0));
+        assert!(!flag.load(Ordering::SeqCst));
+        assert!(admit_import_run(&sources, "/tmp/lib", second, flag).is_ok());
+    }
+
+    #[test]
+    fn concurrent_admissions_accept_exactly_one() {
+        let flag = test_flag();
+        let threads = 8;
+        let barrier = std::sync::Arc::new(Barrier::new(threads));
+        let admitted = std::sync::Arc::new(AtomicUsize::new(0));
+        let handles: Vec<_> = (0..threads)
+            .map(|_| {
+                let barrier = barrier.clone();
+                let admitted = admitted.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    let guard = ImportRunGuard::try_acquire(flag);
+                    if guard.is_some() {
+                        admitted.fetch_add(1, Ordering::SeqCst);
+                    }
+                    // Hold any guard until every thread has tried.
+                    barrier.wait();
+                    drop(guard);
+                })
+            })
+            .collect();
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        assert_eq!(admitted.load(Ordering::SeqCst), 1);
+        assert!(!flag.load(Ordering::SeqCst));
+    }
+
+    #[test]
+    fn guard_is_released_when_the_worker_panics() {
+        let flag = test_flag();
+        let result = std::panic::catch_unwind(|| {
+            let _guard = ImportRunGuard::try_acquire(flag).unwrap();
+            panic!("injected worker panic");
+        });
+        assert!(result.is_err());
+        assert!(!flag.load(Ordering::SeqCst));
+        assert!(ImportRunGuard::try_acquire(flag).is_some());
+    }
+
+    #[test]
+    fn display_text_helpers_bound_and_redact() {
+        assert_eq!(
+            redact_content_uris("see CONTENT://a/b?x=1, then content://c"),
+            "see [content URI] then [content URI]"
+        );
+        assert_eq!(bound_display_text("a\u{0}\u{1b}b\tc", 10), "a b c");
+        assert_eq!(bound_display_text("ééééé", 3), "ééé");
+        assert_eq!(
+            import_item_label("/x/y/photo.RAF?vc=abc", None, 0),
+            "photo.RAF"
+        );
+        assert_eq!(import_item_label("content://p/doc/1", None, 4), "Item 5");
+        assert_eq!(import_item_label("/x/..", None, 1), "Item 2");
+    }
+
+    #[test]
+    fn long_names_keep_actual_causes_and_actions_even_when_repeated() {
+        for name in [
+            format!("{}.RAF", "L".repeat(251)),
+            format!("{}.RAF", "界".repeat(251)),
+        ] {
+            for source in [
+                format!("/selected/{name}"),
+                "content://synthetic/document/7".to_string(),
+            ] {
+                let label = import_item_label(&source, Some(&name), 0);
+                let read_error = validate_import_read(
+                    &name,
+                    Err(format!(
+                        "{name}: Permission denied; select a readable original"
+                    )),
+                    &source,
+                )
+                .unwrap_err();
+                // Real R1 signature validation, not a RAW decode or image route.
+                let misnamed_error =
+                    validate_import_read(&name, Ok(vec![0xff, 0xd8, 0xff]), &source).unwrap_err();
+                for (error, required) in [
+                    (
+                        format!("Source file not found: {source}"),
+                        vec!["Source file not found"],
+                    ),
+                    (
+                        format!("File already exists at destination: /library/{name}"),
+                        vec!["File already exists at destination"],
+                    ),
+                    (
+                        read_error,
+                        vec!["Permission denied", "select a readable original"],
+                    ),
+                    (
+                        misnamed_error,
+                        vec![
+                            "has a JPEG signature",
+                            "Select the original RAW file and try again.",
+                        ],
+                    ),
+                ] {
+                    let detail = import_failure_detail(&label, &source, &error, Some(&name));
+                    assert!(
+                        detail.chars().count() <= IMPORT_DETAIL_MAX_CHARS,
+                        "{detail}"
+                    );
+                    assert!(!detail.chars().any(char::is_control));
+                    assert!(detail.starts_with(&name.chars().take(8).collect::<String>()));
+                    assert!(
+                        detail.contains("…") && detail.contains(".RAF: "),
+                        "{detail}"
+                    );
+                    for part in required {
+                        assert!(detail.contains(part), "missing {part:?}: {detail}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn real_driver_long_missing_and_collision_details_keep_reasons() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        fs::create_dir_all(&library).unwrap();
+        let missing = format!("{}.RAF", "M".repeat(251));
+        let collision = format!("{}.JPG", "界".repeat(83));
+        let sources = vec![
+            missing_source(root.path(), &missing),
+            write_source(root.path(), &collision, b"incoming"),
+        ];
+        fs::write(library.join(&collision), b"existing").unwrap();
+        let (events, complete) = run_local_batch(&sources, &library);
+        assert_eq!(
+            (complete.total, complete.imported, complete.failed),
+            (2, 0, 2)
+        );
+        assert!(complete.error_message.contains("Source file not found"));
+        assert!(
+            complete
+                .error_message
+                .contains("File already exists at destination")
+        );
+        assert!(complete.error_message.chars().count() <= IMPORT_SUMMARY_MAX_CHARS);
+        assert_eq!(progress_currents(&events), vec![0, 1, 2]);
+        for event in events {
+            if let ImportEvent::ItemError(error) = event {
+                assert!(error.error_message.chars().count() <= IMPORT_DETAIL_MAX_CHARS);
+            }
+        }
+        assert_eq!(fs::read(library.join(collision)).unwrap(), b"existing");
+        assert_eq!(fs::read(&sources[1]).unwrap(), b"incoming");
+    }
+
+    #[test]
+    fn every_uri_punctuation_variant_redacts_the_fake_grant_and_path_suffix() {
+        for punctuation in [
+            ",", ";", "(", ")", "[", "]", "{", "}", "<", ">", "\"", "'", "#", "@", ":",
+        ] {
+            for scheme in ["content://", "CONTENT://", "CoNtEnT://"] {
+                let uri =
+                    format!("{scheme}other/document/a{punctuation}PRIVATE_PATH?grant=TEST_ONLY");
+                let reason = format!("Permission denied for {uri} select a readable original");
+                let redacted = redact_content_uris(&reason);
+                assert_eq!(
+                    redacted,
+                    "Permission denied for [content URI] select a readable original"
+                );
+                for private in ["TEST_ONLY", "grant=", "PRIVATE_PATH", "other/document"] {
+                    assert!(!redacted.contains(private), "{redacted}");
+                }
+                let label = import_item_label("content://synthetic/item/1", Some(&uri), 0);
+                assert_eq!(label, "Item 1");
+            }
+        }
+    }
+
+    #[test]
+    fn display_payloads_redact_multiple_unicode_control_and_source_prefix_uri_suffixes() {
+        let source = "content://synthetic/item/1".to_string();
+        let sources = vec![source.clone()];
+        let error = format!(
+            "Permission\u{7}\n denied for {source},PRIVATE_PATH?grant=TEST_ONLY_A via CoNtEnT://other/写真[部]\u{0}?grant=TEST_ONLY_B; select a readable original"
+        );
+        let mut item = |_: usize, _: &str, name: &mut Option<String>| -> Result<(), String> {
+            *name = Some("photo.RAF".to_string());
+            Err(error.clone())
+        };
+        let mut events = Vec::new();
+        let complete = run_import_batch(RUN_ID, &sources, &mut item, &mut |e| events.push(e));
+        assert_eq!((complete.imported, complete.failed), (0, 1));
+        for detail in events.iter().filter_map(|event| match event {
+            ImportEvent::ItemError(error) => Some(error.error_message.as_str()),
+            ImportEvent::Complete(complete) => Some(complete.error_message.as_str()),
+            _ => None,
+        }) {
+            assert!(
+                detail.contains("Permission") && detail.contains("denied"),
+                "{detail}"
+            );
+            assert!(detail.contains("select a readable original"), "{detail}");
+            assert_eq!(detail.matches("[content URI]").count(), 2, "{detail}");
+            assert!(!detail.chars().any(char::is_control));
+            for private in [
+                "TEST_ONLY",
+                "grant=",
+                "PRIVATE_PATH",
+                "other/",
+                "写真",
+                "部",
+                "content://",
+                "CONTENT://",
+                "CoNtEnT://",
+            ] {
+                assert!(!detail.contains(private), "{detail}");
+            }
+        }
+    }
+
+    #[test]
+    fn oversized_resolved_names_keep_actual_raf_error_through_the_batch_driver() {
+        for (name, suffix) in [
+            (
+                format!("{}{}.RAF", "A".repeat(500), "B".repeat(500)),
+                "BBBBBBBBBBBB.RAF",
+            ),
+            (
+                format!("{}{}.RAF", "撮".repeat(300), "影".repeat(300)),
+                "影影影影影影影影影影影影.RAF",
+            ),
+        ] {
+            let sources = vec!["content://synthetic/item/7".to_string()];
+            let actual_error = ImageContentIssue::RafHasJpegSignature.open_error_message(&name);
+            let mut item =
+                |_: usize, _: &str, resolved: &mut Option<String>| -> Result<(), String> {
+                    *resolved = Some(name.clone());
+                    Err(actual_error.clone())
+                };
+            let mut events = Vec::new();
+            let complete = run_import_batch(RUN_ID, &sources, &mut item, &mut |e| events.push(e));
+            assert_eq!(
+                (complete.total, complete.imported, complete.failed),
+                (1, 0, 1)
+            );
+            assert_eq!(progress_currents(&events), vec![0, 1]);
+            let errors: Vec<_> = events
+                .iter()
+                .filter_map(|event| match event {
+                    ImportEvent::ItemError(error) => Some(error),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(errors.len(), 1);
+            assert_eq!((errors[0].total, errors[0].failed), (1, 1));
+            let detail = &errors[0].error_message;
+            let (label, _) = detail.split_once(": ").expect("bounded label and reason");
+            assert!(label.chars().count() <= 64, "{detail}");
+            assert!(
+                label.starts_with(&name.chars().take(8).collect::<String>()),
+                "{detail}"
+            );
+            assert!(label.contains('…') && label.ends_with(suffix), "{detail}");
+            assert!(detail.chars().count() <= IMPORT_DETAIL_MAX_CHARS);
+            assert!(complete.error_message.chars().count() <= IMPORT_SUMMARY_MAX_CHARS);
+            assert!(complete.error_message.contains(detail));
+            for message in [detail.as_str(), complete.error_message.as_str()] {
+                assert!(message.contains("has a JPEG signature"), "{message}");
+                assert!(
+                    message.contains("Select the original RAW file and try again."),
+                    "{message}"
+                );
+                assert!(
+                    !message.contains("content://") && !message.contains("synthetic/item"),
+                    "{message}"
+                );
+                assert!(!message.chars().any(char::is_control));
+            }
+        }
+    }
+
+    #[test]
+    fn oversized_resolved_read_name_repetitions_do_not_consume_the_reason_budget() {
+        let name = format!("{}{}.RAF", "A".repeat(500), "B".repeat(500));
+        let sources = vec!["content://synthetic/item/7,PRIVATE_PATH?grant=TEST_ONLY".to_string()];
+        let actual_error = validate_import_read(
+            &name,
+            Err(format!(
+                "{name}: Permission denied; select a readable original"
+            )),
+            &sources[0],
+        )
+        .unwrap_err();
+        let mut item = |_: usize, _: &str, resolved: &mut Option<String>| -> Result<(), String> {
+            *resolved = Some(name.clone());
+            Err(actual_error.clone())
+        };
+        let mut events = Vec::new();
+        let complete = run_import_batch(RUN_ID, &sources, &mut item, &mut |e| events.push(e));
+        assert_eq!(
+            (complete.total, complete.imported, complete.failed),
+            (1, 0, 1)
+        );
+        let mut details = Vec::new();
+        for event in &events {
+            if let ImportEvent::ItemError(error) = event {
+                assert!(error.error_message.chars().count() <= IMPORT_DETAIL_MAX_CHARS);
+                details.push(error.error_message.as_str());
+            }
+        }
+        assert_eq!(details.len(), 1);
+        assert!(complete.error_message.chars().count() <= IMPORT_SUMMARY_MAX_CHARS);
+        for message in [details[0], complete.error_message.as_str()] {
+            assert!(message.contains("Permission denied"), "{message}");
+            assert!(message.contains("select a readable original"), "{message}");
+            assert!(message.contains("BBBBBBBBBBBB.RAF: "), "{message}");
+            for private in [
+                "TEST_ONLY",
+                "grant=",
+                "PRIVATE_PATH",
+                "synthetic/item",
+                "content://",
+            ] {
+                assert!(!message.contains(private), "{message}");
+            }
+        }
     }
 }

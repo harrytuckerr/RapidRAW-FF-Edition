@@ -1,0 +1,248 @@
+{
+  "package": "Canonical H2b2 and atomic R3 native/frontend integration",
+  "created_utc": "2026-10-15T08:25:52.488982+00:00",
+  "checkout": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+  "source_freeze_parent": "2b7e126af10891b719556c99ae5205a53f05cb76",
+  "source_freeze_manifest_sha256": "ee208bb44be678c8ce8432e489f848712ee75bae6c89004c13287774332ceef4",
+  "frozen_build_source_files": 407,
+  "source_sha256": {
+    "src-tauri/src/dcp/validation.rs": "70515957ee552bcd7cfb9e7b0ab40933df8027348bf0e333db77718eb91e25e1",
+    "bench/dcp_validation/known-answers.json": "1b0bae0896865a388cfd56e21c967517771a762a052042783a96ac1efa019b25",
+    "src-tauri/src/file_management.rs": "56ca21c1488f0e72fde52796e3b3fa97e1a3179f56d467cce599e615ad09d81e",
+    "src/hooks/useFileOperations.ts": "101fd0814c7bccff30dd64e85bddc4985317660c850380c9ee26bbae04386735",
+    "src/hooks/useTauriListeners.ts": "033ae3d5d285a0b21e06029e370c343fa0d606739ea9ffbf7893a89871fe27e2",
+    "src/utils/imageImport.ts": "e7fd6ad2ac72e857a1963378f7ea4bd81650226dced69a8f538b851bdd8a6f24",
+    "src/__tests__/imageImport.test.mjs": "63ec631e9007498f6b404aaa9766a54fa370783925f257c02108f8bbe69dac5d",
+    "src-tauri/src/dcp/delta_e.rs": "70f57e66d3b4d95f8038cc6c698a39203f1eb41f8d8ccf993408f4c24dc0e296",
+    "src-tauri/src/formats.rs": "66134f6ce2183036fb35798cfb7eefc9d7ef512d72cbb2d873b762c9b4f2e5bf",
+    "src-tauri/src/image_loader.rs": "fcf43150b241ee0cfdf0d2be1983ac91bfc837059b38dfdf91e1c11177f31cf5",
+    "src-tauri/Cargo.lock": "7ddd491af60c07c0d0a0983ab77c6f81409961831ed679b7b444103a6d765def",
+    "package.json": "9796b348c9f7767854fa701b8696969e1ab06e2d52e58b4dd9fc3cade7447e08",
+    "package-lock.json": "2726f4198299141b15c9c2519f80559b34581a0ac933c4b9c622d6cf46580a0c"
+  },
+  "accepted_independent_reviews": {
+    "H2b2": "07abe6e291e100bfc309e796537877a3a573ef6a7f51318992f7d83e05cd0972",
+    "R3_native_incremental": "dac43dc131b0cd689cf506b904ea2d26b34ee8fda41b5d73f1a5de64496692a0",
+    "R3_frontend_lead": "05f34c8131ba12830690a9f637430f9a8549981d9c78fad34cb64f63f940f51c"
+  },
+  "checks": [
+    {
+      "name": "native-fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.705591334,
+      "free_bytes_before": 39264739328,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-tests",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "--locked",
+        "--lib",
+        "--bin",
+        "validate_dcp",
+        "--message-format=json"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 143.32097775000003,
+      "free_bytes_before": 39264710656,
+      "log_sha256": "3bf39acf90cbbbfc41b7656f00e00e3539ea38a8e300c5abc5528769b41869f3"
+    },
+    {
+      "name": "native-clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--offline",
+        "--locked",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 13.20730120899998,
+      "free_bytes_before": 39234801664,
+      "log_sha256": "02e3f42c4252b5396b5f084a4fc5d7c3ebb396b41df5849e099f60336bb0e095"
+    },
+    {
+      "name": "r1-controls",
+      "argv": [
+        "/private/tmp/rapidraw-r3-combined-20261015/canonical-native-test-binary",
+        "image_loader::tests",
+        "--ignored",
+        "--nocapture"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 3.0395185840000067,
+      "free_bytes_before": 39232430080,
+      "log_sha256": "b508fb6bab9c6a7c23fba8093faa1346aaf40fdf095a2e55e9daef27db810e1a"
+    },
+    {
+      "name": "r2a-controls",
+      "argv": [
+        "/private/tmp/rapidraw-r3-combined-20261015/canonical-native-test-binary",
+        "file_management::tests",
+        "--ignored",
+        "--nocapture"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.1342645410000216,
+      "free_bytes_before": 39233413120,
+      "log_sha256": "136f901e68a02511b52794d5be90001724cdc0935064d3e6765c339a5f7db00d"
+    },
+    {
+      "name": "import-tests",
+      "argv": [
+        "node",
+        "--test",
+        "src/__tests__/imageImport.test.mjs"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 5.5705307920000005,
+      "free_bytes_before": 39264739328,
+      "log_sha256": "9fbbf0a4b49653e15fa0baffeab83703a7f00cf754ded754cf759a6d9452ed19"
+    },
+    {
+      "name": "profile-tests",
+      "argv": [
+        "npm",
+        "run",
+        "test:profiles"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 1.7925254169999993,
+      "free_bytes_before": 39263166464,
+      "log_sha256": "4ef8484c1bf0633cc699787c10cf8fa05d1bffb4c5243b0707196e5de8750870"
+    },
+    {
+      "name": "frontend-build",
+      "argv": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 2.4751337090000005,
+      "free_bytes_before": 39263133696,
+      "log_sha256": "7773437323a951f1e2c2122f70ae4339d0bae35220e4b1a8e334c66946754a6f"
+    },
+    {
+      "name": "frontend-typecheck",
+      "argv": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "exit": 2,
+      "expected_exit": 2,
+      "elapsed_seconds": 17.035598874999998,
+      "free_bytes_before": 39253848064,
+      "log_sha256": "132aa2f3d3f987fd6e894e9bab9f83c30dc38b18b4dd16674f38b7ad8cbc56e0"
+    },
+    {
+      "name": "frontend-format",
+      "argv": [
+        "node_modules/.bin/prettier",
+        "--check",
+        "src/hooks/useFileOperations.ts",
+        "src/hooks/useTauriListeners.ts",
+        "src/utils/imageImport.ts",
+        "src/__tests__/imageImport.test.mjs"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "exit": 0,
+      "expected_exit": 0,
+      "elapsed_seconds": 0.8167862499999998,
+      "free_bytes_before": 39242174464,
+      "log_sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    },
+    {
+      "name": "frontend-eslint",
+      "argv": [
+        "node_modules/.bin/eslint",
+        "src/hooks/useFileOperations.ts",
+        "src/hooks/useTauriListeners.ts",
+        "src/utils/imageImport.ts",
+        "src/__tests__/imageImport.test.mjs",
+        "--format",
+        "json"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "exit": 1,
+      "expected_exit": 1,
+      "elapsed_seconds": 3.2916701659999994,
+      "free_bytes_before": 39241105408,
+      "log_sha256": "63217d93468d1fdcff97f9aec5cf6fd347362c5872544698415b365c3eef5be1"
+    }
+  ],
+  "results": {
+    "library": "Pass 208; 14 ignored not counted",
+    "CLI": "Pass 2",
+    "R1_private_controls": "Pass 3",
+    "R2a_private_controls": "Pass 2",
+    "frontend_import": "Pass 18, actual hooks/stores with mocked native transport",
+    "frontend_profiles": "Pass 16",
+    "frontend_build": "Pass",
+    "native_fmt_and_strict_all_targets_clippy": "Pass",
+    "frontend_format": "Pass",
+    "frontend_typecheck": "Fail 70 inherited, exact raw baseline unchanged",
+    "scoped_frontend_lint": "Fail 37 inherited versus40 baseline, zero added diagnostics"
+  },
+  "private_evidence": "/private/tmp/rapidraw-r3-combined-20261015",
+  "preserved_native_test_binary": {
+    "path": "/private/tmp/rapidraw-r3-combined-20261015/canonical-native-test-binary",
+    "source_build_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-b8c68747df43d7c8",
+    "sha256": "26c1078a278d1b59a71bb074d15c60a6e22d2391f9399f99bdfad3052f72484d"
+  },
+  "environment": {
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "node": "v22.22.0",
+    "rust": "1.98.1",
+    "native_env": {
+      "CARGO_PROFILE_DEV_DEBUG": "0",
+      "CARGO_PROFILE_DEV_INCREMENTAL": "false",
+      "CARGO_PROFILE_TEST_DEBUG": "0",
+      "CARGO_PROFILE_TEST_INCREMENTAL": "false",
+      "CARGO_INCREMENTAL": "0",
+      "CARGO_NET_OFFLINE": "true",
+      "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target"
+    }
+  },
+  "limitations": [
+    "H2b2 is candidate Lab validation/test groundwork only; validate_dcp compare remains explicitly unavailable. No Adobe TIFF/ICC or fidelity metrics.",
+    "Native driver tests and frontend actual-hook/store mock-transport tests are separate; real Tauri transport, Android cfg compile, ContentResolver/provider, Fold filesystem/UI and updated APK are Not exercised.",
+    "No native X-T5 or Minolta RAW coverage. Existing failed staged RAF payload is JPEG; original/provider relation remains unresolved.",
+    "Fourteen default ignored tests are not passes. Only five designated R1/R2a controls ran; nine historical ignored acceptance gates remain Not exercised.",
+    "No HDR, GPU production/performance, preview/export/thumbnail/corpus/platform acceptance. R2b local-path/sidecar/deletion remains open.",
+    "Known native terminal-emitter barrier coverage gap remains unexercised, as disclosed in independent review.",
+    "No vendor assets, private RAWs, decoded tables, credentials or binaries added to Git. Ignored ONNX runtime validated/reused without download.",
+    "No device/app UI action, install, push, merge or release. Lightroom capture awaits an answered desktop window."
+  ]
+}

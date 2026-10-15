@@ -10,6 +10,12 @@ import { useProcessStore } from '../store/useProcessStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { ImageFlag, Invokes } from '../components/ui/AppProperties';
 import { Status } from '../components/ui/ExportImportProperties';
+import {
+  IMPORT_ALREADY_RUNNING_MESSAGE,
+  IMPORT_NOT_READY_MESSAGE,
+  failImportInvocation,
+  requestImportAdmission,
+} from '../utils/imageImport';
 
 export function useFileOperations(
   refreshImageList: () => Promise<void>,
@@ -300,15 +306,33 @@ export function useFileOperations(
   }, []);
 
   const startImportFiles = useCallback(async (sourcePaths: string[], destinationFolder: string, settings: any) => {
-    if (sourcePaths.length === 0 || !destinationFolder) return;
+    const { setImportState } = useProcessStore.getState();
+    const admission = requestImportAdmission(sourcePaths, destinationFolder);
+
+    if (admission.kind === 'busy') {
+      // Leave the running import's state untouched.
+      toast.error(IMPORT_ALREADY_RUNNING_MESSAGE, { toastId: 'import-already-running' });
+      return;
+    }
+    if (admission.kind === 'invalid' || admission.kind === 'notReady') {
+      const errorMessage = admission.kind === 'invalid' ? admission.message : IMPORT_NOT_READY_MESSAGE;
+      setImportState({ status: Status.Error, errorMessage, path: '', progress: { current: 0, total: 0 } });
+      toast.error(errorMessage, { toastId: 'import-not-started' });
+      return;
+    }
+
+    const { runId, total, listenerGeneration } = admission;
+    setImportState({ status: Status.Importing, errorMessage: '', path: '', progress: { current: 0, total } });
 
     try {
-      await invoke(Invokes.ImportFiles, { destinationFolder, settings, sourcePaths });
+      // Resolution only means the batch was queued; results arrive as import events.
+      await invoke(Invokes.ImportFiles, { destinationFolder, settings, sourcePaths, runId });
     } catch (err) {
+      const failure = failImportInvocation(runId, listenerGeneration, err);
+      if (!failure) return;
       console.error('Failed to start import:', err);
-      useProcessStore
-        .getState()
-        .setImportState({ status: Status.Error, errorMessage: `Failed to start import: ${err}` });
+      useProcessStore.getState().setImportState({ status: Status.Error, errorMessage: failure.errorMessage });
+      toast.error(failure.errorMessage, { toastId: `import-${runId}` });
     }
   }, []);
 
