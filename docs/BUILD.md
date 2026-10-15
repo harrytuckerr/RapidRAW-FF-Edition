@@ -1,53 +1,67 @@
-# Build and validate the upstream-integrated fork
+# Build the RapidRAW Fujifilm edition
 
-Integration baseline (15 October 2026): upstream `3385c9f0` plus Cobalt `6f171d9b`.
-Use `docs/integration/STATUS-2026-10-15.md` for actual acceptance evidence. Instructions are not claims that every platform has passed.
+The source ancestry is upstream `3385c9f0` plus the Cobalt work at `6f171d9b`. The frozen merged revision for this continuation is `4c1e965a53de9c835df920b2e3d69c2c8a864708`, with the same tree as tested revision `8e631881`. PR #14 was merged by the repository owner on 15 October 2026. These identifiers describe source lineage and a frozen snapshot; they are not release or product-acceptance claims. See the [Team ledger](integration/TEAM-LEDGER-2026-10-15.md) for current continuation evidence. The [integration status report](integration/STATUS-2026-10-15.md) is a historical pre-Fold snapshot; [Android integration details](android-integration-2026-10-15.md) documents the pinned Android build process.
+
+All shell blocks below start from the repository root. Run Rust commands from `src-tauri`, or prefix them with `cargo +1.98`; `--manifest-path` alone does not select the nested toolchain in `src-tauri/rust-toolchain.toml`. Each Rust block changes into `src-tauri` once, so start the next block again from the repository root.
 
 ## Desktop
 
-Requirements: Rust 1.98 (selected by `src-tauri/rust-toolchain.toml`), Node 22, npm, and the normal Tauri system dependencies. The locally provisioned Rust patch version is 1.98.1. Run Rust commands **inside src-tauri**, or explicitly use `cargo +1.98`: passing only `--manifest-path` from the repository root does not select the nested toolchain.
+Use Node.js 22 and the Rust toolchain selected in `src-tauri/rust-toolchain.toml` (Rust 1.98). Install the normal Tauri system dependencies for your host.
 
 ```sh
+# From the repository root.
 npm ci
 npm run build
 npm run test:profiles
+
 cd src-tauri
 cargo check --locked --lib
 cargo fmt --all -- --check
 cargo test --locked --lib
-cargo test --locked --lib gpu_vs_cpu_parity -- --ignored --nocapture
 cargo clippy --locked --all-targets -- -D warnings
 ```
 
-The default suite validates the production WGSL variants without a GPU. GPU parity is deliberately separate and requires a working graphics adapter. An ignored test is not a pass. Optional `--all-features` also requires the tethering system libraries on supported desktop platforms.
+The desktop DCP profile route uses the shared CPU pipeline. The ignored `gpu_vs_cpu_parity` test below exercises optional shader parity; it does not exercise production GPU profile processing or establish Adobe, Android or physical-device acceptance. Run it only where a working graphics adapter is available:
 
-For development, run `npm run start` at the root. For a packaged desktop release, run `npm run tauri build`. Large debug builds can consume several GB; isolated runs may set `CARGO_PROFILE_DEV_DEBUG=0` and `CARGO_PROFILE_DEV_INCREMENTAL=false` to bound storage.
+```sh
+# From the repository root.
+cd src-tauri
+cargo test --locked --lib gpu_vs_cpu_parity -- --ignored --nocapture
+```
 
-Frontend lint/typecheck/i18n have inherited errors. Compare new diagnostics against unmodified upstream rather than claiming those gates pass because Vite builds.
+Optional `--all-features` builds also require the tethering system libraries for the host. Frontend lint, typecheck and i18n checks have inherited upstream errors; compare new diagnostics with the unmodified upstream baseline. A Vite build alone does not clear those gates.
+
+For development, run `npm run start` from the repository root. For a packaged desktop build, run `npm run tauri build`.
 
 ## Android
 
-Use the isolated preparation/build script. Do not downgrade the desktop lockfile with ad hoc `cargo update` calls or assume a plain local Tauri build matches upstream's Android CI pins.
-
-Required components: JDK17, SDK platform36/build-tools36.0.0, NDK r26d (`26.3.11579264`), and Rust1.98 target `aarch64-linux-android`.
+Build from an isolated workspace using the reviewed Android dependency-lock bundle. Requirements are JDK 17, Android SDK platform 36 and build-tools 36.0.0, NDK r26d (`26.3.11579264`), and Rust 1.98 target `aarch64-linux-android`.
 
 ```sh
+# From the repository root.
 export JAVA_HOME="$(/usr/libexec/java_home -v 17)"
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export NDK_HOME="$ANDROID_HOME/ndk/26.3.11579264"
 rustup target add --toolchain 1.98 aarch64-linux-android
-python3 scripts/android-build.py resolve --workspace /private/tmp/rapidraw-android-resolved
-# Review and preserve the emitted Android locks and source receipt.
-python3 scripts/android-build.py build --workspace /private/tmp/rapidraw-android-resolved
+
+# Use a new workspace outside the checkout.
+python3 scripts/android-build.py prepare \
+  --workspace /private/tmp/rapidraw-next-android \
+  --locks src-tauri/gen/android/dependency-locks
+python3 scripts/android-build.py build \
+  --workspace /private/tmp/rapidraw-next-android
 ```
 
-For repeat runs, use `prepare --locks PATH_TO_REVIEWED_ANDROID_LOCKS --workspace NEW_PATH` rather than resolving again. The source must have no unresolved Git merge entries. See `docs/android-integration-2026-10-15.md` for pins, signing, CI and current limits.
+`prepare` copies the source and the reviewed lock bundle into the isolated workspace. Review its source and lock receipts before building. Do not use `resolve` for routine builds: use it only for a deliberate dependency-lock update that will be reviewed and frozen. Do not run Cargo dependency updates against the desktop lockfile to make Android resolve.
 
-Builds never install automatically. Runtime acceptance must record device ID, API/WebView/GPU, APK hash, startup/editor rendering, profile picker success/cancel, persistence and export. Emulator acceptance does not establish physical GPU or device continuity acceptance. Never clear app data to conceal migration failures.
+The build script does not install the APK. Runtime evidence must record the device ID, Android/API and WebView versions, renderer/backend where available, APK hash, and the actions actually exercised. Physical Fold launch, visible UI and basic adjustments are **Pass — user-reported**. Physical profile import/use, persistence and export are **Not exercised**. The API 33 SwiftShader preview hang remains a historical emulator failure in the [integration status](integration/STATUS-2026-10-15.md); it is not a physical-device result. Never clear app data to hide a migration failure.
 
-## Reproducible profile fixtures
+## Synthetic profile fixture
+
+Generate redistributable synthetic inputs, then render through the shared selected-profile pipeline:
 
 ```sh
+# From the repository root.
 python3 scripts/integration-fixtures.py --output-dir /private/tmp/rapidraw-fixtures
 cd src-tauri
 cargo run --locked --bin validate_dcp -- render \
@@ -56,4 +70,6 @@ cargo run --locked --bin validate_dcp -- render \
   --output /private/tmp/rapidraw-fixtures/profile-render.tif
 ```
 
-These generated files are synthetic, not commercial assets. The validation renderer writes linear working-space TIFF; it is not a display-encoded Adobe reference or proof of Adobe parity. Commercial DCP/XMP and photographer RAW/reference files remain outside version control.
+The renderer writes a linear sRGB working-space TIFF. It is not a display-encoded Adobe reference or proof of Adobe parity. The `validate_dcp` CLI has no implemented Adobe reference-comparison command. Keep commercial DCP/XMP files and private RAW/reference images outside version control.
+
+Follow the [AGPL-3.0 license](../LICENSE) and retain the project's [upstream notices](../NOTICE.md) when distributing builds.

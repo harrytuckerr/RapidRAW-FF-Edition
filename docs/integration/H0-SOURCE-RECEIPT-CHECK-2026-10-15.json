@@ -1,0 +1,12 @@
+{
+  "receipt": "docs/integration/android-attempt8-source-receipt-20261015.json",
+  "frozen_base": "4c1e965a53de9c835df920b2e3d69c2c8a864708",
+  "same_files": 456,
+  "changed_files": [
+    "docs/android-integration-2026-10-15.md",
+    "docs/integration/STATUS-2026-10-15.md",
+    "docs/integration/evidence/desktop-render-receipt.json"
+  ],
+  "missing_files": [],
+  "scope": "Source receipt comparison only; Android prepared lock overrides remain documented separately. New evidence documents do not imply rebuilding or device acceptance."
+}

@@ -1,0 +1,93 @@
+# Fuji continuation: ownership and acceptance ledger
+
+## Frozen input and H0 findings
+
+- Active integration: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead`, branch `codex/fuji-continuation-2026-10-15`.
+- Frozen base: `4c1e965a53de9c835df920b2e3d69c2c8a864708`, tree `9f36c891f35d9310a7977bda7d851178ad92039d`. `git diff 8e6318814d42e155d88a1d0efd485f9d571b4ffb 4c1e965a53de9c835df920b2e3d69c2c8a864708` is empty.
+- PR #14 was already merged by the owner at 2026-10-15 04:57:48 UTC. This session did not merge it. Canonical fork now redirects to `harrytuckerr/RapidRAW-Fujifilm-edition`.
+- Exact-head PR rollup: 20 success, one failure, no pending checks at inspection. Cobalt macOS job 116242437442 failed fetching the removed `refs/pull/14/merge` after the merge, before compilation. Separate macOS CI Build jobs succeeded. This is a recorded CI failure, not a source compilation failure or complete product acceptance.
+- Original checkout and historical integration checkout are preserved. No resets, clean operations, install, release, or PR mutation performed by H0.
+- Preserved local APK SHA-256 rechecked: `bf8d139932aba062ec4da0d8ffcf446d6465ecec96b258dd658e5aace018a546`. Source/APK receipts remain under the historical integration checkout `docs/integration/`.
+- Available disk approximately 15 GiB. No simultaneous large builds; minimum 6 GiB reserve. Reuse proven artifacts for initial H1.
+
+## Physical-device addendum to the historical status report
+
+| Case | Result | Evidence scope |
+|---|---|---|
+| App opens | Pass — user-reported | Direct user clarification in handover |
+| UI appears functional | Pass — user-reported | Direct user clarification in handover |
+| Basic adjustments work | Pass — user-reported | Direct user clarification in handover; input type unspecified |
+| Physical DCP/Look preview, persistence, export | Not exercised | H1 must supply case-level evidence |
+| Adobe fidelity | Not exercised | H2/H3 required |
+| Old emulator edited preview | Fail | Historical SwiftShader hang retained; not a physical-device failure |
+
+## Private asset inventory (read-only discovery)
+
+Downloads contains the supplied X-Pro2 Flat DCP, 17 CCD Fever Looks and the iPhone DNG identified below. Expanded H0b inventory found 356 header-identified X-Pro2 RAFs under Documents (211_FUJI, 212_FUJI and Groove/RAW). No same-basename camera JPEG candidates were found in that scan; renamed or externally stored pairs remain possible. No controlled Adobe reference was identified. See the accepted H0 asset inventory for paths and hashes.
+
+Read-only discovery also found 20 DCP files under `~/Pictures/Lightroom Library.lrlibrary/eefc35bd2aff4c438f63a1a74bcf2265/cr_cameraprofiles/`, including `Fujifilm X-Pro2 Cobalt Modular v3.0.dcp` and Modular profiles for X-T5, Nikon Z f and Sony ILCE-6700. A bounded TIFF-IFD inspection of the X-Pro2 file confirms tag 50708 `Fujifilm X-Pro2`, tag 50936 `Cobalt Modular`, illuminants 17/21, embed policy 2; 65,350 bytes, SHA-256 `4b80ed63b210e5738cde04430af1511c3e12e2bb53bf2471b4bb0750dceb87f3`. This confirms metadata identity, not render compatibility. Other discovered profiles remain filename-level inventory. Assets remain private and unmodified; no files from the Lightroom library are to be committed or exported as fixtures. Matching-model real X-Pro2 RAF assets are now identified by H0b; actual product profile rendering and controlled Adobe reference generation remain untested. Flat must never substitute for Modular.
+
+`IMG_0138.DNG` identifies Make Apple, Model iPhone 13 Pro, UniqueCameraModel `iPhone14,2 back camera`, embedded profile `Apple Embedded Color Profile`. SHA-256 `c53b9444b82d785c318de0caec4f2d8d2c8d242015ed0a830e9f8da7aac59519`. It cannot validate the X-Pro2 DCP pairing; no linear-RAW support inferred.
+
+## Ownership before dispatch
+
+Every worker receives one active bounded task. Reviewers are dispatched only after an artifact is ready. Workers do not stage, commit, push, merge, refresh dependencies or write other checkouts. Lead alone imports reviewed allowlisted files and owns shared contracts. Every report includes model, base, paths, changed-file hashes, commands/results, evidence, limitations and next-consumer readiness. Pass / Fail / Not exercised / User-reported remain literal.
+
+All snapshots below are detached at the frozen base, under `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/`.
+
+| Package | Owner / configured model | Snapshot | Writable paths | Dependencies, acceptance and stop point |
+|---|---|---|---|---|
+| H0 | Lead Codex CLI / GPT-6.1 Sol | `lead` | This ledger; lead-only integration | Verify source, CI, artifacts and inventory; no merge/release decision inferred |
+| H1a | Codex CLI, slot ending `cd16` / GPT-6.1 Sol | `device` | `docs/integration/fold8-preflight-2026-10-15.md`; ignored task evidence | H0 frozen. Sole device operator for `RFGL73CE9XM`; inspect identity/installed APK and prepare deterministic fixtures/case plan. No app interaction yet; return at preflight boundary |
+| H2a | Codex CLI, slot ending `54e7` / GPT-6 Astra | `harness-design` | `docs/integration/H2-COMPARISON-CONTRACT-2026-10-15.md` | Read actual CLI/validation/colour routes. Define common-space/manifest/report/negative tests and split implementation; stop at design, no renderer edits or large build |
+| H6a | Codex CLI, slot ending `2bbf` / GPT-6 Luna | `docs-audit` | `docs/integration/H6-DOC-AUDIT-2026-10-15.md` | Read-only audit of historical claims and E/GD file map. Return contradictions with exact lines; no mechanical fixes yet |
+| H6b | Codex CLI - Luna / GPT-6 Luna | `docs-fix` | `docs/profiles.md`, `docs/BUILD.md`; `docs/integration/H6B-RECEIPT-2026-10-15.md` | H6a reviewed/imported. Correct user-guide/build claims mechanically from frozen evidence. No bench README, architecture/colour math or source changes. Stop at patch for lead review |
+| H0b | Claude Code - Haiku / configured Haiku | `asset-inventory` | `docs/integration/H0-ASSET-INVENTORY-2026-10-15.md` | Bounded private RAW/model/pair metadata inventory; no asset changes, image copies, Adobe UI or devices; stop at receipt |
+| H2 implementation | Claude Code / Opus | Not dispatched | Reserved: `src-tauri/src/bin/validate_dcp.rs`, `src-tauri/src/dcp/validation.rs`, `src-tauri/src/dcp/delta_e.rs`, `bench/dcp_validation/` | Wait for reviewed H2a contract; one bounded implementation slice at a time |
+| H1R diagnosis | Claude Code - Opus / configured Opus | `raf-diagnosis` | `docs/integration/ANDROID-RAF-DIAGNOSIS-2026-10-15.md`; task-private evidence only | New user-reported Android RAF failure. Locate decoder-selection cause/reproducer and propose exact repair ownership. Source read-only initially; no device commands or dependency refresh. Return diagnostic artifact before repair assignment |
+| H1R device evidence | Codex CLI - Sol / GPT-6.1 Sol | `device` | `docs/integration/ANDROID-RAF-DEVICE-2026-10-15.md`; private H1 evidence | H1a complete/idle. Read-only current-app logs, failed-source identity/header/hash if identifiable. No UI interaction or mutation. Supplies Opus diagnosis; stop at receipt |
+| H1R payload | Codex CLI - Sol / GPT-6.1 Sol | `device` | `docs/integration/ANDROID-RAF-PAYLOAD-2026-10-15.md`; new private H1 payload evidence | Previous diagnostic receipt accepted. Read-only transfer of the exact identified 2.94MB staged file to private host evidence, hash match and host format validity/dimensions; no UI/original-source assumptions. Supplies Opus reproducible bytes, then stop |
+| H1R independent repair design review | Codex CLI - Astra / GPT-6 Astra | `raf-review` | `docs/integration/ANDROID-RAF-REPAIR-REVIEW-2026-10-15.md` | Accepted device evidence and pinned source ready. Review proposed future-import and existing-open guards, supported-format boundaries and minimal regression plan. No source/device edits; stop at actionable repair ownership |
+| H2a independent review | Grok Build / Grok 4.7 | `harness-review` | `docs/integration/H2A-INDEPENDENT-REVIEW-2026-10-15.md` | Frozen completed Astra contract SHA a17b2e45…; read-only source/contract review, verify numerical/encoding/failure design and split implementation workload; no source/device edits |
+| UI implementation | Antigravity / Gemini 3.8 Flash high | Not dispatched | To be assigned after reproduced H1 defects or E contracts | No speculative UI or colour changes |
+| Small regression tasks | Claude Code / Haiku | Not dispatched | To be assigned by exact paths | No colour, JNI, concurrency or storage design |
+
+All production source, lockfiles, `lib.rs`, device operations beyond H1a and expansion work remain reserved, unassigned. H1b will authorize a dedicated synthetic profile/render/export flow after device preflight. H2b will implement a reviewed comparator contract before H3 fidelity. H4 follows reproduced defects; H5 begins with measurements. No old-emulator repair, CCT rewrite or blob decoding.
+
+## Expansion queue and shared-file reservations
+
+E1–E5 and GD0–GD6 remain approved scope, not active implementations. H6a maps companion files before dispatch. Initial confirmed paths: E1 `src/components/modals/CollageModal.tsx`, `src-tauri/src/export_processing.rs`; E3 `src/components/panel/right/MetadataPanel.tsx`; H4 `src/components/panel/right/ProfilePanel.tsx`, `src/components/ui/ProfileBrowser.tsx`, `src/hooks/useProfiles.ts`. Shared Android seam: `src-tauri/gen/android/app/src/main/java/io/github/CyberTimon/RapidRAW/MainActivity.kt`, manifest and Gradle/lock files. E1 and GD2 ownership must be serialized. E4/E5/GD3 storage contracts need architect approval and explicit ownership before writes. New Drive modules are proposed, not existing implementations. GD0 begins after the original acceptance stream is established; no Google credentials or account actions are requested now.
+
+## Acceptance remains open
+
+New user report: opening a Fuji `.raf` on Android failed with exact error “No decoder found.” **Fail — user-reported** for that file-opening case; filename, camera model, opening route and byte integrity initially unknown. Existing launch/UI/basic-adjustment passes remain bounded. Lead found the literal message in the pinned rawler checkout `rawler/src/decoders/mod.rs:998`; this identifies the producer, not the reason decoder detection failed. H1R diagnosis takes priority over broad H1 profile testing. Requested filename/model/opening route; sole device owner will collect relevant current-app logs read-only. No assumption of unsupported camera, URI failure or need to alter colour math.
+
+User clarification: failing source is Fujifilm **X-T5**, imported to RapidRAW then opened using RapidRAW's picker. Not an observed external SEND/VIEW failure. Filename and compression mode remain unconfirmed. Locally inventoried X-Pro2 RAFs are a separate corpus, not reproduction of this X-T5 case.
+
+H1R direct device evidence: staged `DSCF5389.RAF` is 2,940,309 bytes with JPEG/JFIF signature `FF D8 FF E0 00 10 4A 46 49 46`, followed by Exif little-endian TIFF. SHA-256 `82bd1e04633c491824b90cc31486b5c3ff0770a6dc712edf95d74c691bc958c6`; size/mtime/inode stable across read-only inspection. This explains rejecting the staged bytes as native RAF, but does not establish whether the original was mislabeled, a provider supplied a rendition, or RapidRAW's import changed it. No native X-T5 decoding-support conclusion follows. Original source/staged-byte provenance remains open; Opus notified. No full photo transferred.
+
+H1R-device report accepted after lead review and imported only `ANDROID-RAF-DEVICE-2026-10-15.md`, SHA-256 `51f10e64afd1277ed2874753a392610a10d5b6385318125214ecf7cd3ca10713`. Private evidence-manifest SHA `e1d665e8176903d6e4aaeeff525135bc0bab90f513698e29ff92e6ff87417384` verified. Logged decoder/open failure is now directly observed in retained logs for the identified staged bytes; original source/camera/selection sequence remains user-reported. Source/provider relation and corrected opening remain Not exercised.
+
+H1R-payload receipt accepted after lead review/import, SHA `7b2a133f6d4f6481295eb932e31db2bf7e9c2822791432f522bb10e380ea14ed`. Exact private transfer matches original staged hash `82bd1e04…`; Pillow11.3.0 verifies and fully loads JPEG/RGB7752×5178 within explicit resource bounds. Lead verified private manifest and each listed file hash. No photo bytes enter Git. Guide updated by lead after H6b import to reflect this subsequent observation (worker guide hash remains a historical handoff hash). Original-source/provider byte preservation and genuine X-T5 decoding remain Not exercised.
+
+Astra preliminary source review: rawler legitimately supports some Konica Minolta JFIF/EXIF through `MrwDecoder::new_jfif`; do not reject all JPEG-headed RAW extensions. Future guard must be narrow to established RAF/JPEG contradiction. Another existing defect: backend emits `import-error` followed by unconditional `import-complete`, and the frontend can overwrite failure with Success. Final repair scope awaits independent review receipt; no production repair has been made.
+
+H6a inventory accepted after lead review and receipt corrections; imported only `docs/integration/H6-DOC-AUDIT-2026-10-15.md`, SHA-256 `9ae03cd8c1c202d42d052e126c9b041d8d8a4a263df3e0e04410f8c532b3b797`. Named existing paths were checked; missing Drive paths correctly marked proposed. H6b subsequently corrected the two guides below; other audit findings remain open. Inventory completion does not close H6 release readiness.
+
+H6b accepted after lead review/revision; imported only `docs/profiles.md` (SHA `a75b9cd89a3793ea7e41f492708ab9d6374748018bd70559a8a3df09ac5ff3e8`), `docs/BUILD.md` (`6441a2271e8d658de7fbcd67ead565ef4afbf11f60b56e83554e52b947f2a447`) and its receipt (`ce3103b021618cb0fda0a6764bf40f925f45c54ff0c16cca788d0491250c25b1`). Corrected pinned Android build workflow, Rust cwd/toolchain guidance, profile placement/Amount/capture support and evidence claims. Lead verified hashes and relative links in combined checkout. No runtime tests/build required for this prose-only change; no runtime gate closed. Historical technical pipeline doc and bench README corrections remain separate assignments.
+
+H1a preflight accepted after lead review; imported only `docs/integration/fold8-preflight-2026-10-15.md`, SHA-256 `40d3d15669d650b4bf6ef9cd411dfb58236919204eb2b8c0c46b5d1f85b7637e`. Private evidence manifest hash verified: `28f2044ef985354d32c2bafabf54ee21403b72eb2820891969ac1d6975c11154`. Camera/profile synthetic task namespace prepared without vendor assets. Device/APK/source identity prerequisite satisfied; physical profile preview/export remains Not exercised. H1R decoder diagnosis now precedes the broad profile flow.
+
+H0b accepted after lead review/receipt corrections; imported only `H0-ASSET-INVENTORY-2026-10-15.md` (worker receipt SHA-256 `fac3f1ad0b611a7d8880631dd5fd8e6360537e2c3fd52f73161a638a5ca35df5`; lead clarified assignment-vs-permission wording after import, so final hash differs). Finding: 356 header-identified X-Pro2 RAFs in scanned Documents folders, no same-basename JPEG candidates there; absence is not proof against renamed JPEGs elsewhere. DSCF2029 has a private Camera Raw XMP naming Cobalt Modular; no controlled Adobe reference. H0 current-source/CI/artifact/device/asset baseline is complete; input gaps remain explicit rather than blocking independent work. The newer X-T5 opening failure is a separate H1R package.
+
+Historical H1a connectivity failure at 2026-10-15 05:28:35 UTC: serial-specific get-state failed, device not found. User reconnected it; the fresh check succeeded at05:31:08UTC and read-only preflight completed. The failure receipt is retained; no reset/settings change or emulator substitution occurred.
+
+Next H1b slice remains the synthetic missing-base/import/profile Amount/edited-preview/first-export flow, after a coordinated screen window. Broader layering, cold restart and lifecycle cases follow separately. The original/provider relation for the X-T5-named JPEG source is a separate unresolved input.
+
+H1a subsequent direct observation: explicit connection retry succeeded at 05:31:08 UTC. Worker reports SM-F971B, Android17/API37, WebView155.0.8059.43, CLOSED state, Adreno840 from SurfaceFlinger. Installed APK pulled privately and hash matches known `bf8d1399…`, v1.6.5/code1006005, debug v2 signature. Existing app log independently recorded Adreno840/Vulkan, with no new render benchmark. Another app was foreground; no active interaction window inferred. User asked for a roughly10–15-minute screen test window; H1b awaits reply. The preflight receipt is complete. No UI mutation occurred during H1a.
+
+Expanded H0/H0b inventory completed:356 X-Pro2 RAFs plus1DNG among the initial filename candidates under Documents; camera/paired-JPEG findings are in the accepted inventory. `/Applications/Adobe Lightroom CC` is present; app presence does not establish reference availability. Existing matching-model RAW assets should be used before requesting additional X-Pro2 inputs.
+
+Source-receipt comparison: all 456 matching recorded files remain unchanged; three differences are documentation/evidence only (`docs/android-integration-2026-10-15.md`, historical status report, desktop render receipt), no missing files. Detailed receipt: `H0-SOURCE-RECEIPT-CHECK-2026-10-15.json`.
+
+D1–D10: not closed by handover or CI. Physical profile preview/export, Adobe thresholds, cross-route agreement, production performance and release acceptance are separate gates. Each future receipt updates this ledger without erasing historical failures. No completion percentage or compatibility claim is justified.
