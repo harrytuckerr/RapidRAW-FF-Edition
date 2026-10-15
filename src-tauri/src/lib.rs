@@ -37,6 +37,7 @@ mod camera_tethering;
 mod culling;
 pub mod dcp;
 mod denoising;
+pub mod drive;
 mod effect_maps;
 mod exif_processing;
 mod export_processing;
