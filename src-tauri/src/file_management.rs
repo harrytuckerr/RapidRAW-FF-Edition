@@ -225,6 +225,10 @@ pub struct Preset {
     pub include_crop_transform: Option<bool>,
     #[serde(rename = "presetType", skip_serializing_if = "Option::is_none")]
     pub preset_type: Option<String>,
+    /// Whether the preset was saved with "Include Profile". Absent for presets
+    /// saved before this flag existed; their adjustments are left as stored.
+    #[serde(rename = "includeProfile", skip_serializing_if = "Option::is_none")]
+    pub include_profile: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -3344,6 +3348,7 @@ pub fn save_community_preset(
         include_masks,
         include_crop_transform,
         preset_type: preset_type.or(Some("style".to_string())),
+        include_profile: None,
     };
 
     if let Some(PresetItem::Folder(folder)) = current_presets.iter_mut().find(|item| {
@@ -6120,5 +6125,119 @@ mod r3_terminal_tests {
                 assert!(!message.contains(private), "{message}");
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod ps1_preset_profile_tests {
+    use super::*;
+    use serde_json::json;
+
+    const BASE_ID: &str = "4b80ed63b210e5738cde04430af1511c3e12e2bb53bf2471b4bb0750dceb87f3";
+    const LOOK_ID: &str = "6e4b9a8c-2f61-4d3e-9b7a-1c0d5e8f2a34";
+
+    fn preset(extra: Value) -> Value {
+        let mut preset = json!({
+            "id": "preset-1",
+            "name": "Fuji base + Look",
+            "adjustments": {
+                "exposure": 0.25,
+                "profile": { "base": BASE_ID, "look": LOOK_ID, "amount": 37 }
+            },
+            "includeMasks": false,
+            "includeCropTransform": false,
+            "presetType": "style"
+        });
+        for (key, value) in extra.as_object().unwrap() {
+            preset[key] = value.clone();
+        }
+        json!({ "preset": preset })
+    }
+
+    /// Round-trips through the exact types `save_presets`/`load_presets` use.
+    fn save_and_reload(items: &Value) -> Result<Value, String> {
+        let saved: Vec<PresetItem> =
+            serde_json::from_value(items.clone()).map_err(|e| e.to_string())?;
+        let written = serde_json::to_string_pretty(&saved).map_err(|e| e.to_string())?;
+        let reloaded: Vec<PresetItem> =
+            serde_json::from_str(&written).map_err(|e| e.to_string())?;
+        serde_json::to_value(&reloaded).map_err(|e| e.to_string())
+    }
+
+    #[test]
+    fn explicit_profile_capture_survives_save_and_reopen() {
+        for flag in [true, false] {
+            let items = json!([preset(json!({ "includeProfile": flag }))]);
+            assert_eq!(
+                save_and_reload(&items).unwrap(),
+                items,
+                "includeProfile={flag}"
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_preset_without_flag_stays_unchanged() {
+        let items = json!([preset(json!({}))]);
+        let reloaded = save_and_reload(&items).unwrap();
+        assert_eq!(reloaded, items);
+        assert!(reloaded[0]["preset"].get("includeProfile").is_none());
+        assert_eq!(
+            reloaded[0]["preset"]["adjustments"]["profile"],
+            json!({ "base": BASE_ID, "look": LOOK_ID, "amount": 37 })
+        );
+    }
+
+    #[test]
+    fn folder_tree_and_preset_file_keep_each_flag() {
+        let tree = json!([
+            preset(json!({ "includeProfile": true })),
+            {
+                "folder": {
+                    "id": "folder-1",
+                    "name": "Fuji",
+                    "children": [
+                        preset(json!({ "id": "child-true", "includeProfile": true }))["preset"],
+                        preset(json!({ "id": "child-false", "includeProfile": false }))["preset"],
+                        preset(json!({ "id": "child-legacy" }))["preset"],
+                    ]
+                }
+            }
+        ]);
+        assert_eq!(save_and_reload(&tree).unwrap(), tree);
+
+        // Import/export files use PresetFile.
+        let file = json!({ "presets": tree });
+        let parsed: PresetFile = serde_json::from_value(file.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&parsed).unwrap(), file);
+    }
+
+    #[test]
+    fn malformed_flag_is_rejected_not_dropped() {
+        for bad in [json!("yes"), json!(1), json!({}), json!([true])] {
+            let items = json!([preset(json!({ "includeProfile": bad }))]);
+            assert!(
+                save_and_reload(&items).is_err(),
+                "accepted includeProfile={bad}"
+            );
+        }
+        // JSON null is the same as an absent optional flag.
+        let reloaded =
+            save_and_reload(&json!([preset(json!({ "includeProfile": null }))])).unwrap();
+        assert!(reloaded[0]["preset"].get("includeProfile").is_none());
+    }
+
+    #[test]
+    fn converted_xmp_preset_does_not_claim_profile_capture() {
+        let xmp = r#"<x:xmpmeta><rdf:Description crs:Exposure2012="+0.50" crs:Contrast2012="+10">
+            <crs:Name><rdf:Alt><rdf:li xml:lang="x-default">Converted</rdf:li></rdf:Alt></crs:Name>
+            </rdf:Description></x:xmpmeta>"#;
+        let converted = crate::preset_converter::convert_xmp_to_preset(xmp).unwrap();
+        let value = serde_json::to_value(PresetItem::Preset(converted)).unwrap();
+        assert!(value["preset"].get("includeProfile").is_none(), "{value}");
+        assert!(
+            value["preset"]["adjustments"].get("profile").is_none(),
+            "{value}"
+        );
     }
 }
