@@ -1,0 +1,15 @@
+# GD1b5-S1 — lead integration acceptance, 2026-10-16
+
+Pass for the bounded native session-owner foundation. Lead gpt-6.1-sol read the full production source, all 21 authored tests, eight independent tests, approved design and full source/runtime receipts. No blocking finding remains in this slice. It stops at pending account verification; it does not connect an account or activate Drive.
+
+Original 65,348-byte author prefix f49ac5ed is unchanged. Imported session17ed9fec adds only the independent test child declaration. Permanent child7129423f and desktop module5c59c0ad are the exact independently validated bytes. All existing helpers, exchange, lib registration, manifests, locks and image/profile paths are unchanged. README records the pending-verification boundary accurately.
+
+Independent validation: 29 tests passed (21 authored + 8 independent), zero failed/ignored; format and strict all-target lint passed. Lead rehashed all37 sealed records, two external records and617 protected review inputs. See [independent runtime report](GD1B5-SESSION-RUNTIME-VALIDATION-2026-10-16.md).
+
+Canonical combined validation: **368 executed passed, 0 failed; 14 ignored**, from one invocation: library339, CLI2, loopback10, PKCE7 and token-response10. Session/exchange tests are included in library, not added again. Format and strict all-target Clippy passed. Lead rehashed all620 frozen source inputs and31 sealed artifact records, including all five actual binaries. See [canonical receipt](GD1B5-S1-CANONICAL-VALIDATION-2026-10-16.json), SHA2569b3e5e379f152b8a439f6e78d3e3fe4997eeae820fe7cdc10c50db0b33b9fdaf. One human-readable pass-list string inherited a610 count; the structured frozen_inputs.count, actual manifests and independent rehash are620. Preserve the original receipt; this is a descriptive correction only.
+
+Tests used actual native ownership/reducers and synthetic local sockets. No successful Code callback was positively acknowledged, and no Google request was made. Pending markers exercise the real commit reducer; a real successful ExchangeResult through the complete controller/provider path remains Not exercised. OS browser handoff, authenticated account proof/adoption, storage/refresh, IPC/UI/Android/device/sync and ignored hardware/vendor gates remain open. Cooperative cleanup/fences do not establish hard OS abort or guaranteed zeroization.
+
+Frozen parent c5e1bdcf76de64bad1b87bcaa9e2526c95457efa, combined manifestad7165d6dc3f03eacca1601d16bb93157aa214641506daf286b8d3520f1cc0e8. Canonical private evidence /private/tmp/rapidraw-gd1b5-session-canonical-validation-20261016, artifact manifest9571d19478376e071a6e260050cf7d30034a9de1a7748fc2bd60f5fc0af94a52. Cache released2026-10-15T16:18:24.906790Z. Only the final machine receipt and this review were added after combined checks; executable bytes remain identical.
+
+Root accepts this local integration only. No main push, release, account access, application command or device change is performed by this commit. Original DCP/Adobe/physical-profile acceptance is not waived. S2 account verifier and later S3 adoption require separate bounded ownership and independent review.
