@@ -1,0 +1,59 @@
+{
+  "parent": "3b1d89e1eb977db29059b8faedac708a969e1bfa",
+  "source_sha256": "52db27914e6209611d902473fa91e16dd2383fa34efcaf5777f4bc9e27517902",
+  "checks": [
+    {
+      "name": "library",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--offline",
+        "--lib"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 66.432152583,
+      "log_sha256": "bca4308c19503a6eb2539f1653826ff3d9328a5abd9ccfe87df30c3b63b84366"
+    },
+    {
+      "name": "fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 0.6893077499999976,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit": 0,
+      "elapsed_seconds": 15.252083333000002,
+      "log_sha256": "0d7284246c874355225a361f03dcf8571330e0b09409919b391f5d841f9b28d2"
+    }
+  ],
+  "library_passed": 244,
+  "library_ignored_not_passed": 14,
+  "independent_probe_tests_passed": 32,
+  "independent_graph_analyses": 384,
+  "independent_probe_log_sha256": "0a99920a0551a1ca81b87120b8a701a4ed2a18345f9d50adb6f19389efa4a1b0",
+  "private_evidence_root": "/private/tmp/rapidraw-gd1a2-canonical-20261015",
+  "limits": [
+    "Structural model/graph only; no live Google or payload application",
+    "No UI1 artifact includes this separate foundation code",
+    "Original author Clippy failure preserved; final source strict Clippy passes"
+  ]
+}
