@@ -51,6 +51,7 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           rustflags: ''
+          rust-src-dir: src-tauri
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -101,6 +102,8 @@ jobs:
       - name: Setup Android SDK
         if: inputs.mobile == 'android'
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
 
       - name: Setup Android NDK
         if: inputs.mobile == 'android'
@@ -111,18 +114,11 @@ jobs:
           link-to-sdk: true
 
       - name: Install frontend dependencies
+        if: inputs.mobile != 'android'
         run: npm install
 
-      - name: Setup Android signing
-        if: inputs.mobile == 'android' && github.event_name != 'pull_request'
-        run: |
-          cd src-tauri/gen/android
-          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" > keystore.properties
-          echo "password=${{ secrets.ANDROID_KEY_PASSWORD }}" >> keystore.properties
-          echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 -d > $RUNNER_TEMP/keystore.jks
-          echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
-
       - name: rustup install target
+        working-directory: src-tauri
         if: ${{ inputs.target != '' }}
         run: rustup target add ${{ inputs.target }}
 
@@ -157,16 +153,42 @@ jobs:
           releaseId: ${{ inputs.release-id }}
           retryAttempts: 3
 
+      # Reviewed Android locks are required; never downgrade desktop locks or
+      # silently re-resolve transitive dependencies in CI.
+      - name: Prepare isolated Android workspace
+        if: inputs.mobile == 'android'
+        shell: bash
+        run: |
+          python3 scripts/android-build.py prepare --workspace "$RUNNER_TEMP/rapidraw-android" --locks src-tauri/gen/android/dependency-locks
+
+      - name: Setup Android signing
+        if: inputs.mobile == 'android' && github.event_name != 'pull_request'
+        run: |
+          cd "$RUNNER_TEMP/rapidraw-android/src-tauri/gen/android"
+          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" > keystore.properties
+          echo "password=${{ secrets.ANDROID_KEY_PASSWORD }}" >> keystore.properties
+          echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 -d > $RUNNER_TEMP/keystore.jks
+          echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
+
       - name: Build Android
-        if: ${{ inputs.mobile == 'android' }}
+        if: inputs.mobile == 'android'
         shell: bash
         env:
           NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-          ORT_SKIP_DOWNLOAD: '1'
-          ORT_LIB_LOCATION: ${{ format('{0}/src-tauri/libs/arm64-v8a', github.workspace) }}
-          ORT_STRATEGY: manual
+          ANDROID_BUILD_ARGS: ${{ inputs.build-args }}
         run: |
-          npx tauri android build --verbose ${{ inputs.build-args }}
+          python3 scripts/android-build.py build --workspace "$RUNNER_TEMP/rapidraw-android" --release --build-args="$ANDROID_BUILD_ARGS"
+
+      - name: Upload Android dependency receipt
+        if: inputs.mobile == 'android' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-locks-${{ inputs.asset-prefix }}-${{ inputs.target }}
+          include-hidden-files: true
+          path: |
+            ${{ runner.temp }}/rapidraw-android/android-locks/*
+            ${{ runner.temp }}/rapidraw-android/.android-workspace.json
+          if-no-files-found: warn
 
       - name: Prepare Android Release Assets
         if: ${{ inputs.mobile == 'android' && inputs.release-id != '' }}
@@ -183,7 +205,7 @@ jobs:
           arch="${arch%%-*}"
           template='${{ steps.patch-release-name.outputs.platform }}'
 
-          find src-tauri/gen/android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) | while read -r file; do
+          find "$RUNNER_TEMP/rapidraw-android/src-tauri/gen/android/app/build/outputs" -type f \( -name '*.apk' -o -name '*.aab' \) | while read -r file; do
             ext=".${file##*.}"
             asset_name="${template//\[name\]/$app_name}"
             asset_name="${asset_name//\[version\]/$version}"
@@ -210,8 +232,8 @@ jobs:
         with:
           name: ${{ inputs.asset-prefix }}_android${{ inputs.target && format('_{0}', inputs.target) || '' }}_artifacts
           path: |
-            src-tauri/gen/android/app/build/outputs/**/*.apk
-            src-tauri/gen/android/app/build/outputs/**/*.aab
+            ${{ runner.temp }}/rapidraw-android/src-tauri/gen/android/app/build/outputs/**/*.apk
+            ${{ runner.temp }}/rapidraw-android/src-tauri/gen/android/app/build/outputs/**/*.aab
           retention-days: 7
           compression-level: 6
           if-no-files-found: warn

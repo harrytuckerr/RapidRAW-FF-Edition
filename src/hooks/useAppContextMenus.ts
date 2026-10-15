@@ -2,6 +2,9 @@ import { useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
   Aperture,
+  Ban,
+  Flag,
+  FlagOff,
   Check,
   ClipboardPaste,
   Copy,
@@ -14,6 +17,7 @@ import {
   FolderPlus,
   Images,
   LayoutTemplate,
+  LayersArrowDown,
   Redo,
   RefreshCw,
   RotateCcw,
@@ -42,6 +46,7 @@ import {
   Briefcase,
   User,
   Album as AlbumIcon,
+  PencilSparkles,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
@@ -51,7 +56,16 @@ import { useLibraryStore } from '../store/useLibraryStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { useUIStore } from '../store/useUIStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { Invokes, Option, OPTION_SEPARATOR, Panel, AlbumItem, Album, AlbumGroup } from '../components/ui/AppProperties';
+import {
+  Invokes,
+  ImageFlag,
+  Option,
+  OPTION_SEPARATOR,
+  Panel,
+  AlbumItem,
+  Album,
+  AlbumGroup,
+} from '../components/ui/AppProperties';
 import { Color, COLOR_LABELS, INITIAL_ADJUSTMENTS, normalizeLoadedAdjustments } from '../utils/adjustments';
 import TaggingSubMenu from '../context/TaggingSubMenu';
 import { useEditorActions } from './useEditorActions';
@@ -67,6 +81,7 @@ export interface UseAppContextMenusProps {
   refreshAllFolderTrees: () => Promise<void>;
   refreshImageList: () => Promise<void>;
   executeDelete: (paths: string[], options: any) => Promise<void>;
+  handleDeleteRejected: () => void;
   handleTogglePinFolder: (path: string) => Promise<void>;
 }
 
@@ -74,9 +89,31 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
   const { t } = useTranslation();
   const { showContextMenu } = useContextMenu();
 
-  const { handleAutoAdjustments, handleResetAdjustments, handleCopyAdjustments, handlePasteAdjustments } =
-    useEditorActions();
-  const { handleRate, handleSetColorLabel, handleTagsChanged } = useLibraryActions();
+  const {
+    handleAutoAdjustments,
+    handleAutoLensCorrection,
+    handleResetAdjustments,
+    handleCopyAdjustments,
+    handlePasteAdjustments,
+  } = useEditorActions();
+  const { handleRate, handleSetFlag, handleSetColorLabel, handleTagsChanged } = useLibraryActions();
+
+  const buildFlagMenu = useCallback(
+    (paths?: string[]) => ({
+      label: t('contextMenus.editor.flag'),
+      icon: Flag,
+      submenu: [
+        { label: t('contextMenus.editor.flagPick'), icon: Flag, onClick: () => handleSetFlag(ImageFlag.Pick, paths) },
+        {
+          label: t('contextMenus.editor.flagReject'),
+          icon: Ban,
+          onClick: () => handleSetFlag(ImageFlag.Reject, paths),
+        },
+        { label: t('contextMenus.editor.unflagged'), icon: FlagOff, onClick: () => handleSetFlag(null, paths) },
+      ],
+    }),
+    [handleSetFlag, t],
+  );
 
   const albumIcons = useMemo(
     () => [
@@ -200,8 +237,14 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
           submenu: [
             {
               label: t('contextMenus.editor.autoAdjust'),
-              icon: Aperture,
+              icon: PencilSparkles,
               onClick: handleAutoAdjustments,
+              disabled: !selectedImage?.isReady,
+            },
+            {
+              label: t('contextMenus.editor.autoLensCorrection'),
+              icon: Aperture,
+              onClick: () => handleAutoLensCorrection([selectedImage.path]),
               disabled: !selectedImage?.isReady,
             },
             {
@@ -242,7 +285,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
         },
         {
           label: t('contextMenus.merge.title'),
-          icon: Layers,
+          icon: LayersArrowDown,
           submenu: [
             { disabled: true, icon: SquaresUnite, label: t('contextMenus.editor.stitchPanorama') },
             { disabled: true, icon: Images, label: t('contextMenus.editor.mergeHdr') },
@@ -261,6 +304,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
             onClick: () => handleRate(rating),
           })),
         },
+        buildFlagMenu(),
         {
           label: t('contextMenus.editor.colorLabel'),
           icon: Palette,
@@ -320,6 +364,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       handlePasteAdjustments,
       handleAutoAdjustments,
       handleRate,
+      buildFlagMenu,
       handleSetColorLabel,
       handleTagsChanged,
       showContextMenu,
@@ -451,12 +496,17 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       };
 
       const handleApplyAutoAdjustmentsToSelection = () => {
-        if (finalSelection.length === 0) return;
-        finalSelection.forEach((p) => globalImageCache.delete(p));
+        const editingPath = activeView === 'editor' ? selectedImage?.path : undefined;
+        const batchPaths = finalSelection.filter((p) => p !== editingPath);
+        if (batchPaths.length < finalSelection.length) {
+          handleAutoAdjustments();
+        }
+        if (batchPaths.length === 0) return;
+        batchPaths.forEach((p) => globalImageCache.delete(p));
 
-        invoke(Invokes.ApplyAutoAdjustmentsToPaths, { paths: finalSelection })
+        invoke(Invokes.ApplyAutoAdjustmentsToPaths, { paths: batchPaths })
           .then(async () => {
-            if (selectedImage && finalSelection.includes(selectedImage.path)) {
+            if (selectedImage && batchPaths.includes(selectedImage.path)) {
               const metadata: any = await invoke(Invokes.LoadMetadata, { path: selectedImage.path });
               if (metadata.adjustments && !metadata.adjustments.is_null) {
                 const normalized = normalizeLoadedAdjustments(metadata.adjustments);
@@ -464,7 +514,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
                 useEditorStore.getState().resetHistory(normalized);
               }
             }
-            if (libraryActivePath && finalSelection.includes(libraryActivePath)) {
+            if (libraryActivePath && batchPaths.includes(libraryActivePath)) {
               const metadata: any = await invoke(Invokes.LoadMetadata, { path: libraryActivePath });
               if (metadata.adjustments && !metadata.adjustments.is_null) {
                 const normalized = normalizeLoadedAdjustments(metadata.adjustments);
@@ -556,7 +606,12 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
           label: t('contextMenus.editor.productivity'),
           icon: Gauge,
           submenu: [
-            { label: autoAdjustLabel, icon: Aperture, onClick: handleApplyAutoAdjustmentsToSelection },
+            { label: autoAdjustLabel, icon: PencilSparkles, onClick: handleApplyAutoAdjustmentsToSelection },
+            {
+              label: t('contextMenus.thumbnail.autoLensCorrection', { count: selectionCount }),
+              icon: Aperture,
+              onClick: () => handleAutoLensCorrection(finalSelection),
+            },
             {
               label: denoiseLabel,
               icon: Grip,
@@ -611,7 +666,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
         },
         {
           label: t('contextMenus.merge.title'),
-          icon: Layers,
+          icon: LayersArrowDown,
           submenu: [
             {
               disabled: selectionCount < 2 || selectionCount > 30,
@@ -721,6 +776,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
             onClick: () => handleRate(rating, finalSelection),
           })),
         },
+        buildFlagMenu(finalSelection),
         {
           label: t('contextMenus.editor.colorLabel'),
           icon: Palette,
@@ -805,7 +861,9 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       buildAddToAlbumMenu,
       handleCopyAdjustments,
       handlePasteAdjustments,
+      handleAutoAdjustments,
       handleRate,
+      buildFlagMenu,
       handleSetColorLabel,
       handleTagsChanged,
       handleResetAdjustments,
@@ -1120,7 +1178,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       };
 
       const buildMoveSubmenu = (nodes: AlbumItem[]): Option[] => {
-        let opts: Option[] = [];
+        const opts: Option[] = [];
         nodes.forEach((n) => {
           if (n.type === 'group' && n.id !== item?.id) {
             const isCurrentParent = n.id === currentParentId;
@@ -1276,7 +1334,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       event.stopPropagation();
 
       const { copiedFilePaths, setProcess } = useProcessStore.getState();
-      const { currentFolderPath, activeAlbumId, setLibrary } = useLibraryStore.getState();
+      const { currentFolderPath, activeAlbumId, imageList, setLibrary } = useLibraryStore.getState();
 
       const numCopied = copiedFilePaths.length;
       const copyPastedLabel = t('contextMenus.folders.copyHere', { count: numCopied });
@@ -1350,6 +1408,14 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
           label: t('contextMenus.folders.importImages'),
           onClick: () => props.handleImportClick(currentFolderPath as string),
           disabled: !currentFolderPath || isAlbumView,
+        },
+        { type: OPTION_SEPARATOR },
+        {
+          icon: Trash2,
+          label: t('contextMenus.library.deleteRejected'),
+          isDestructive: true,
+          disabled: !imageList.some((image) => image.flag === ImageFlag.Reject),
+          onClick: props.handleDeleteRejected,
         },
       ];
 

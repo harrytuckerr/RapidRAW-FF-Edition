@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { RotateCcw, Copy, ClipboardPaste, Aperture, ChartArea } from 'lucide-react';
+import { RotateCcw, Copy, ClipboardPaste, PencilSparkles, ChartArea, LayoutList } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
@@ -12,7 +12,14 @@ import ProfilePanel from './ProfilePanel';
 import CollapsibleSection from '../../ui/CollapsibleSection';
 import Waveform from '../editor/Waveform';
 import Resizer from '../../ui/Resizer';
-import { Adjustments, SectionVisibility, INITIAL_ADJUSTMENTS, ADJUSTMENT_SECTIONS } from '../../../utils/adjustments';
+import AdjustmentSectionsSubMenu from './AdjustmentSectionsSubMenu';
+import {
+  Adjustments,
+  SectionVisibility,
+  INITIAL_ADJUSTMENTS,
+  ADJUSTMENT_SECTIONS,
+  getVisibleAdjustmentSections,
+} from '../../../utils/adjustments';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import { OPTION_SEPARATOR, Orientation } from '../../ui/AppProperties';
 import Text from '../../ui/Text';
@@ -37,6 +44,8 @@ export default function Controls() {
       theme: state.theme,
     })),
   );
+
+  const visibleSections = getVisibleAdjustmentSections(appSettings?.adjustmentLayout);
 
   const { collapsibleSectionsState, setUI } = useUIStore(
     useShallow((state) => ({
@@ -77,7 +86,7 @@ export default function Controls() {
   );
 
   const toggleWbPicker = useCallback(
-    () => setEditor((state) => ({ isWbPickerActive: !state.isWbPickerActive })),
+    () => setEditor((state) => ({ isWbPickerActive: !state.isWbPickerActive, isRelightPickerActive: false })),
     [setEditor],
   );
 
@@ -203,6 +212,12 @@ export default function Controls() {
         icon: RotateCcw,
         onClick: handleReset,
       },
+      { type: OPTION_SEPARATOR },
+      {
+        label: t('editor.adjustments.actions.customizePanels'),
+        icon: LayoutList,
+        submenu: [{ customComponent: AdjustmentSectionsSubMenu }],
+      },
     ];
 
     showContextMenu(event.clientX, event.clientY, options);
@@ -219,7 +234,7 @@ export default function Controls() {
             onClick={handleAutoAdjustments}
             data-tooltip={t('editor.adjustments.tooltips.autoAdjust')}
           >
-            <Aperture size={18} />
+            <PencilSparkles size={18} />
           </button>
           <button
             className={clsx(
@@ -284,7 +299,7 @@ export default function Controls() {
           </div>
         )}
         {selectedImage ? (
-          Object.keys(ADJUSTMENT_SECTIONS).map((sectionName: string) => {
+          visibleSections.map((sectionName: string) => {
             const SectionComponent: any = {
               basic: BasicAdjustments,
               curves: CurveGraph,
@@ -314,6 +329,7 @@ export default function Controls() {
                     handleLutSelect={handleLutSelect}
                     onLutHover={setLutPreviewOverride}
                     appSettings={appSettings}
+                    asShotWhiteBalance={selectedImage.asShotWhiteBalance}
                     isWbPickerActive={isWbPickerActive}
                     toggleWbPicker={toggleWbPicker}
                     onDragStateChange={onDragStateChange}

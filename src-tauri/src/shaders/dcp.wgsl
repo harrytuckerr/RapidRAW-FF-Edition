@@ -137,7 +137,8 @@ fn dcp_apply_hsv_table(
     let sat_scale = entry.y;
     let val_scale = entry.z;
 
-    let h2 = (hsv.x + hue_shift) % 360.0;
+    let shifted_hue = hsv.x + hue_shift;
+    let h2 = shifted_hue - 360.0 * floor(shifted_hue / 360.0);
     let s2 = clamp(hsv.y * sat_scale, 0.0, 1.0);
     let v2 = hsv.z * val_scale;
 

@@ -1,6 +1,15 @@
 # RapidRAW — Adobe DCP Camera-Profile Pipeline + Cobalt Image Support
 ## Master Specification & Agent Orchestration Brief
 
+> **Integration correction — 15 October 2026:** This is the historical planning brief.
+> For current implementation contracts and acceptance status, read
+> `docs/integration/STATUS-2026-10-15.md` and `docs/android-integration-2026-10-15.md`.
+> In particular, RAW WB coefficients are RGBE; `render_pixel` returns ProPhoto;
+> native Look tables are RGB tables, not HSV maps; source/synthetic validation is
+> not Adobe or device acceptance. Earlier speculative format/math statements
+> must not override the checked implementation or independently verified sources.
+
+
 **Document version:** 1.0
 **Date:** 2026-08-20
 **Fork:** `https://github.com/harrytuckerr/RapidRAW` (fork of `CyberTimon/RapidRAW`)

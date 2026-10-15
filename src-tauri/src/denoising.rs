@@ -312,12 +312,19 @@ fn denoise_image(
     let _ = app_handle.emit("denoise-progress", "Loading image...");
 
     let file_bytes = fs::read(path).map_err(|e| e.to_string())?;
-    let dynamic_img = load_base_image_from_bytes(&file_bytes, &path_str, false, &settings, None)
-        .map_err(|e| e.to_string())?;
+
+    let mut original_settings = settings.clone();
+    if method == "raw9" {
+        original_settings.use_apple_raw9 = Some(false);
+    }
+
+    let dynamic_img =
+        load_base_image_from_bytes(&file_bytes, &path_str, false, &original_settings, None)
+            .map_err(|e| e.to_string())?;
 
     let rgb_img_for_denoiser = dynamic_img.to_rgb32f();
 
-    let out_dynamic = if method == "ai" {
+    let mut out_dynamic = if method == "ai" {
         let session_arc = ai_session.ok_or_else(|| "AI Session not provided".to_string())?;
         crate::ai_processing::run_ai_denoise(
             &rgb_img_for_denoiser,
@@ -326,9 +333,20 @@ fn denoise_image(
             &app_handle,
         )
         .map_err(|e| e.to_string())?
+    } else if method == "raw9" {
+        if !is_raw {
+            return Err("Apple RAW 9 denoising only works on RAW files.".to_string());
+        }
+        let _ = app_handle.emit("denoise-progress", "Developing with Apple RAW 9...");
+        crate::apple_raw::denoise_raw9(&file_bytes, &path_str, intensity)
+            .map_err(|e| e.to_string())?
     } else {
         run_bm3d(&rgb_img_for_denoiser, intensity, &app_handle)?
     };
+
+    if is_raw {
+        apply_cpu_default_raw_processing(&mut out_dynamic);
+    }
 
     let _ = app_handle.emit("denoise-progress", "Finalizing data...");
     let _ = app_handle.emit("denoise-progress", "Generating previews...");
@@ -348,16 +366,10 @@ fn denoise_image(
         }
     };
 
-    let mut denoised_preview_source = out_dynamic.clone();
-
-    if is_raw {
-        apply_cpu_default_raw_processing(&mut denoised_preview_source);
-    }
-
     let denoised_preview = if new_width != width {
-        denoised_preview_source.resize(new_width, new_height, image::imageops::FilterType::Lanczos3)
+        out_dynamic.resize(new_width, new_height, image::imageops::FilterType::Lanczos3)
     } else {
-        denoised_preview_source
+        out_dynamic.clone()
     };
 
     let mut buf_denoised = Cursor::new(Vec::new());

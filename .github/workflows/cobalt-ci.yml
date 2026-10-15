@@ -6,7 +6,7 @@ name: Cobalt CI
 # adds `cargo test` per COBALT_DCP_SPEC.md section 6.W0.
 #
 # The build matrix is trimmed to representative desktop platforms to keep the
-# gate fast; the Android build enters CI with W8, and the full release matrix
+# gate fast; Android ARM64 checks packaging only, and the full release matrix
 # (all platforms + tethering) stays in ci.yml for tagged releases.
 
 on:
@@ -62,6 +62,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Profile UI regression tests
+        run: npm run test:profiles
+
       # --- Hard gates (Rust). The baseline passes these clean. ---
       - name: cargo fmt
         working-directory: src-tauri
@@ -110,9 +113,14 @@ jobs:
             target: ''
             asset-prefix: '03'
           - platform: 'windows-latest'
-            builds-args: '--bundles nsis'
+            args: '--bundles nsis'
             target: ''
             asset-prefix: '01'
+          - platform: 'ubuntu-24.04'
+            target: aarch64-linux-android
+            mobile: android
+            args: '--debug --target aarch64'
+            asset-prefix: '04'
     uses: ./.github/workflows/build.yml
     with:
       platform: ${{ matrix.platform }}

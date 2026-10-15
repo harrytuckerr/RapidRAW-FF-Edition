@@ -1,0 +1,10 @@
+warning: RapidRAW@0.0.0: ONNX Runtime library already exists and is valid. Skipping download.
+    Finished `test` profile [optimized] target(s) in 1.37s
+     Running unittests src/lib.rs (/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-b8c68747df43d7c8)
+
+running 1 test
+GPU parity: 262144 px — max 0.000012, mean 0.000001
+GPU parity: PASSED
+test dcp::validation::tests::gpu_vs_cpu_parity ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 142 filtered out; finished in 0.09s

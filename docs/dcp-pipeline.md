@@ -1,3 +1,10 @@
+> **Current integration contract (15 October 2026):** See
+> [the integration report](integration/STATUS-2026-10-15.md). Production selection
+> uses the shared CPU pipeline; its input is un-white-balanced camera RGB and
+> its output is linear sRGB. Native RGB Looks use the explicitly bounded
+> non-HDR evaluator. Older workstream notes below are historical and do not
+> establish Adobe fidelity or Android runtime acceptance.
+
 # DCP render pipeline (developer reference)
 
 The Adobe DNG Camera Profile (DCP) render chain added by the Cobalt DCP project. Covers the CPU reference renderer (W2), the GPU/WGSL path (W3), pipeline integration (W4), the Cobalt Look decoder (W7), and the validation harness (W9).

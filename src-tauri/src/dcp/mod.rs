@@ -22,8 +22,10 @@ pub mod interpolate;
 pub mod look_xmp;
 pub mod model;
 pub mod parser;
+pub mod pipeline;
 pub mod registry;
 pub mod render;
+pub mod rgb_look;
 pub mod validation;
 
 // Re-exports are the public API surface for W2/W5/W6; unused until they land.

@@ -13,12 +13,73 @@ pub type Mat3 = nalgebra::Matrix3<f32>;
 
 /// Stable content-derived identity for a profile: the blake3 hash of the raw
 /// file bytes. Two paths that point at identical bytes share one `ProfileId`.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, serde::Serialize, serde::Deserialize)]
+/// Wire format is always lowercase 64-character hex. Legacy 32-byte JSON
+/// arrays remain readable so existing registry indexes and sidecars migrate.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct ProfileId(pub [u8; 32]);
 
 impl ProfileId {
     pub fn to_hex(self) -> String {
         self.0.iter().map(|b| format!("{b:02x}")).collect()
+    }
+}
+
+impl serde::Serialize for ProfileId {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.to_hex())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for ProfileId {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct IdVisitor;
+        impl<'de> serde::de::Visitor<'de> for IdVisitor {
+            type Value = ProfileId;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str(
+                    "exactly 64 ASCII hex characters or a legacy array of exactly 32 u8 integers",
+                )
+            }
+            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<ProfileId, E> {
+                if value.len() != 64 {
+                    return Err(E::custom(
+                        "profile ID must contain exactly 64 hex characters",
+                    ));
+                }
+                let nibble = |b: u8| match b {
+                    b'0'..=b'9' => Some(b - b'0'),
+                    b'a'..=b'f' => Some(b - b'a' + 10),
+                    b'A'..=b'F' => Some(b - b'A' + 10),
+                    _ => None,
+                };
+                let mut bytes = [0u8; 32];
+                for (out, pair) in bytes.iter_mut().zip(value.as_bytes().as_chunks::<2>().0) {
+                    let hi = nibble(pair[0])
+                        .ok_or_else(|| E::custom("profile ID contains non-hex characters"))?;
+                    let lo = nibble(pair[1])
+                        .ok_or_else(|| E::custom("profile ID contains non-hex characters"))?;
+                    *out = (hi << 4) | lo;
+                }
+                Ok(ProfileId(bytes))
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<ProfileId, A::Error> {
+                use serde::de::Error;
+                let mut bytes = [0u8; 32];
+                for (i, out) in bytes.iter_mut().enumerate() {
+                    *out = seq
+                        .next_element::<u8>()?
+                        .ok_or_else(|| A::Error::invalid_length(i, &self))?;
+                }
+                if seq.next_element::<serde::de::IgnoredAny>()?.is_some() {
+                    return Err(A::Error::invalid_length(33, &self));
+                }
+                Ok(ProfileId(bytes))
+            }
+        }
+        deserializer.deserialize_any(IdVisitor)
     }
 }
 
@@ -222,4 +283,91 @@ pub struct DcpProfile {
     pub look_table_encoding: TableEncoding,
     pub hue_sat_map_encoding: TableEncoding,
     pub tone_curve: Option<ToneCurve>,
+}
+
+#[cfg(test)]
+mod profile_id_wire_tests {
+    use super::ProfileId;
+    use crate::dcp::registry::{PairingState, ProfileEntry, ProfileSource};
+    use serde_json::json;
+
+    #[test]
+    fn profile_id_hex_and_legacy_round_trip_to_canonical_hex() {
+        let id = ProfileId(std::array::from_fn(|i| (i * 7 + 3) as u8));
+        let canonical = json!(id.to_hex());
+        assert_eq!(serde_json::to_value(id).unwrap(), canonical);
+        for value in [
+            canonical.clone(),
+            json!(id.to_hex().to_uppercase()),
+            json!(id.0),
+        ] {
+            let parsed: ProfileId = serde_json::from_value(value).unwrap();
+            assert_eq!(parsed, id);
+            assert_eq!(serde_json::to_value(parsed).unwrap(), canonical);
+        }
+    }
+
+    #[test]
+    fn profile_id_rejects_malformed_wire_values() {
+        let mut bad = vec![
+            json!(null),
+            json!(42),
+            json!(true),
+            json!({}),
+            json!(""),
+            json!("a".repeat(63)),
+            json!("a".repeat(65)),
+            json!("z".repeat(64)),
+            json!("é".repeat(32)),
+            json!(format!(" {}", "a".repeat(64))),
+            json!(vec![0u8; 31]),
+            json!(vec![0u8; 33]),
+        ];
+        for value in [
+            json!(-1),
+            json!(256),
+            json!(1.5),
+            json!(1.0),
+            json!("1"),
+            json!(null),
+        ] {
+            let mut array = vec![json!(0); 32];
+            array[7] = value;
+            bad.push(json!(array));
+        }
+        for value in bad {
+            assert!(
+                serde_json::from_value::<ProfileId>(value.clone()).is_err(),
+                "{value}"
+            );
+        }
+    }
+
+    #[test]
+    fn actual_registry_entry_and_pairing_ipc_emit_hex_strings() {
+        let id = ProfileId([74; 32]);
+        let entry = ProfileEntry {
+            id,
+            file_path: "synthetic.dcp".into(),
+            profile_name: "Synthetic".into(),
+            unique_camera_model: "Synthetic Camera".into(),
+            source: ProfileSource::Managed,
+            size: 0,
+            mtime_ms: 0,
+        };
+        let mut encoded = serde_json::to_value(&entry).unwrap();
+        assert_eq!(encoded["id"], json!(id.to_hex()));
+        // The actual pairing type is PairingState, not a stand-in test shape.
+        assert_eq!(
+            serde_json::to_value(PairingState::Satisfied { base: id }).unwrap(),
+            json!({"state":"satisfied","base":id.to_hex()})
+        );
+        encoded["id"] = json!(id.0);
+        let migrated: ProfileEntry = serde_json::from_value(encoded).unwrap();
+        assert_eq!(migrated, entry);
+        assert_eq!(
+            serde_json::to_value(migrated).unwrap()["id"],
+            json!(id.to_hex())
+        );
+    }
 }

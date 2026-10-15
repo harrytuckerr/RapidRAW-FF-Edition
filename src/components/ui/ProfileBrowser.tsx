@@ -92,6 +92,8 @@ interface ProfileBrowserProps {
   className?: string;
 }
 
+const INLINE_BROWSER_QUERY = '(max-width: 767px), (pointer: coarse)';
+
 export default function ProfileBrowser({
   model,
   activeBase,
@@ -104,10 +106,21 @@ export default function ProfileBrowser({
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isInlineBrowser, setIsInlineBrowser] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(INLINE_BROWSER_QUERY).matches,
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const media = window.matchMedia(INLINE_BROWSER_QUERY);
+    const updateLayout = () => setIsInlineBrowser(media.matches);
+    updateLayout();
+    media.addEventListener('change', updateLayout);
+    return () => media.removeEventListener('change', updateLayout);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -127,10 +140,10 @@ export default function ProfileBrowser({
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen && searchInputRef.current) {
+    if (isOpen && !isInlineBrowser && searchInputRef.current) {
       searchInputRef.current.focus();
     }
-  }, [isOpen]);
+  }, [isOpen, isInlineBrowser]);
 
   // ---- Build flat filtered list ----
   const filteredItems = useMemo((): BrowserItem[] => {
@@ -307,13 +320,16 @@ export default function ProfileBrowser({
         {isOpen && (
           <motion.div
             animate={{ opacity: 1, scale: 1 }}
-            className="absolute left-0 right-0 mt-1 z-30 origin-top"
+            className={clsx('mt-1 origin-top', isInlineBrowser ? 'relative' : 'absolute left-0 right-0 z-30')}
             exit={{ opacity: 0, scale: 0.95 }}
             initial={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.1, ease: 'easeOut' }}
           >
             <div
-              className="bg-surface/95 backdrop-blur-md rounded-lg shadow-xl max-h-80 overflow-hidden flex flex-col"
+              className={clsx(
+                'bg-surface/95 backdrop-blur-md rounded-lg shadow-xl flex flex-col',
+                !isInlineBrowser && 'max-h-80 overflow-hidden',
+              )}
               role="listbox"
               ref={listRef}
             >
@@ -341,7 +357,7 @@ export default function ProfileBrowser({
               )}
 
               {/* Items */}
-              <div className="overflow-y-auto p-2">
+              <div className={clsx('p-2', !isInlineBrowser && 'overflow-y-auto')}>
                 {filteredItems.map((item, idx) => {
                   const isDisabled = item.kind === 'look' && !isSatisfied(item.pairing);
                   const isActive =
@@ -395,6 +411,11 @@ export default function ProfileBrowser({
                         </Text>
                         {isActive && <Check size={16} className="text-accent shrink-0" />}
                       </button>
+                      {isInlineBrowser && msg && (
+                        <Text variant={TextVariants.label} color={TextColors.secondary} className="px-3 pb-2">
+                          {msg}
+                        </Text>
+                      )}
                     </div>
                   );
                 })}

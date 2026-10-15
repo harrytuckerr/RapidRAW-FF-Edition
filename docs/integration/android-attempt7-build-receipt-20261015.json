@@ -1,0 +1,43 @@
+{
+  "status": "Pass: attempt7 wire-fix APK built, signature verified, packaged native library matched; runtime test owned by main",
+  "apk": {
+    "path": "/private/tmp/rapidraw-android-prep-20261015-v2/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk",
+    "sha256": "9346362e69ab75a49b5a3a0276c4219c29dac968f44b93e2a5c965803f166860",
+    "bytes": 207531791
+  },
+  "native_library_sha256": "50c77a5c173060fb9543343d9be48fe0244a977fa2aa0ee9328bbac564c2fa86",
+  "source_manifest_sha256": "8a4222aa4bd26e761aa9cbe2846857084f418a8cae988781face262723f72d80",
+  "prepared_manifest_sha256": "d3d01d139a5aa8b2a513f44e3431cde73afe1c39edc5eda1a02e8b5fe01e3885",
+  "full_input_receipt": {
+    "path": "/private/tmp/rapidraw-integration-20261015/android/scripts/android-attempt7-source-receipt-20261015.json",
+    "sha256": "5a74396ae99032fd66bad8eecf509d57e6fb551b94fb7f8763ed2934685abffa"
+  },
+  "exact_main_source_matches": {
+    "src-tauri/src/dcp/model.rs": "f8a330076e14ae09184da79cb68a86799d8ed633fa8e6ba9e1935e19c2bba117",
+    "src-tauri/src/dcp/pipeline.rs": "438bd26dad525a833ca14bf4458152480e3326eac16bf32a91a8c4fd4c980972",
+    "src-tauri/src/lib.rs": "9a1ec07f6517260dd7c186e9ec0be3df0dde73bf2f904a33e60de18383615870",
+    "src-tauri/src/app_state.rs": "b6a13c37cb261f4c7b34e22784dc945c87cb194c6281adb90379fb4105ecd75e",
+    "src/utils/adjustments.ts": "520b1172c22792f0e1cc1037c2332b5e343bbafaf438cc4f22340650adb17283",
+    "src/hooks/usePresets.ts": "8867497e65c5f3ad3505ddd95ce7fd245bef77690a7813219dea7d24c5fe7f93",
+    "src/hooks/useImageProcessing.ts": "21841950f22ab668fe3f24dffbd579d6859719b399e9ef87cb50193dece6f799",
+    "src/__tests__/profileCompatibility.test.mjs": "569336a4a131a285468e38072efe04b8892ce0385b174562222dd522619e9b5b",
+    ".github/workflows/cobalt-ci.yml": "0443430c28604ca39186fac26165d3baea0e525a8274a94cbd0d681414711203",
+    "src-tauri/src/gpu_processing.rs": "d02767e76a565d2937b460fd3079e53e9ad67c850fd3d1146f9236b52069cb22",
+    "src/components/ui/ProfileBrowser.tsx": "25489e41b4484a94a4e917a4aa052c453789422f01f62f01f194be00d0f72a67",
+    "src-tauri/src/raw_processing.rs": "8db7b2209ad9fb5d2ceb9af2cb7c6023ee6d83b3b09e49a4eff744d1384bd160"
+  },
+  "android_locks": {
+    "src-tauri/Cargo.lock": "2958d08a0cdf5303f165ae0e9b05c2ba99aa902d428fab21db875165149c8c49",
+    "package-lock.json": "1fab8b696139c37da88d1c76980799f210a4b00914cd91f717e3b100923bd37c"
+  },
+  "logs": {
+    "/private/tmp/rapidraw-android-prep-20261015-v2/android-build-20261015-attempt7.log": "748fe0e105d22dfdf8ca9b3d216ef6d16e16cfe9f9d835a309a1623f506b7071",
+    "/private/tmp/rapidraw-android-prep-20261015-v2/apk-verification-attempt7.log": "b0a1af67205efcd284e5bbae691ebf4a0d296b4fcae02cd28e7e0509d0e0efbc"
+  },
+  "build_exit_code": 0,
+  "elapsed_seconds": 321,
+  "free_gib_after_build": 14.18,
+  "worker_device_mutation": false,
+  "main_context": "Main installing attempt7 with saved legacy array data preserved; final runtime acceptance not reported to worker yet",
+  "document_rewritten": false
+}

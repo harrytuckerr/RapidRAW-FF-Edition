@@ -1,8 +1,7 @@
 //! CLI validation harness for the RapidRAW DCP render path.
 //!
-//! Renders RAW files through the DCP pipeline and compares against reference
-//! TIFFs using the CIEDE2000 metric. This is the tool for the ACR-reference
-//! subset of W9 (§6.W9 requirement 1).
+//! Renders RAW files through the shared profile pipeline. Reference comparison
+//! is not implemented and exits with failure rather than implying acceptance.
 //!
 //! ## Usage
 //!
@@ -12,6 +11,8 @@
 //!     --dcp "path/to/profile.dcp" \
 //!     --raw "path/to/image.RAF" \
 //!     --output "render.tif"
+//! # Optional native Look: append --look "look.xmp" --amount 100
+//! # Amount is percent; nonzero Looks use the explicit non-HDR [0,1] boundary.
 //!
 //! # Compare against a reference TIFF:
 //! cargo run --bin validate_dcp -- compare \
@@ -23,8 +24,7 @@
 //! cargo run --bin validate_dcp -- self-test
 //! ```
 //!
-//! The `compare` subcommand requires vendor assets and exits cleanly if
-//! `RAPIDRAW_TEST_ASSETS` is not set.
+//! Output TIFF pixels are linear sRGB/Rec.709 working RGB, not display-encoded.
 
 use std::path::Path;
 
@@ -56,17 +56,18 @@ fn print_usage() {
          \n\
          SUBCOMMANDS:\n\
            render      Render a RAW file through a DCP profile, output a TIFF.\n\
-           compare     Render + compare against an ACR reference TIFF (ΔE2000).\n\
+           compare     Unavailable; exits with an explicit error.\n\
            self-test   Run synthetic validation tests (no assets needed).\n\
          \n\
          OPTIONS (render / compare):\n\
            --dcp <path>          Path to the .dcp camera profile.\n\
            --raw <path>          Path to the RAW image file.\n\
+           --look <path>         Optional native RGB Look XMP (requires matching base).\n\
+           --amount <percent>    Look amount, default 100; zero bypasses the Look.\n\
            --reference <path>    (compare only) Path to the ACR reference TIFF.\n\
            --output <path>       (render only) Output TIFF path.\n\
          \n\
-         ENVIRONMENT:\n\
-           RAPIDRAW_TEST_ASSETS=1   Required for compare; vendor assets not in repo.\n\
+         Nonzero Looks use a bounded non-HDR path; no HDR/Adobe parity claim.\n\
          \n\
          See bench/dcp_validation/README.md for the full procedure.\n"
     );
@@ -75,147 +76,87 @@ fn print_usage() {
 // ---- render subcommand ----------------------------------------------------
 
 fn cmd_render(args: &[String]) {
-    let dcp_path = parse_flag(args, "--dcp");
-    let _raw_path = parse_flag(args, "--raw");
-    let _output_path = parse_flag(args, "--output");
-
-    let Some(dcp_path) = dcp_path else {
-        eprintln!("error: --dcp is required for render");
+    if let Err(e) = render_raw(args) {
+        eprintln!("error: {e}");
         std::process::exit(1);
-    };
-
-    // Parse the DCP profile.
-    let profiles = match rapidraw_lib::dcp::parser::parse_dcp(Path::new(&dcp_path)) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("error parsing DCP {dcp_path}: {e}");
-            std::process::exit(1);
-        }
-    };
-    let profile = &profiles[0];
-    eprintln!(
-        "Loaded DCP: {} ({})",
-        profile.profile_name, profile.unique_camera_model
-    );
-
-    // Build a renderer with a nominal daylight neutral.
-    let as_shot_neutral = [0.5f32, 1.0, 0.8];
-    let renderer = match rapidraw_lib::dcp::render::DcpRenderer::new(profile, as_shot_neutral) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("error building DcpRenderer for {dcp_path}: {e}");
-            std::process::exit(1);
-        }
-    };
-
-    // Render a test pattern of synthetic pixels.
-    let swatch: Vec<[f32; 3]> = generate_test_swatch();
-    let mut rendered = Vec::with_capacity(swatch.len());
-    for pixel in &swatch {
-        rendered.push(renderer.render_pixel(*pixel));
-    }
-
-    // Convert to working space.
-    let working: Vec<[f32; 3]> = rendered
-        .iter()
-        .map(|p| renderer.to_working_space(*p))
-        .collect();
-
-    eprintln!(
-        "Rendered {} test pixels through '{}'",
-        swatch.len(),
-        profile.profile_name
-    );
-
-    // If --output is specified, write a TIFF.
-    if let Some(out_path) = parse_flag(args, "--output") {
-        write_tiff_swatch(&working, swatch.len() as u32, 1, Path::new(&out_path));
-        eprintln!("Output written to {out_path}");
-    } else {
-        eprintln!("No --output specified; rendering complete (no file written).");
-        // Print first few values.
-        for (i, (in_px, out_px)) in swatch.iter().zip(working.iter()).take(5).enumerate() {
-            eprintln!("  pixel {i}: camera {in_px:?} -> working {out_px:?}");
-        }
     }
 }
 
-// ---- compare subcommand ---------------------------------------------------
-
-fn cmd_compare(args: &[String]) {
-    // Gate on test assets.
-    if std::env::var("RAPIDRAW_TEST_ASSETS").as_deref() != Ok("1") {
-        eprintln!("RAPIDRAW_TEST_ASSETS is not set. Skipping ACR reference comparison.");
-        eprintln!("Set RAPIDRAW_TEST_ASSETS=1 and ensure test-assets/ is populated (§7.1).");
-        return;
+fn render_raw(args: &[String]) -> Result<(), String> {
+    use rapidraw_lib::dcp::{
+        look_xmp::parse_look_xmp,
+        parser::parse_dcp,
+        pipeline::render_selected_profile,
+        registry::{LookMetadata, ProfileEntry, ProfileRegistry, ProfileSource},
+    };
+    let dcp_path = parse_flag(args, "--dcp").ok_or("--dcp is required")?;
+    let raw_path = parse_flag(args, "--raw")
+        .ok_or("--raw is required (render does not use synthetic swatches)")?;
+    let output = parse_flag(args, "--output").ok_or("--output is required")?;
+    let (look_path, amount) = parse_look_options(args)?;
+    let profiles = parse_dcp(Path::new(&dcp_path)).map_err(|e| e.to_string())?;
+    if profiles.len() != 1 {
+        return Err("Validation render requires a DCP containing exactly one profile".into());
     }
-
-    let dcp_path = parse_flag(args, "--dcp");
-    let _raw_path = parse_flag(args, "--raw");
-    let ref_path = parse_flag(args, "--reference");
-
-    let Some(dcp_path) = dcp_path else {
-        eprintln!("error: --dcp is required for compare");
-        std::process::exit(1);
-    };
-    let Some(ref_path) = ref_path else {
-        eprintln!("error: --reference is required for compare");
-        std::process::exit(1);
-    };
-
-    let ref_path = Path::new(&ref_path);
-    if !ref_path.exists() {
-        eprintln!("error: reference TIFF not found: {ref_path:?}");
-        std::process::exit(1);
-    }
-
-    // Parse the DCP.
-    let profiles = match rapidraw_lib::dcp::parser::parse_dcp(Path::new(&dcp_path)) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("error parsing DCP {dcp_path}: {e}");
-            std::process::exit(1);
-        }
-    };
     let profile = &profiles[0];
-
-    // Load the reference TIFF.
-    let ref_img = match image::open(ref_path) {
-        Ok(img) => img.into_rgb32f(),
-        Err(e) => {
-            eprintln!("error opening reference {ref_path:?}: {e}");
-            std::process::exit(1);
-        }
+    let registry = ProfileRegistry::new();
+    registry.insert_dcp(ProfileEntry {
+        id: profile.id,
+        file_path: Path::new(&dcp_path).into(),
+        profile_name: profile.profile_name.clone(),
+        unique_camera_model: profile.unique_camera_model.clone(),
+        source: ProfileSource::Managed,
+        size: 0,
+        mtime_ms: 0,
+    });
+    let look_id = if let Some(path) = look_path {
+        let look = parse_look_xmp(Path::new(&path))
+            .map_err(|e| format!("Cannot parse selected Look '{path}': {e}"))?;
+        registry.register_look(LookMetadata {
+            uuid: look.uuid.clone(),
+            name: look.name,
+            group: look.group,
+            required_base_profile: look.required_base_profile,
+            camera_model_restriction: look.camera_model_restriction,
+            file_path: look.file_path,
+        });
+        eprintln!(
+            "Native Look at {amount}%: nonzero amount clamps finite pre-Look ProPhoto channels to [0,1]; HDR/scene-referred fidelity is unverified."
+        );
+        Some(look.uuid)
+    } else {
+        None
     };
-    let (ref_w, ref_h) = (ref_img.width() as usize, ref_img.height() as usize);
-
-    // Build renderer with nominal daylight neutral.
-    // In production, as_shot_neutral would come from the RAW file's EXIF.
-    let as_shot_neutral = [0.5f32, 1.0, 0.8];
-    let _renderer = match rapidraw_lib::dcp::render::DcpRenderer::new(profile, as_shot_neutral) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("error building DcpRenderer: {e}");
-            std::process::exit(1);
-        }
-    };
-
+    let adjustments = serde_json::json!({"profile":{
+        "base": profile.id.to_hex(), "look": look_id, "amount": amount,
+    }});
+    let bytes = std::fs::read(&raw_path).map_err(|e| format!("Cannot read RAW: {e}"))?;
+    let image = render_selected_profile(
+        &bytes,
+        &adjustments,
+        &registry,
+        false,
+        2.5,
+        "auto".into(),
+        None,
+    )?
+    .ok_or("No selected profile was rendered")?;
+    image
+        .save_with_format(&output, image::ImageFormat::Tiff)
+        .map_err(|e| format!("Cannot write TIFF: {e}"))?;
     eprintln!(
-        "Comparing '{}' against {ref_path:?} ({ref_w}×{ref_h})...",
-        profile.profile_name
+        "Rendered actual RAW: {}x{} linear working RGB -> {output}. No Adobe parity assertion.",
+        image.width(),
+        image.height()
     );
+    Ok(())
+}
 
-    // Placeholder: in the full pipeline (W4), we would:
-    //   1. Decode the RAW file with rawler → camera RGB buffer.
-    //   2. Render each pixel through the DCP renderer → ProPhoto buffer.
-    //   3. Compare pixel-by-pixel against the reference TIFF.
-    //
-    // For now, we render a swatch and compare the pipeline runs.
+fn cmd_compare(_args: &[String]) {
     eprintln!(
-        "reference TIFF loaded: {ref_w}×{ref_h} pixels ({} bytes).",
-        ref_img.len() * 4
+        "error: reference comparison is not implemented; no Adobe parity result is available"
     );
-    eprintln!("Full pipeline comparison requires W4 integration (rawler→cameraRGB→DcpRenderer).");
+    std::process::exit(1);
 }
 
 // ---- self-test subcommand -------------------------------------------------
@@ -275,38 +216,86 @@ fn parse_flag(args: &[String], flag: &str) -> Option<String> {
     None
 }
 
-/// A small test swatch with neutral, primary, secondary, and greyscale colours.
-fn generate_test_swatch() -> Vec<[f32; 3]> {
-    let mut v = Vec::new();
-    // Neutral ramp (21 steps, 0..2).
-    for i in 0..21 {
-        let x = i as f32 * 0.1;
-        v.push([x, x, x]);
+/// Parse optional Look arguments strictly: a misspelled/missing amount must
+/// not accidentally render at the default, and amount without a Look is an error.
+fn parse_look_options(args: &[String]) -> Result<(Option<String>, f64), String> {
+    let value = |flag: &str| -> Result<Option<String>, String> {
+        let positions: Vec<_> = args
+            .iter()
+            .enumerate()
+            .filter(|(_, arg)| arg.as_str() == flag)
+            .collect();
+        if positions.len() > 1 {
+            return Err(format!("{flag} may only be specified once"));
+        }
+        let Some((index, _)) = positions.first() else {
+            return Ok(None);
+        };
+        args.get(index + 1)
+            .filter(|v| !v.is_empty() && !v.starts_with("--"))
+            .cloned()
+            .map(Some)
+            .ok_or_else(|| format!("{flag} requires a value"))
+    };
+    let look = value("--look")?;
+    let amount = value("--amount")?;
+    if amount.is_some() && look.is_none() {
+        return Err("--amount requires --look".into());
     }
-    // Primaries at 0.5 intensity.
-    v.push([0.5, 0.0, 0.0]);
-    v.push([0.0, 0.5, 0.0]);
-    v.push([0.0, 0.0, 0.5]);
-    // Secondaries.
-    v.push([0.5, 0.5, 0.0]);
-    v.push([0.5, 0.0, 0.5]);
-    v.push([0.0, 0.5, 0.5]);
-    // Skin-tone approximation.
-    v.push([0.35, 0.25, 0.18]);
-    // Highlights / shadows.
-    v.push([0.001, 0.001, 0.001]);
-    v.push([2.0, 2.0, 2.0]);
-    v
+    let amount = amount
+        .map(|v| {
+            v.parse::<f64>()
+                .map_err(|_| "--amount must be a numeric percentage".to_string())
+        })
+        .transpose()?
+        .unwrap_or(100.0);
+    if !amount.is_finite() || amount < 0.0 || amount > i32::MAX as f64 {
+        return Err(
+            "--amount must be a finite nonnegative percentage within the SDK integer range".into(),
+        );
+    }
+    Ok((look, amount))
 }
 
-/// Write a 1-row swatch as a TIFF using the `image` crate.
-fn write_tiff_swatch(pixels: &[[f32; 3]], width: u32, _height: u32, path: &Path) {
-    let h = (pixels.len() as u32).div_ceil(width).max(1);
-    let mut buf = image::Rgb32FImage::new(width, h);
-    for (i, px) in pixels.iter().enumerate() {
-        let x = i as u32 % width;
-        let y = i as u32 / width;
-        buf.put_pixel(x, y, image::Rgb([px[0], px[1], px[2]]));
+#[cfg(test)]
+mod cli_tests {
+    use super::parse_look_options;
+    fn args(values: &[&str]) -> Vec<String> {
+        values.iter().map(|s| s.to_string()).collect()
     }
-    buf.save(path).expect("write TIFF");
+    #[test]
+    fn look_amount_is_percent_with_default_and_exact_zero() {
+        assert_eq!(parse_look_options(&args(&[])).unwrap(), (None, 100.0));
+        assert_eq!(
+            parse_look_options(&args(&["--look", "test.xmp"])).unwrap(),
+            (Some("test.xmp".into()), 100.0)
+        );
+        assert_eq!(
+            parse_look_options(&args(&["--look", "test.xmp", "--amount", "0"]))
+                .unwrap()
+                .1,
+            0.0
+        );
+        assert_eq!(
+            parse_look_options(&args(&["--look", "test.xmp", "--amount", "150"]))
+                .unwrap()
+                .1,
+            150.0
+        );
+    }
+    #[test]
+    fn malformed_look_options_do_not_silently_default() {
+        for values in [
+            vec!["--look"],
+            vec!["--look", "--output", "out.tif"],
+            vec!["--amount", "100"],
+            vec!["--look", "test.xmp", "--amount"],
+            vec!["--look", "test.xmp", "--amount", "NaN"],
+            vec!["--look", "test.xmp", "--amount", "-1"],
+            vec!["--look", "test.xmp", "--amount", "invalid"],
+            vec!["--look", "a.xmp", "--look", "b.xmp"],
+        ] {
+            assert!(parse_look_options(&args(&values)).is_err(), "{values:?}");
+        }
+    }
 }

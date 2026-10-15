@@ -188,7 +188,9 @@ const mixAdjustments = (presetObj: any, intensity: number, initialObj: any = INI
   const fraction = intensity / 100;
 
   if (fraction === 1) return { ...presetObj };
-  if (fraction === 0) return { ...initialObj };
+  if (fraction === 0) {
+    return Object.fromEntries(Object.keys(presetObj).map((key) => [key, initialObj[key]]));
+  }
 
   const result: any = {};
   const keys = Object.keys(presetObj);
@@ -591,6 +593,8 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
   const previewQueue = useRef<Array<any>>([]);
   const isProcessingQueue = useRef(false);
   const currentImagePathRef = useRef<string | null>(selectedImage?.path || null);
+  const profileKey = JSON.stringify(adjustments.profile);
+  const previewProfileKeyRef = useRef(profileKey);
 
   const handleDragStateChange = useCallback(
     (isDragging: boolean) => {
@@ -688,6 +692,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
 
     while (previewQueue.current.length > 0) {
       const itemPath = currentImagePathRef.current;
+      const itemProfile = JSON.stringify(useEditorStore.getState().adjustments.profile);
 
       const item = previewQueue.current.shift();
       if (!item) break;
@@ -702,12 +707,19 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
       }
 
       try {
-        const fullPresetAdjustments = { ...INITIAL_ADJUSTMENTS, ...preset.adjustments };
+        const fullPresetAdjustments = {
+          ...INITIAL_ADJUSTMENTS,
+          profile: useEditorStore.getState().adjustments.profile,
+          ...preset.adjustments,
+        };
         const imageData: Uint8Array = await invoke(Invokes.GeneratePresetPreview, {
           jsAdjustments: fullPresetAdjustments,
         });
 
-        if (itemPath !== currentImagePathRef.current) {
+        if (
+          itemPath !== currentImagePathRef.current ||
+          itemProfile !== JSON.stringify(useEditorStore.getState().adjustments.profile)
+        ) {
           continue;
         }
 
@@ -723,7 +735,10 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
       } catch (error) {
         const errStr = String(error);
         if (errStr.includes('No original image loaded') || errStr.includes('cancelled')) {
-          if (itemPath !== currentImagePathRef.current) {
+          if (
+            itemPath !== currentImagePathRef.current ||
+            itemProfile !== JSON.stringify(useEditorStore.getState().adjustments.profile)
+          ) {
             continue;
           }
           previewQueue.current = [];
@@ -731,7 +746,10 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
         }
 
         console.error(`Failed to generate preview for preset ${preset.name}:`, error);
-        if (itemPath === currentImagePathRef.current) {
+        if (
+          itemPath === currentImagePathRef.current &&
+          itemProfile === JSON.stringify(useEditorStore.getState().adjustments.profile)
+        ) {
           setPreviews((prev: Record<string, string | null>) => ({ ...prev, [preset.id]: null }));
         }
       }
@@ -777,14 +795,24 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
 
       setIsGeneratingPreviews(true);
       const pathAtStart = currentImagePathRef.current;
+      const profileAtStart = JSON.stringify(useEditorStore.getState().adjustments.profile);
 
       try {
-        const fullPresetAdjustments: any = { ...INITIAL_ADJUSTMENTS, ...preset.adjustments };
+        const fullPresetAdjustments: any = {
+          ...INITIAL_ADJUSTMENTS,
+          profile: useEditorStore.getState().adjustments.profile,
+          ...preset.adjustments,
+        };
         const imageData: Uint8Array = await invoke(Invokes.GeneratePresetPreview, {
           jsAdjustments: fullPresetAdjustments,
         });
 
-        if (pathAtStart !== currentImagePathRef.current) return;
+        if (
+          pathAtStart !== currentImagePathRef.current ||
+          profileAtStart !== JSON.stringify(useEditorStore.getState().adjustments.profile)
+        ) {
+          return;
+        }
 
         const blob = new Blob([new Uint8Array(imageData)], { type: 'image/jpeg' });
         const url = URL.createObjectURL(blob);
@@ -800,7 +828,10 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
         const errStr = String(error);
         if (!errStr.includes('No original image loaded') && !errStr.includes('cancelled')) {
           console.error(`Failed to generate preview for preset ${preset.name}:`, error);
-          if (pathAtStart === currentImagePathRef.current) {
+          if (
+            pathAtStart === currentImagePathRef.current &&
+            profileAtStart === JSON.stringify(useEditorStore.getState().adjustments.profile)
+          ) {
             setPreviews((prev: Record<string, string | null>) => ({ ...prev, [preset.id]: null }));
           }
         }
@@ -849,7 +880,10 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
   useEffect(() => {
     const isPathChanged = selectedImage?.path !== currentImagePathRef.current;
 
-    if (isPathChanged || !selectedImage?.isReady) {
+    const isProfileChanged = profileKey !== previewProfileKeyRef.current;
+    previewProfileKeyRef.current = profileKey;
+
+    if (isPathChanged || isProfileChanged || !selectedImage?.isReady) {
       Object.values(previewsRef.current).forEach((url) => {
         if (url && url.startsWith('blob:')) {
           URL.revokeObjectURL(url);
@@ -862,8 +896,10 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
       setPreviews({});
       setFolderPreviewsGenerated(new Set<string>());
 
-      setActivePresetId(null);
-      setBaseAdjustments(null);
+      if (isPathChanged || !selectedImage?.isReady) {
+        setActivePresetId(null);
+        setBaseAdjustments(null);
+      }
 
       if (isPathChanged && selectedImage?.path) {
         currentImagePathRef.current = selectedImage.path;
@@ -879,6 +915,7 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
   }, [
     selectedImage?.isReady,
     selectedImage?.path,
+    profileKey,
     presets.length,
     generateRootPreviews,
     generateFolderPreviews,
@@ -909,6 +946,10 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
     (preset: Preset, intensity: number) => {
       setPresetIntensity(intensity);
       const mixed = mixAdjustments(preset.adjustments, intensity);
+      // Profile identity and its selected amount are independent of preset intensity.
+      if (Object.prototype.hasOwnProperty.call(preset.adjustments, 'profile')) {
+        mixed.profile = preset.adjustments.profile;
+      }
       setAdjustments((prev: Adjustments) => ({
         ...prev,
         ...mixed,

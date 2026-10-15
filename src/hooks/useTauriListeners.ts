@@ -27,6 +27,7 @@ export function useTauriListeners({
   });
 
   const thumbnailBuffer = useRef<Record<string, string>>({});
+  const mediumThumbnailBuffer = useRef<Record<string, string>>({});
   const ratingBuffer = useRef<Record<string, number>>({});
   const editStatusBuffer = useRef<Record<string, boolean>>({});
   const flushHandle = useRef<number | null>(null);
@@ -39,16 +40,19 @@ export function useTauriListeners({
       if (!isEffectActive) return;
 
       const pendingThumbs = thumbnailBuffer.current;
+      const pendingMediumThumbs = mediumThumbnailBuffer.current;
       const pendingRatings = ratingBuffer.current;
       const pendingEdits = editStatusBuffer.current;
 
       thumbnailBuffer.current = {};
+      mediumThumbnailBuffer.current = {};
       ratingBuffer.current = {};
       editStatusBuffer.current = {};
 
       if (Object.keys(pendingThumbs).length > 0) {
         useProcessStore.getState().setProcess((state) => ({
           thumbnails: { ...state.thumbnails, ...pendingThumbs },
+          mediumThumbnails: { ...state.mediumThumbnails, ...pendingMediumThumbs },
         }));
       }
 
@@ -99,13 +103,15 @@ export function useTauriListeners({
       }),
       listen('thumbnail-generated', (event: any) => {
         if (!isEffectActive) return;
-        const { path, thumbnailPath, rating, is_edited, data } = event.payload;
+        const { path, thumbnailPath, previewPath, rating, is_edited, data } = event.payload;
 
-        if (thumbnailPath) {
+        if (thumbnailPath && previewPath) {
           thumbnailBuffer.current[path] = convertFileSrc(thumbnailPath.replace(/\\/g, '/'));
+          mediumThumbnailBuffer.current[path] = convertFileSrc(previewPath.replace(/\\/g, '/'));
           refs.current.markGenerated(path);
         } else if (data) {
           thumbnailBuffer.current[path] = data;
+          mediumThumbnailBuffer.current[path] = data;
           refs.current.markGenerated(path);
         }
         if (rating !== undefined) {
@@ -120,12 +126,12 @@ export function useTauriListeners({
       }),
       listen('image-metadata-loaded', (event: any) => {
         if (!isEffectActive) return;
-        const { path, rating, is_edited, tags } = event.payload;
+        const { path, rating, flag, is_edited, tags } = event.payload;
 
         useLibraryStore.getState().setLibrary((state) => ({
           imageRatings: { ...state.imageRatings, [path]: rating },
           imageList: state.imageList.map((img) =>
-            img.path === path ? { ...img, is_edited, tags: tags ?? img.tags } : img,
+            img.path === path ? { ...img, flag, is_edited, tags: tags ?? img.tags } : img,
           ),
         }));
       }),
