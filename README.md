@@ -1,1100 +1,357 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/editor.jpg" alt="RapidRAW Editor">
+  <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/editor.jpg" alt="RapidRAW editor (upstream screenshot)">
+  <br>
+  <sub>Editor screenshot from upstream RapidRAW. The Fujifilm Edition adds a Profile slot to this interface.</sub>
 </p>
 
 <div align="center">
 
-[![Rust](https://img.shields.io/badge/rust-%23000000.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![wgpu](https://img.shields.io/badge/wgpu-%23282C34.svg?style=for-the-badge&logo=webgpu&logoColor=white)](https://wgpu.rs/)
-[![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)](https://react.dev/)
-[![Tauri](https://img.shields.io/badge/Tauri-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
-[![AGPL-3.0](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=for-the-badge)](https://opensource.org/licenses/AGPL-3.0)
-[![GitHub stars](https://img.shields.io/github/stars/CyberTimon/RapidRAW?style=for-the-badge&logo=github&label=Stars)](https://github.com/CyberTimon/RapidRAW/stargazers)
-<br>
-[![www.getrapidraw.com](https://img.shields.io/badge/getrapidraw.com-%232ea44f?style=for-the-badge&logo=safari&logoColor=white)](https://www.getrapidraw.com)
-[![Instagram](https://img.shields.io/badge/Instagram-%23E4405F.svg?style=for-the-badge&logo=Instagram&logoColor=white)](https://www.instagram.com/timonkaech.photography/)
-[![Discord](https://img.shields.io/badge/Discord-%235865F2.svg?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/cvFugZ2Hw8)
+[![AGPL-3.0](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=for-the-badge)](LICENSE)
+[![Fork of RapidRAW](https://img.shields.io/badge/fork_of-CyberTimon%2FRapidRAW-555?style=for-the-badge&logo=github)](https://github.com/CyberTimon/RapidRAW)
+[![Fork releases](https://img.shields.io/github/v/release/harrytuckerr/RapidRAW-Fujifilm-edition?include_prereleases&label=fork%20release&style=for-the-badge)](https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/releases)
 
 </div>
 
-# RapidRAW — Cobalt DCP Fork
+# RapidRAW — Fujifilm Edition
 
-> **This is a fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by [Timon Käch](https://github.com/CyberTimon) (AGPL-3.0).** The upstream project is a beautiful, fast RAW editor. This fork adds Adobe DNG Camera Profile (DCP) support — a first-class profile slot holding a base camera profile plus an optional Cobalt Look, sitting underneath every other adjustment.
+**Your own camera profiles and Looks, underneath a fast, modern RAW editor — on desktop and Android.**
 
-## What this fork adds
+RapidRAW — Fujifilm Edition is a fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by Timon Käch. It adds a first-class **Profile** slot. In it you choose an Adobe-format camera profile (DCP) for the camera that took the photo, plus an optional Look such as a Cobalt Image XMP. Everything you already do in RapidRAW then happens on top of that rendering: presets, masks, curves, creative LUTs and export.
 
-**Camera profiles in RapidRAW.** The profile slot holds a camera-matched base DCP and an optional native RGB Look. Ordinary adjustments, presets, masks and creative LUTs follow it. The integration branch uses a shared CPU profile stage before GPU editing; the optional DCP shader is separately parity-tested.
+It was built for Fujifilm shooters who rely on purchased camera profiles and Looks, but the profile slot is not Fuji-specific. It is designed for camera-native RAW files with an installed base profile made for that camera. Some formats, such as linear RAW, are not supported with profiles yet (see [status](#status-and-limitations)).
 
-**Integration status — 15 October 2026:** see [the acceptance report](docs/integration/STATUS-2026-10-15.md) for exact source and platform coverage.
+> **Bring your own profiles.** No commercial profiles, Looks or Adobe software are included. You install files you own.
 
-| Feature | Evidence / limits |
-|---------|-------------------|
-| DCP parsing, rendering and strict camera/Look pairing | Native unit and synthetic RAW rendering checks pass on the review Mac |
-| Production shader validation and optional DCP GPU chain | Actual GPU parity passes; not a claim of GPU-accelerated production profile selection |
-| Preview/export/thumbnail routing and profile cache keys | Shared profile entry point; end-to-end coverage listed in the acceptance report |
-| Native RGB Look evaluation and Amount | Bounded non-HDR path; all 17 supplied Looks pass a finite-input smoke test; synthetic RAW Look output checked numerically |
-| HDR / scene-referred Look fidelity | Unverified; nonzero Looks explicitly clamp pre-Look ProPhoto channels to [0,1] |
-| Captured LUT fallback | Capture tools retained, but the native profile evaluator rejects captured tables |
-| Profile UI and preset opt-in | Seven frontend regression tests pass with mocked native calls; these do not prove device rendering |
-| No-profile upstream preservation | Byte-identical 16-bit TIFF on one synthetic RAW fixture against upstream 3385c9f0; broad camera regression pending |
-| Adobe Camera Raw comparison | Not verified; references and an actual comparison are still required |
-| Android | Separate pinned build; packaging and runtime acceptance recorded independently in the report |
+## Download
 
-## Getting started with profiles
+**No Fujifilm Edition builds have been published yet.** The [releases page](https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/releases) is currently empty. To use the fork today, [build it from source](#build-from-source).
 
-1. Install the Cobalt base DCP for your camera body (purchased separately from Cobalt Image).
-2. Install any Cobalt Look XMPs you own (such as "CCD Fever").
-3. RapidRAW auto-discovers Adobe's CameraRaw directories on macOS and Windows, or use the Import button.
-4. Open a RAW file, pick a base profile or a Look from the profile dropdown at the top of the adjustments panel.
+Installers published by upstream RapidRAW do not include anything described in the next sections.
 
-See [`docs/profiles.md`](docs/profiles.md) for the full user guide.
-See [`docs/dcp-pipeline.md`](docs/dcp-pipeline.md) for the developer reference (render chain, VERIFY items, known limitations).
-See [`docs/BUILD.md`](docs/BUILD.md) for desktop and Android build instructions.
+## Why use it
 
-## Licensing
+- **Start from the rendering you paid for.** Apply your camera-matched base profile and a Look in the same conceptual order as Adobe Camera Raw/Lightroom: profile first, edits after.
+- **Keep profiles and presets separate.** Switching presets doesn't silently throw away your chosen profile.
+- **No silent substitutions.** If a profile is missing, damaged or meant for a different camera, RapidRAW tells you rather than quietly rendering something else.
+- **Dial a Look in or out.** Amount runs from 0 to 200%.
+- **One repository for desktop and Android.** Profiles import on both.
 
-This fork remains **AGPL-3.0**, identical to upstream. No commercial Cobalt profile assets or Adobe SDK binaries are distributed. The native evaluator cites the reference SDK sources it uses. Users install their own lawfully-purchased profile files. A profile's `ProfileEmbedPolicy` (e.g. `EmbedNever`) is honoured on export. See [`NOTICE.md`](NOTICE.md).
+## The workflow
 
-## Branch
+```text
+ RAW file
+   │
+   ▼
+ 1. Base profile (DCP) for the camera that took the photo
+   │
+   ▼
+ 2. Optional Look (XMP) + Amount 0–200%          ← Profile slot
+   │
+   ▼
+ 3. Your edits: presets, exposure & tone, curves, HSL,
+    masks, retouching, creative LUTs, effects
+   │
+   ▼
+ 4. Saved non-destructively (.rrdata) → export
+```
 
-All Cobalt development happens on `cobalt/main`. The `main` branch tracks upstream `CyberTimon/RapidRAW:main` so upstream changes can be merged without conflict archaeology.
+1. **Install your profiles.**
+   - **macOS and Windows:** RapidRAW looks in the usual Adobe Camera Raw settings folders.
+   - **Any platform:** use **Import** in the profile browser to add `.dcp` base profiles and `.xmp` Looks.
+   - **Android:** import through the system file picker.
 
-## Upstream
+   Imported files are copied into RapidRAW's own profile folder.
+2. **Open a RAW** from the camera the base profile was made for.
+3. **Pick a base profile** in the **Profile** section at the top of the editing controls.
+4. **Optionally pick a Look** and set its **Amount**. 100% is the default, 0% bypasses the Look entirely and leaves the base profile in place, and values above 100% push it further.
+5. **Edit as usual.** Presets, masks, tone curves, colour tools, creative LUTs and everything else apply on top of the profile.
+6. **Export.** Preview, thumbnails and export all render the profile through the same shared route.
 
-Everything below is the upstream RapidRAW README (© Timon Käch, AGPL-3.0).
+See the [profile guide](docs/profiles.md) for install locations, error messages and details.
+
+### Profiles and presets stay separate
+
+- Applying a preset leaves your current profile alone.
+- A preset carries a profile only if you tick **Include Profile** when saving it. That option is off by default.
+- When you copy settings to a photo from a different camera, the profile is applied only if that photo has a compatible base installed. Otherwise the profile is skipped and the rest of the settings still apply.
+
+### Base profiles and Looks must match
+
+Many Looks are built for a specific base profile. A Cobalt Look might require **Cobalt Modular** for your camera, for example. RapidRAW checks both the required base name *and* the source camera:
+
+- A **Flat** profile does not satisfy a Look that needs **Modular**. Nothing is renamed or aliased to make it fit.
+- If the required base isn't installed, the Look stays visible but disabled. The reason is shown, naming the exact base profile and camera it needs.
+- **The camera in a Look's title is the camera being emulated, not your camera.** A Look called "Pentax 645D Portrait" can be applied to a Fujifilm RAW, as long as that Fujifilm camera's required base profile is installed. Some Looks also restrict the source camera; those restrictions are checked too.
+
+## What else this fork changes
+
+User-level improvements that are in the source (see [status](#status-and-limitations) for what has been verified):
+
+- **Profile discovery and import** on desktop, and **system-picker profile import** on Android.
+- **One rendering route** for the editor preview, library thumbnails and export when a profile is selected.
+- **Saved work keeps its profile choices.** Edits and presets remember the base, Look and Amount. Older saved profile IDs still load, and invalid selections are reported instead of being silently dropped.
+- **Caches refresh** when you change profile, Look or Amount. Clearing the profile restores the normal rendering.
+- **Clearer errors.**
+  - Preview failures reach you instead of disappearing.
+  - A slow, superseded load no longer overwrites or raises an error over the photo you're viewing now.
+  - An empty file is reported as empty.
+  - A file named `.RAF` that actually contains JPEG data is reported as exactly that, instead of the generic "No decoder found".
+- **Safer Android picker imports.**
+  - Files picked through Android's picker are checked before they're added. Empty files and JPEG data named `.RAF` are rejected with a clear message.
+  - A completed file is added without replacing anything already in the destination. If a temporary file can't be cleaned up afterwards, that is reported rather than ignored.
+- **No profile selected = upstream rendering.** Leaving the Profile slot empty is intended to render exactly as upstream RapidRAW does.
+
+## Status and limitations
+
+This is an active fork, and some important checks are still open. In brief:
+
+| Area | Where it stands |
+|---|---|
+| Profile workflow on desktop | Implemented. Automated checks pass with synthetic test files. Not yet confirmed with a real matched Cobalt base and Look pair. |
+| Colour match with Adobe Camera Raw | **Not yet verified.** No Adobe-backed comparison has been run, and colour comparison is not implemented yet (the developer tool's `compare` command reports itself as unavailable). |
+| Android | Builds from this repository. On a physical Samsung Fold-series phone, the app opens, the UI works and basic adjustments work (user-reported). Profile and Look use, save/reopen and export on the device have **not** yet been tested. The newest import and error fixes are not yet in a device build. |
+| Looks | Supported Look table types render in a bounded, non-HDR way: values are clamped before the Look is applied. Unsupported or "captured" Look variants show an error rather than falling back. |
+| GPU | The profile stage runs on the CPU, before RapidRAW's GPU editing pipeline. An optional GPU version is tested for parity separately but is not used for real editing. No performance target is claimed. |
+| Preview vs thumbnail vs export | They share one profile route. A full measured comparison across all routes hasn't been done. |
+| No-profile rendering | Matches upstream byte-for-byte on one controlled synthetic test, but has not been checked across a broad set of cameras. |
+| Linear RAW | Linear RAW files (for example some ProRAW/linear DNGs) are not yet supported with a profile. Selecting a profile uses rawler decoding rather than Apple RAW. |
+| Android imports | Import status can still finish as "successful" when an item was rejected (fix in progress). Imports from local file paths haven't had the same safety pass yet. |
+| Fujifilm X-T5 | A reported Android failure turned out to be JPEG data in a file named `.RAF`. Native X-T5 RAF decoding has not been tested either way; there is no evidence that it is unsupported. |
+| Windows / Linux | Expected to build like upstream. The profile workflow has not been acceptance-tested there. |
+
+The full evidence lives in the [profile guide](docs/profiles.md), the [build guide](docs/BUILD.md) and the [team ledger](docs/integration/TEAM-LEDGER-2026-10-15.md).
+
+## Planned (approved, not yet built)
+
+These workflow additions are agreed and on the roadmap but **not built yet**. Some build on tools RapidRAW already has, such as the collage maker, JPEG editing and export, and extend them into complete workflows.
+
+- **Save copy & Share** for single photos and 2–4-image collages, with Android's share sheet.
+- **Android JPEG "Lite" mode:** quick edit or collage from a JPEG without setting up a library.
+- **Fujifilm shooting settings** shown alongside a photo (film simulation, white balance, dynamic range where reliably available), and side-by-side comparison with the camera's own JPEG.
+- **Named checkpoints** with saved edit history.
+- **Saved searches** in the library.
+- **A limited Google Drive workspace:** a RapidRAW folder in your own Drive with explicit upload and download.
+
+Out of scope: full Lightroom preset compatibility, exact reproduction of Fujifilm film simulations or recipes, cloud sync of edits, and automatic backup.
+
+## Build from source
+
+You'll need [Node.js](https://nodejs.org/) 22 and Rust. The Rust toolchain is pinned in `src-tauri/rust-toolchain.toml`. You'll also need the usual [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system.
+
+The Fujifilm Edition work lives on the **`cobalt/main`** branch. The repository's `main` branch tracks upstream.
+
+```bash
+git clone https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition.git
+cd RapidRAW-Fujifilm-edition
+git checkout cobalt/main
+
+npm ci
+npm start              # development build
+npm run tauri build    # release build
+```
+
+The [build guide](docs/BUILD.md) has the checks to run, the pinned **Android** build (isolated workspace and reviewed dependency locks), and how to render a synthetic profile test. For camera tethering, see [Camera tethering](#camera-tethering).
+
+## Licence, profiles and credit
+
+- This fork is licensed under the **[GNU AGPL-3.0](LICENSE)**, like upstream. See [NOTICE.md](NOTICE.md) for upstream and third-party notices.
+- **No commercial camera profiles, Looks or Adobe SDK binaries are distributed.** Install profiles you have lawfully obtained, and keep commercial profile files and private photos out of version control.
+- Built on **[RapidRAW](https://github.com/CyberTimon/RapidRAW)**, created by **[Timon Käch (CyberTimon)](https://github.com/CyberTimon)**, and its contributors. Please consider [supporting upstream development](https://ko-fi.com/cybertimon).
 
 ---
 
-# Upstream RapidRAW
+# From upstream RapidRAW
+
+The sections below describe RapidRAW itself, adapted from the [upstream README](https://github.com/CyberTimon/RapidRAW#readme). They apply to this fork too. For upstream's changelog and history, see the [upstream repository](https://github.com/CyberTimon/RapidRAW) and the [RapidRAW docs](https://www.getrapidraw.com/docs/).
 
 > A beautiful, non-destructive, and GPU-accelerated RAW image editor built with performance in mind.
 
-RapidRAW is a modern, high-performance alternative to Adobe Lightroom®. It delivers a simple, beautiful editing experience in a lightweight package (under 20MB) for Windows, macOS, Linux, and Android.
-
-I started developing this project as a personal challenge when I was 18. My goal was to create a high-performance tool for my own photography workflow while deepening my understanding of React, WGSL and Rust.
+RapidRAW is a modern, lightweight alternative to Adobe Lightroom® for Windows, macOS, Linux and Android. Its focus is a clean, fast editing workflow. It is still in active development and not yet as polished as mature tools like darktable, RawTherapee or Lightroom®.
 
 <table width="100%">
   <tr>
-    <td width="50%" valign="top" align="center">
-      <br>
-      <a href="https://github.com/CyberTimon/RapidRAW/releases/latest">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/main/src-tauri/icons/full_res_original.png" alt="Download RapidRAW" height="96">
-      </a>
-      <h3>Download RapidRAW</h3>
-      <p>Get the latest release for Windows, macOS, Linux, and Android. Packaged and ready to run.</p>
-      <strong><a href="https://github.com/CyberTimon/RapidRAW/releases/latest">Download Latest Version →</a></strong>
-      <br><br>
+    <td width="50%" valign="top">
+      <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/library_view.jpg" alt="RapidRAW library view (upstream screenshot)" width="100%">
     </td>
-    <td width="50%" valign="top" align="center">
-      <br>
-      <a href="https://www.getrapidraw.com/docs/">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/main/src-tauri/icons/docs.png" alt="Read the Docs" height="96">
-      </a>
-      <h3>Read the Docs</h3>
-      <p>Learn how RapidRAW works with step-by-step tutorials, from adjustments to masking.</p>
-      <strong><a href="https://www.getrapidraw.com/docs/">View Tutorials & Docs →</a></strong>
-      <br><br>
+    <td width="50%" valign="top">
+      <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/editor_view.jpg" alt="RapidRAW editor view (upstream screenshot)" width="100%">
     </td>
   </tr>
 </table>
 
-<details>
-<summary><strong>For Who Is This?</strong></summary>
-RapidRAW is for photographers who love to edit their photos in a <strong>clean, fast, and simple workflow</strong>. It prioritizes speed, a beautiful user interface, and powerful tools that let you achieve your creative color vision quickly.
-<br><br>
-RapidRAW is still in active development and isn't yet as polished as mature tools like Darktable, RawTherapee, or Adobe Lightroom®. Right now, the focus is on building a fast, enjoyable core editing experience. You may encounter bugs - if you do, please report them so I can fix them :) Your feedback really helps!
-<br><br>
-</details>
-<details>
-<summary><strong>Recent Changes</strong></summary>
+## Key features
 
-- **2026-10-06:** Added AI-free mode, rewritten whites adjustment, and improved shadow and highlight recovery with mid-scale detail reinjection
-- **2026-10-05:** Implemented log-space guided filter for edge-aware adjustments and integrated cloud API
-- **2026-10-04:** Added Kelvin white balance mode with area sampling, fine adjust mode for curves, pick/reject quick filters, and improved export presets
-- **2026-10-03:** Embed sRGB ICC profiles in exports, calculate HSL hue in perceptual color space & improve lens EXIF detection
-- **2026-10-02:** Added Dutch language support and improved continuous RAW magenta highlight correction
-- **2026-09-29:** Optimize GPU texture uploads to reduce memory overhead and avoid unnecessary buffer copies
-- **2026-09-28:** Added Tool Focus mode to isolate and expand only active adjustment tools
-- **2026-09-27:** Tone curves now display inactive channels as colored overlay curves and reference markers
-- **2026-09-25:** Streamline adjustment panel customization and improve default tool visibility
-- **2026-09-23:** Added borders and aspect ratio padding to export options, plus reorderable and collapsible adjustment sections
+**Core editing engine**
+- **GPU-accelerated:** a full 32-bit processing pipeline written in WGSL.
+- **Layered masking:** AI subject, depth, sky and foreground detection, plus parametric colour and luminance masks.
+- **Retouching:** local clone and heal tools.
+- **Generative edits:** remove or add elements with text prompts, through an optional AI backend.
+- **RAW support** through rawler, plus JPEG and other standard formats.
+- **Non-destructive:** edits are stored in `.rrdata` sidecar files; originals are untouched.
+- **Lens correction:** distortion, TCA and vignette correction via Lensfun.
 
-<details>
-<summary><strong>Expand further</strong></summary>
+**Adjustments**
+- **Tone:** exposure, tone mapping (including AgX), contrast, highlights, shadows, whites and blacks.
+- **Curves:** luma/RGB and parametric tone curves.
+- **Colour:** temperature/tint, vibrance, saturation, colour wheels and HSL mixer.
+- **Detail:** sharpening, clarity, structure and noise reduction.
+- **Effects:** lens blur, LUTs, dehaze, vignette, glow, halation, flares and film grain.
+- **Transform:** perspective, rotation, straightening, crop and warping.
 
-- **2026-09-22:** Added Apple RAW 9 decoding/denoising support and custom savable crop aspect ratios
-- **2026-09-21:** Implemented cancellable AI tasks with real-time UI tracking and backend preparation for cloud inpainting
-- **2026-09-20:** Center-anchored crop resizing when holding Ctrl/Cmd on crop handles
-- **2026-09-19:** Added center mark composition guide overlay to the crop tool
-- **2026-09-17:** Rewrite vibrance & local contrast preserving highlights adjustment
-- **2026-09-16:** Add highlights color reconstruction & improve exposure shader
-- **2026-09-14:** Add neutral grey canvas toggle
-- **2026-09-13:** Improve RAW highlight recovery and color clipping
-- **2026-09-12:** Add Ctrl crop pan/zoom and optimize preview transform caching
-- **2026-09-09:** Add masonry thumbnail layout mode
-- **2026-09-09:** Add back and forward navigation history for library
-- **2026-09-06:** Support exporting to original folder with subfolder
-- **2026-09-03:** Rewrite Wayland/Nvidia workaround
-- **2026-09-02:** Refactor crop panel & integrate transform/lens correction directly into main canvas
-- **2026-09-01:** Implemented guided perspective correction thanks to @hogar1977
-- **2026-09-01:** Add context menu option to auto apply lens correction
-- **2026-08-31:** New edge-aware filter for ai masks, improved sharpening & mobile UI improvements
-- **2026-08-29:** Improved EXIF ​​metadata processing during export
-- **2026-08-29:** Implement folder-level EXIF caching and prevent redundant adjustment saves
-- **2026-08-28:** Categorize mask creation panel
-- **2026-08-27:** Split thumbnail resolution settings into separate grid and editor preview sizes
-- **2026-08-26:** Introduced a retouch tool to effortlessly smooth skin
-- **2026-08-25:** Added a liquify tool to reshape and warp parts of an image
-- **2026-08-24:** New global shift+drag straighten shortcut & improved auto-crop calculation
-- **2026-08-20:** Add drag & drop image move system to quickly organize library
-- **2026-08-19:** Restored side panels on tablets
-- **2026-08-17:** Integrated built-in analog film emulations powered by Spektrafilm, featuring a scene-referred V-Log color pipeline in the WGSL shader
-- **2026-08-16:** Added native Camera Tethering with real-time Live View, exposure controls, ghost overlay, and direct library ingestion (macOS & Linux)
-- **2026-08-16:** Added Focus Stacking to merge multi-focus brackets into a single sharp image
-- **2026-08-14:** Export now preserves and writes full EXIF metadata
-- **2026-08-13:** Replaced local contrast sharpening with a high-quality multi-scale filter
-- **2026-08-11:** Added automatic canvas cropping for generative AI inpainting workflows
-- **2026-08-07:** Updated Lensfun database for latest camera bodies and lenses
-- **2026-08-06:** Added customizable keyboard shortcuts and visibility toggles for left, right, and bottom panels
-- **2026-08-05:** Added Catalan language support and folder tree shortcut
-- **2026-08-03:** Added support for image-based LUTs (.png, .jpg, .jpeg, .tiff) and batch importing multiple presets
-- **2026-08-01:** Implemented customizable workspace layout system with drag & drop panels
-- **2026-07-31:** Enabled White Balance color picker tool for the WGPU renderer
-- **2026-07-29:** Added Cmd/Ctrl+L keyboard shortcut to quickly copy image file paths to the clipboard
-- **2026-07-26:** Added AI Lens Blur (Bokeh) for realistic depth-of-field background blurring
-- **2026-07-25:** Added headless CLI batch export supporting custom JSON adjustments
-- **2026-07-24:** Added Ctrl/Cmd+F search shortcut and optimized library & scope performance
-- **2026-07-23:** Significantly improved HDD thumbnail loading and resolved Linux NVIDIA crash issues
-- **2026-07-22:** Calibrated JPEG XL (JXL) export quality curves
-- **2026-07-20:** Made automatic adjustment synchronization optional for multi-selections
-- **2026-07-19:** Introduced new Culling View (up to 6 images side-by-side) with star ratings and metadata
-- **2026-07-16:** Enhanced crop tool with area preservation and crop-centered rotation
-- **2026-07-15:** Fixed Canon multi-exposure WB, reduced export RAM usage, and added settings shortcut
-- **2026-07-14:** Improved EXIF lens metadata extraction and fixed crop scaling bugs
-- **2026-07-12:** Added layout-aware keybinds, adjusted black levels, and fixed patch offsets on transformed images
-- **2026-07-11:** Added new local Clone and Heal cleanup tools with highly optimized, parallelized processing. Also fixed Android back-button navigation and resolved an issue causing freezes with iCloud
-- **2026-07-08:** Improved thumbnail loading speeds using native file transfers and updated core rendering engines for better overall performance and compatibility
-- **2026-07-06:** Fixed copying adjustments directly from the filmstrip, resolved AI model and LUT download issues on Android, and fixed several Windows-specific bugs (including offscreen windows and folder exports)
-- **2026-07-05:** Implemented advanced HDR deghosting with new grayscale image alignment and warping mechanics to prevent visual artifacts during HDR merges
-- **2026-07-03:** Added "Open With" external editor support and implemented a fallback to embedded previews for undecodable or unsupported RAW files
-- **2026-06-29:** Completely reworked the shadows and blacks adjustments, and introduced a new LUT preview panel with hover-to-test functionality, easy importing, and removal support
-- **2026-06-25:** Implemented folder sorting, reliable image/album counts, and fixed folder expansion race conditions
-- **2026-06-20:** Added quick filters to the bottom bar and integrated global hue shifts into the copy-paste system
-- **2026-06-18:** New preset intensity slider
-- **2026-06-14:** Added Korean translation support and integrated the global hue slider
-- **2026-06-12:** Refined and standardized Traditional Chinese translations
-- **2026-06-10:** Completed i18next configuration and added Traditional Chinese locale support
-- **2026-06-08:** Resolved infinite indexing loops, brightness bugs, and general compiler warnings
-- **2026-06-07:** Fixed copy-pasting, improved library performance & eight new languages
-- **2026-06-01:** Improved thumbnail performance, polished metadata panel & non-blocking exif reading
-- **2026-05-30:** Implemented reliable edited status, sorting & filtering options
-- **2026-05-29:** Refactor exporting to be resource aware
-- **2026-05-27:** Added German language
-- **2026-05-26:** Converted all components to support full internalization (multilingual / i18n support)
-- **2026-05-25:** Implemented dynamic high-resolution rendering for the canvas UI and added copy/pasting of lens correction parameters
-- **2026-05-24:** Added advanced library filtering capabilities (queries)
-- **2026-05-20:** Introduced a dedicated EXIF data overlay display directly inside the library and list views
-- **2026-05-18:** Added global image preprocessing settings, numpad support for customizable keyboard shortcuts, and updated the "Grey" theme color variables
-- **2026-05-16:** Initial backend implementation of the cloud service functionality alongside a preview worker backpressure mechanism for better handling of high-quality live previews
-- **2026-05-15:** Added the ability to assign custom icons to individual folders in the library tree
-- **2026-05-14:** Expanded the library architecture to support multi-root folders and introduced a custom album system
-- **2026-05-11:** Improved brush tool
-- **2026-05-05:** Major refactor to zustand...
-- **2026-05-04:** Added EXIF editing to the metadata panel, accumulating shader execution order, and improved UI responsiveness with triple buffering
-- **2026-05-03:** Introduced a "focus mode" for distraction-free editing and enhanced filmic exposure. Batch editing now correctly respects copy/paste settings
-- **2026-05-01:** Implemented manual noise reduction with separate controls for luma and color. Optimized the thumbnail generation and request system for better performance
-- **2026-04-30:** Major backend refactoring for improved stability and performance. Fixed key issues with cropping, including preserving position when changing aspect ratios
-- **2026-04-29:** Added a tonemapper override option and significantly improved the UI on vertical/mobile screens
-- **2026-04-27:** Implemented parametric curves tool and introduced thumbnail workers to speed up library browsing
-- **2026-04-24:** Overhauled the controls system, adding a dedicated settings section for fully customizable keyboard shortcuts
-- **2026-04-22:** Improved auto-adjustment logic, fixed lens correction on Android, and added an import button for mobile devices
-- **2026-04-21:** Signed Android APKs, added canvas shortcuts to keybinds, added reset adjustments confirm submenu, and fixed WGPU renderer bugs
-- **2026-04-20:** Added style/tool preset mode, improved auto-adjustments via thumbnail caching, and optimized WGPU renderer with custom transform wrapper
-- **2026-04-19:** Added brightness to auto-adjust and replicated pixelated rendering logic in WGPU display
-- **2026-04-18:** Implemented direct WGPU renderer and fixed macOS GPU context initialization
-- **2026-04-17:** Added comprehensive touch support for masks, curves, sliders, and scrolling
-- **2026-04-16:** Presets and copy/paste settings now support masks and crops; added mask intersect mode
-- **2026-04-15:** Native rotation slider, mask duplication improvements, and Android AI mask fixes
-- **2026-04-14:** Implemented `.rrexif` format to keep EXIF when denoising/stitching and added batch denoising
-- **2026-04-13:** Added option to preserve folder structure when batch exporting and removed mask limit
-- **2026-04-12:** Implemented option to keep export file timestamps from EXIF capture date
-- **2026-04-11:** Added flow mask controls/rasterization and dynamic gradient sliders for color grading wheels
-- **2026-04-10:** Improved downscaling algorithm, optimized zoom handling, and implemented global UI text layout upgrades
-- **2026-04-09:** Fixed Linux touchpad pinch zoom scaling and optimized Masks/AI panel space efficiency
-- **2026-04-08:** Redesigned color grading wheels for a minimalistic, consistent look
-- **2026-04-07:** Added AVIF export support and fixed adjustment race conditions on fast image switching
-- **2026-04-04:** Fixed filmstrip additive multi-range selection
-- **2026-04-02:** Added Android URI support and Android file management integration
-- **2026-04-01:** Added depth masking with depth anything v2 & improved ROI rendering performance
-- **2026-03-30:** LaMa inpainting for lightweight local content-aware fill and object removal
-- **2026-03-26:** Performance improvements & new flat list mode for library
-- **2026-03-25:** Optimize folder loading & tree fetching
-- **2026-03-23:** Generate thumbnails only for visible viewport items
-- **2026-03-22:** Dependency migrations and other bug fixes
-- **2026-03-21:** Colored sliders for temperature and tint
-- **2026-03-18:** Implemented AI NIND denoising
-- **2026-03-16:** LRU cache for instant image loading
-- **2026-03-15:** Improved high quality subject mask models, various UI improvements and shader improvements
-- **2026-03-14:** New image analytics panel which can display vectorscopes, waveforms, parades & histograms
-- **2026-03-13:** JPEG XL, WebP, and additional format support, including the ability to export LUTs
-- **2026-03-12:** Added parametric color & luminance masks
-- **2026-03-10:** Implement region of interest rendering to improve performance when zooming in
-- **2026-03-07:** Batch negative conversion & various shader improvements
-- **2026-03-06:** Performance optimizations and UI cleanup
-- **2026-03-05:** Initial draw support for linear & radial masks
-- **2026-03-04:** Real-time mask overlay rendering & pixel perfect zooming
-- **2026-03-03:** Instant image rendering & real-time histogram update
-- **2026-03-02:** Remember last export settings & lens correction auto cropping
-- **2026-03-01:** Optimized pixelated interpolation at maximum zoom level
-- **2026-02-27:** Refactored fullscreen handling, smooth and integrated fullscreen viewer
-- **2026-02-24:** Improved tonal adjustments using detail masks, remember zoom level & faster fullscreen preview
-- **2026-02-23:** Custom AI tag lists, clear button for tag settings & improved window state restoration
-- **2026-02-23:** Improved RAW processing, incorrect thumbnail crop scaling & improved mask handles
-- **2026-02-21:** XMP metadata read/sync
-- **2026-02-20:** Main window size/position persistence, right-click history dropdown & new library organization panel
-- **2026-02-19:** Exponential zoom scaling, right-click to delete curve points & selected image count display
-- **2026-02-18:** Added a setting for Linear RAW mode for advanced processing & improved right panel switcher
-- **2026-02-17:** Display RAW image counts in the folder tree & improved folder reading performance
-- **2026-02-16:** New composition guide overlays for cropping
-- **2026-02-16:** Added the ability to export masks as separate images
-- **2026-02-13:** Optimized live previews, instant metadata loading and new jpeg encoder
-- **2026-02-13:** Added ability to merge multiple bracketed images to a HDR
-- **2026-02-12:** Straight brush mask lines using shift click and enhanced Lensfun DB parsing
-- **2026-02-10:** Improved image loading performance
-- **2026-02-06:** Refactored negative conversion logic using characteristic curves.
-- **2026-02-04:** Global tooltips & major UI polish
-- **2026-02-03:** New creative effects: Glow, Halation & Lens Flares
-- **2026-01-31:** Accurate color noise reduction for RAW images & improved image loading
-- **2026-01-30:** Enhanced Lensfun DB parsing and improved lens matching logic
-- **2026-01-29:** Add cross-channel copy/paste & flat-line clipping logic for curves
-- **2026-01-26:** Favorite lens saving, improved rotation controls (finer grid), better local contrast adjustments
-- **2026-01-25:** Filmstrip performance boost, improved sorting, lens distortion fixes for AI masks & crop
-- **2026-01-24:** Added automatic lens, TCA & vignette correction using lensfun
-- **2026-01-22:** Improved and centralized EXIF data handling for greater accuracy and support
-- **2026-01-21:** Inpainting now works correctly on images with geometry transformations
-- **2026-01-20:** Export preset management for saving export settings
-- **2026-01-19:** Preload library for faster startup & automatic geometry transformation helper lines
-- **2026-01-18:** Implement image geometry transformation utils
-- **2026-01-17:** Refactor AI panel to correctly work with the new masking system
-- **2026-01-16:** Major masking system overhaul with drag & drop, per-mask opacity/invert & UI improvements
-- **2026-01-13:** New python middleware client for external generative AI integration (ComfyUI)
-- **2026-01-12:** Created a RapidRAW community discord server
-- **2026-01-11:** Separate preview worker, optional high-quality live previews & mask/ai patch caching
-- **2026-01-10:** Enhanced EXIF UI, optimized color wheels/curves & rawler update
-- **2026-01-09:** Live previews for all adjustments & masks with optimized GPU processing
-- **2026-01-05:** Collage maker upgrade (drag & drop, zoom, ratio options)
-- **2026-01-05:** 'Prefer RAW' filter option added to library
-- **2026-01-05:** Support for uppercase file extensions
-- **2026-01-05:** Flush thumbnail cache on folder switch
-- **2025-12-27:** Fix LUT banding issues with improved sampling
-- **2025-12-26:** AI masking stability improvements under load
-- **2025-12-23:** Metadata card in toolbar & context menu export
-- **2025-12-23:** Monochromatic grain & white balance picker improvements
-- **2025-12-22:** BM3D Denoising with comparison slider
-- **2025-12-20:** Batch export stability improvements & RAM optimization
-- **2025-12-14:** Exposure slider added to masking tools
-- **2025-12-14:** Improved delete workflow
-- **2025-12-08:** Improved mask eraser tool behavior & ORT v2 migration
-- **2025-12-07:** Write EXIF metadata to file
-- **2025-12-07:** Color picker for white balance
-- **2025-11-30:** HSL luminance artifacts fix
-- **2025-11-29:** Improved mask stacking & many bug fixes
-- **2025-11-28:** QOI support
-- **2025-11-25:** Update rawler
-- **2025-11-23:** Recursive library view to display images from all subfolders
-- **2025-11-22:** DNG loader improvements
-- **2025-11-18:** Improved vibrancy adjustment
-- **2025-11-15:** Virtual copies & library improvements
-- **2025-11-14:** Open-with-file cross plattform compatibilty & single instance lock
-- **2025-11-13:** Rewritten tagging system to support pill-like image tagging
-- **2025-11-10:** Improved folder tree with search functionality
-- **2025-11-08:** Added EXR file format support
-- **2025-11-XX:** Improving AgX
-- **2025-11-02:** Optimize image loading & add processing engine settings
-- **2025-10-31:** Expose highlights compression point to user & improve keybinds detection
-- **2025-10-28:** Copy paste settings & brightness adjustment
-- **2025-10-XX:** Working on tonemapping - ongoing...
-- **2025-10-24:** Getting AgX right isn't as easy as it seems :=)
-- **2025-10-22:** AgX tone mapping
-- **2025-10-19:** Whole image mask component & organize mask components better
-- **2025-10-19:** You can now apply presets to masks & improved auto adjustments
-- **2025-10-17:** New centré adjustment, rawler now as a submodule & improved logger
-- **2025-10-15:** Ability to pin folders, improved session handling & smooth library thumbnail updating
-- **2025-10-11:** Realistic, complex & non-dulling exposure & highlights slider
-- **2025-10-11:** Smooth filmstrip thumbnail updates
-- **2025-10-07:** New watermarking support
-- **2025-10-06:** Improve crop quality by transforming before scaling
-- **2025-10-XX:** Many small improvements - ongoing...
-- **2025-09-27:** Sort library by exif metadata & release cleanup / bug fixes
-- **2025-09-26:** Collage maker to create unique collages with many different layouts, spacing & border radius
-- **2025-09-23:** Color calibration tool to adjust RGB primaries & adjustments visibility settings
-- **2025-09-22:** Issue template & CI/CD improvements
-- **2025-09-20:** Universal presets importer, prioritize dGPU & improved local contrast tools (sharpness, clarity etc.)
-- **2025-09-17:** Automatic image culling (duplicate & blur detection)
-- **2025-09-14:** Grid previews in community panel & improved ComfyUi workflow
-- **2025-09-12:** New community presets panel to share & showcase presets
-- **2025-09-10:** Extended generative AI roadmap & started building RapidRAW website
-- **2025-09-09:** Many shader improvements & bug fixes, invert tint slider
-- **2025-09-06:** New update notifier that alerts users when a new version becomes available
-- **2025-09-04:** Added toggleable clipping warnings (blue = shadows, red = highlights)
-- **2025-09-02:** Transition to Rust 2024 & Cache image on GPU
-- **2025-08-31:** Cancel thumbnail generation on folder change & optimized ai patch saving
-- **2025-08-30:** Optimize ComfyUI image transfer & speed
-- **2025-08-28:** Chromatic aberration correction & Shader improvements
-- **2025-08-26:** User customisable ComfyUI workflow selection
-- **2025-08-25:** Make LUTs parser more robust (support more advanced formats)
-- **2025-08-24:** Improved keyboard shortcuts
-- **2025-08-23:** Estimate file size before exporting
-- **2025-08-21:** Added LUTs (.cube, .3dl, .png, .jpg, .jpeg, .tiff) support
-- **2025-08-16:** Fast AI sky masks
-- **2025-08-15:** Show full resolution image when zooming in
-- **2025-08-15:** Implement Tauri's IPC as a replacement for the slow Base64 image transfer
-- **2025-08-12:** Relative zoom indicator
-- **2025-08-11:** TypeScript cleanup & many bug fixes
-- **2025-08-09:** Local inpainting without the need for ComfyUI, ability to change thumbnail aspect ratio
-- **2025-08-09:** Frontend refactored to TypeScript thanks to @varjolintu
-- **2025-08-08:** New onnxruntime download strategy & the base for local inpainting
-- **2025-08-05:** Improved HSL cascading, UI & animation improvements, ability to grow & shrink / feather AI masks
-- **2025-08-03:** New high performance, seamless image panorama stitcher (without any dependencies on OpenCV)
-- **2025-08-02:** Added an image straightening tool and improved crop & rotation functionality (especially on portrait images)
-- **2025-08-02:** A new dedicated image importer, ability to rename and batch rename files, improved dark theme, and other fixes
-- **2025-07-31:** Ability to tag & filter images by color labels, refactored image right clicking
-- **2025-07-31:** Reimplemented the functionality of GPU processing (GPU cropping, etc.) -> No longer dependent on TEXTURE_BINDING_ARRAY
-- **2025-07-29:** Refactored generative AI foundation, many small fixes
-- **2025-07-27:** Automatic AI image tagging, overall mask transparency setting per mask
-- **2025-07-25:** Fuji RAF X-Trans sensor support (new x-trans demosaicing algo)
-- **2025-07-24:** Auto crop when cropping an image (to prevent black borders), added drag & drop sort abilty to presets panel
-- **2025-07-22:** Significant improvements to the shader: More accurate exposure slider, better tone mapper (simplified ACES)
-- **2025-07-21:** Remember scroll position when going into the editing section
-- **2025-07-20:** Ability to add presets to folders, export preset folders etc, preset _animations_
-- **2025-07-20:** Tutorials on how to use RapidRAW
-- **2025-07-19:** Initial color negative conversion implementation, shader improvements
-- **2025-07-19:** New color wheels, persistent collapsed / expanded state for UI elements
-- **2025-07-19:** Fixed banding & purple artefacts on RAW images, better color noise reduction, show exposure in stops
-- **2025-07-18:** Smooth zoom slider, new adaptive editor theme setting
-- **2025-07-18:** New export functionality: Export with metadata, GPS metadata remover, batch export file naming scheme using tags
-- **2025-07-18:** Ability to delete the associated RAW/JPEG in right click delete operations
-- **2025-07-17:** Small bug fixes
-- **2025-07-13:** Native looking titlebar and ability to input precise number into sliders
-- **2025-07-13:** Huge update to masks: You can now add multiple masks to a mask containers, subtract / add / combine masks etc.
-- **2025-07-12:** Improved curves tool, more shader improvements, improved handling of very large files
-- **2025-07-11:** More accurate shader, reorganized main library preferences dropdown, smoother histogram, more realistic film grain
-- **2025-07-11:** Added a HUD-like waveform overlay toggle to display specific channel waveforms (w-key)
-- **2025-07-10:** Rewritten batch export system and async thumbnail generation (makes the loading of large folders a lot more fluid)
-- **2025-07-10:** Window transparency can now be toggled in the settings, thanks to @andrewazores
-- **2025-07-08:** Ability to toggle the visibility of individual adjustments sections
-- **2025-07-08:** Fixed top-left zoom bug, corrected scale behavior in crop panel, keep default original aspect ratio
-- **2025-07-08:** Added image rating filter and redesigned the metadata panel with improved layout, clearer sections, and an embedded GPS map
-- **2025-07-07:** Improved generative AI features and updated [AI Roadmap](#ai-roadmap)
-- **2025-07-06:** Initial generative AI integration with [ComfyUI](https://github.com/comfyanonymous/ComfyUI) - for more details, checkout the [AI Roadmap](#ai-roadmap)
-- **2025-07-05:** Ability to overwrite preset with current settings
-- **2025-07-04:** High speed and precise cache to significantly accelerate large image editing
-- **2025-07-04:** Greatly improved shader with better dehaze, more accurate curves etc
-- **2025-07-04:** Predefined 90° clockwise rotation and ability to flip images
-- **2025-07-03:** Switched from [rawloader](https://github.com/pedrocr/rawloader) to [rawler](https://github.com/dnglab/dnglab/tree/main/rawler) to support a wider range of RAW formats
-- **2025-07-02:** AI-powered foreground / background masking
-- **2025-06-30:** AI-powered subject masking
-- **2025-06-30:** Precompiled Linux builds
-- **2025-06-29:** New 5:4 aspect ratio, new low contrast grey theme and more cameras support (DJI Mavic lineup)
-- **2025-06-28:** Release cleanup, CI/CD improvements and minor fixes
-- **2025-06-27:** Initial release. For more information about the earlier progress, look at the [Initial Development Log](#initial-development-log)
+**Library and workflow**
+- Library with recursive folders, virtual copies, ratings, colour labels and tags.
+- Culling view, filmstrip, and file operations (import, copy, move, rename, duplicate).
+- Batch adjustments and export.
+- Presets with intensity control.
+- Copy/paste settings.
+- Undo/redo history.
+- Scopes: vectorscope, waveform, RGB parade and histogram.
+- HDR merge, panorama stitching, collage maker and film negative converter.
+- Export to JPEG, PNG, WebP, AVIF, TIFF, JXL or LUT formats, with watermarking and EXIF retention.
+- EXIF viewer and a headless [CLI](#command-line-interface-cli) exporter.
+- [Camera tethering](#camera-tethering) on macOS and Linux.
 
-</details>
-</details>
+**AI options** (all optional)
+- Built-in local tools for masking, automatic tagging and simple generative replace.
+- Self-hosted generative editing through [ComfyUI](https://github.com/comfyanonymous/ComfyUI) and the [RapidRAW-AI-Connector](https://github.com/CyberTimon/RapidRAW-AI-Connector).
+- An **AI-free mode** (Settings → General) that hides AI tools and uses algorithmic fallbacks.
+- Upstream also describes an optional cloud service. This fork makes no claims about it.
+
+## Supported formats, lenses and languages
 
 <details>
-<summary><strong>Table of Contents</strong></summary>
+<summary><strong>Camera RAW formats</strong></summary>
 
-- [Showcase & Edits](#showcase--edits)
-- [The Idea](#the-idea)
-- [Key Features](#key-features)
-- [Supported Formats, Lenses & Languages](#supported-formats-lenses--languages)
-- [Current Priorities](#current-priorities)
-- [AI Strategy](#ai-strategy)
-- [Initial Development Log](#initial-development-log)
-- [Getting Started](#getting-started)
-- [Camera Tethering](#camera-tethering)
-- [Command Line Interface (CLI)](#command-line-interface-cli)
-- [Companion Apps & Ecosystem](#companion-apps--ecosystem)
-- [System Requirements](#system-requirements)
-- [Contributing](#contributing)
-- [Special Thanks](#special-thanks)
-- [Support the Project](#support-the-project)
-- [License & Philosophy](#license--philosophy)
+RAW decoding uses [dnglab / rawler](https://github.com/dnglab/dnglab); see its [supported cameras list](https://github.com/dnglab/dnglab/blob/main/SUPPORTED_CAMERAS.md).
 
-</details>
+| Brand / Manufacturer  | Extensions                     |
+| :-------------------- | :----------------------------- |
+| Adobe                 | `.dng`                         |
+| Apple                 | `.pro`                         |
+| ARRI                  | `.ari`                         |
+| Canon                 | `.crw`, `.cr2`, `.cr3`         |
+| Casio                 | `.bay`                         |
+| Contax                | `.raw`                         |
+| Epson                 | `.erf`                         |
+| Fujifilm              | `.raf` (X-Trans & Bayer)       |
+| Hasselblad            | `.3fr`, `.fff`                 |
+| Kodak                 | `.kdc`, `.k25`, `.dcs`, `.dcr` |
+| Leaf / Imacon         | `.mos`, `.iiq`                 |
+| Leica                 | `.rwl`                         |
+| Mamiya                | `.mef`                         |
+| Minolta               | `.mrw`                         |
+| Nikon                 | `.nef`, `.nrw`                 |
+| Olympus               | `.orf`                         |
+| Panasonic / Leica     | `.rw2`, `.raw`                 |
+| Pentax / Ricoh        | `.pef`, `.ptx`                 |
+| Phase One             | `.iiq`                         |
+| Samsung               | `.srw`                         |
+| Sigma                 | `.x3f`                         |
+| Sony                  | `.arw`, `.srf`, `.sr2`         |
 
----
-
-## Showcase & Edits
-
-Watch RapidRAW in action:
-
-<p align="center">
-
-https://github.com/user-attachments/assets/4b9b932a-b18c-49d3-849f-e44d3bef0d12
-
-</p>
-
-<table width="100%">
-  <tr>
-    <td width="50%" align="center" valign="top">
-      <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/library_view.jpg" alt="RapidRAW Library View" width="100%">
-      <br>
-      <strong>Library & Culling View</strong>
-    </td>
-    <td width="50%" align="center" valign="top">
-      <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/editor_view.jpg" alt="RapidRAW Editor View" width="100%">
-      <br>
-      <strong>Editor View</strong>
-    </td>
-  </tr>
-</table>
-
-Explore example edits processed entirely within RapidRAW. You can download the `.rrdata` sidecar file for each image to inspect or apply the exact adjustment parameters.
-
-<details>
-<summary><strong>Before & After Edits</strong></summary>
-<br>
-
-<table width="100%">
-  <thead>
-    <tr>
-      <th width="30%" align="left">Edits & Sidecar File</th>
-      <th width="35%" align="center">Before</th>
-      <th width="35%" align="center">After</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td valign="top">
-        <h4>1. Frankfurt Skyline</h4>
-        <p>Sunset color grading, bridge and shadow recovery, tone curve adjustment, and urban warmth enhancement.</p>
-        <a href="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Frankfurt.rrdata"><strong>Download Frankfurt.rrdata</strong></a>
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Frankfurt_Before.jpg" alt="Frankfurt Before" width="100%">
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Frankfurt_After.jpg" alt="Frankfurt After" width="100%">
-      </td>
-    </tr>
-    <tr>
-      <td valign="top">
-        <h4>2. Gotthard Pass</h4>
-        <p>Atmospheric contrast, cloud dehaze, highlight compression, and selective warm split-toning on the terrain.</p>
-        <a href="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Gotthard.rrdata"><strong>Download Gotthard.rrdata</strong></a>
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Gotthard_Before.jpg" alt="Gotthard Before" width="100%">
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Gotthard_After.jpg" alt="Gotthard After" width="100%">
-      </td>
-    </tr>
-    <tr>
-      <td valign="top">
-        <h4>3. Saint Tropez Portrait</h4>
-        <p>AI Subject Masking for targeted portrait exposure lift, skin tone calibration, and golden hour coastal warmth.</p>
-        <a href="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Saint_Tropez.rrdata"><strong>Download Saint_Tropez.rrdata</strong></a>
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Saint_Tropez_Before.jpg" alt="Saint Tropez Before" width="100%">
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Saint_Tropez_After.jpg" alt="Saint Tropez After" width="100%">
-      </td>
-    </tr>
-    <tr>
-      <td valign="top">
-        <h4>4. Mallorca Coast</h4>
-        <p>HSL color mixer adjustments for rich ocean teals, local clarity boost on coastal rocks, and subtle exposure lift.</p>
-        <a href="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Mallorca.rrdata"><strong>Download Mallorca.rrdata</strong></a>
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Mallorca_Before.jpg" alt="Mallorca Before" width="100%">
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Mallorca_After.jpg" alt="Mallorca After" width="100%">
-      </td>
-    </tr>
-    <tr>
-      <td valign="top">
-        <h4>5. Moutathal Waterfall</h4>
-        <p>Moody forest grade with desaturated harsh greens, localized waterfall mask pop, and overall exposure reduction.</p>
-        <a href="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Moutathal.rrdata"><strong>Download Moutathal.rrdata</strong></a>
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Moutathal_Before.jpg" alt="Moutathal Before" width="100%">
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Moutathal_After.jpg" alt="Moutathal After" width="100%">
-      </td>
-    </tr>
-    <tr>
-      <td valign="top">
-        <h4>6. Nufenen Pass</h4>
-        <p>AgX tone mapping to recover sky highlights, shadow recovery on the car and road, and sunset peak illumination.</p>
-        <a href="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Nufenen.rrdata"><strong>Download Nufenen.rrdata</strong></a>
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Nufenen_Before.jpg" alt="Nufenen Before" width="100%">
-      </td>
-      <td align="center" valign="middle">
-        <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/Comparison/Nufenen_After.jpg" alt="Nufenen After" width="100%">
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-</details>
-
-> If you like the showcased images and want to see more of my own photography, check out my Instagram: [**@timonkaech.photography**](https://www.instagram.com/timonkaech.photography/)
-
-## The Idea
-
-<table width="100%">
-  <tr>
-    <td width="25%" valign="top" align="center">
-      <br>
-      <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/portrait.jpg" alt="Timon Käch" width="100%" style="border-radius: 8px;">
-      <br><br>
-      <strong>Timon Käch</strong><br>
-      <sub>Lucerne, Switzerland</sub><br>
-      <sub>Developer & Photographer</sub>
-      <br><br>
-    </td>
-    <td width="75%" valign="top">
-      <br>
-      <p>
-        As a photography enthusiast, I often found existing software to be sluggish and resource-heavy on my machine. I wanted a faster, simpler photo editing experience, so I decided to build my own. The goal was to create a tool that was not only fast but <strong>also helped me learn the details of digital image processing and camera technology</strong>.
-      </p>
-      <p>
-        I set an ambitious goal to rapidly build a functional, feature-rich application from an empty folder. This personal challenge pushed me to learn quickly and focus intensely on the core architecture and user experience.
-      </p>
-      <p>
-        The foundation is built on Rust for its safety and performance, and Tauri for its ability to create lightweight, cross-platform desktop apps with a web frontend. The entire image processing pipeline is offloaded to the GPU via WGPU and a custom WGSL shader, ensuring that even on complex edits with multiple masks, the UI remains fluid.
-      </p>
-      <br>
-    </td>
-  </tr>
-</table>
-
-## Key Features
-
-<table width="100%">
-  <tr>
-    <td valign="top" width="50%">
-      <h4>Core Editing Engine</h4>
-      <ul>
-        <li><strong>GPU-Accelerated:</strong> Full 32-bit image processing pipeline written in WGSL for instant feedback.</li>
-        <li><strong>Layered Masking:</strong> AI subject, depth, sky, and foreground detection, combined with parametric color and luminance masks.</li>
-        <li><strong>Retouching Tools:</strong> Local Clone and Heal tools for dust and blemish removal.</li>
-        <li><strong>Generative Edits:</strong> Remove or add elements using text prompts, powered by an optional AI backend.</li>
-        <li><strong>Full RAW Support:</strong> Supports a wide range of RAW camera formats through rawler, with JPEG support included.</li>
-        <li><strong>Non-Destructive Workflow:</strong> All edits are stored in a <code>.rrdata</code> sidecar file, leaving your original images untouched.</li>
-        <li><strong>Lens Correction:</strong> Automatic distortion, TCA, and vignette correction powered by Lensfun.</li><br><br>
-      </ul>
-    </td>
-    <td valign="top" width="50%">
-      <h4>Library & Workflow</h4>
-      <ul>
-        <li><strong>Image Library:</strong> Effortlessly manage your photo collection for a streamlined workflow.</li>
-        <li><strong>Culling View:</strong> Compare images side-by-side with star ratings, color labels, and metadata.</li>
-        <li><strong>Organization:</strong> Recursive folder view, virtual copies, color labels, star ratings, and custom tags.</li>
-        <li><strong>File Operations:</strong> Import, copy, move, rename, and duplicate images/folders.</li>
-        <li><strong>Filmstrip View:</strong> Quickly navigate between images in your current folder while editing.</li>
-        <li><strong>Batch Operations:</strong> Apply adjustments or export entire batches of images simultaneously.</li>
-        <li><strong>EXIF Data & CLI:</strong> Full metadata viewer and headless CLI batch exporter for scripting/terminal use.</li>
-        <li><strong>Camera Tethering:</strong> Shoot directly into RapidRAW with real-time Live View, remote camera controls and more.</li>
-      </ul>
-    </td>
-  </tr>
-
-  <tr>
-    <td valign="top" width="50%" style="border-top: 1px solid #444; padding-top: 12px;">
-      <h4>Professional Grade Adjustments</h4>
-      <ul>
-        <li><strong>Tonal Controls:</strong> Exposure, Tone Mapping (including AgX!), Contrast, Highlights, Shadows, Whites, and Blacks.</li>
-        <li><strong>Tone Curves:</strong> Full control over Luma/RGB and parametric curves.</li>
-        <li><strong>Color Grading:</strong> Temperature, Tint, Vibrance, Saturation, color wheels, and a full HSL color mixer.</li>
-        <li><strong>Detail Enhancement:</strong> Sharpening, Clarity, Structure, and Noise Reduction (Luma & Color).</li>
-        <li><strong>Creative Effects:</strong> Lens Blur (Bokeh), LUTs, Dehaze, Vignette, Glow, Halation, Flares, and Film Grain.</li>
-        <li><strong>Transform Tools:</strong> Perspective correction, rotation, straightening, crop, and warping tools.</li>
-      </ul>
-    </td>
-    <td valign="top" width="50%" style="border-top: 1px solid #444; padding-top: 12px;">
-      <h4>Productivity & UI</h4>
-      <ul>
-        <li><strong>Preset System:</strong> Create, save, import, share, and adjust preset intensity.</li>
-        <li><strong>Image Analytics:</strong> Real-time Vectorscope, Waveform, RGB Parade, and Histogram displays.</li>
-        <li><strong>Copy & Paste Settings:</strong> Quickly transfer adjustments and masks between images.</li>
-        <li><strong>Undo/Redo History:</strong> Robust history tracking for every edit step.</li>
-        <li><strong>Compositions & Merging:</strong> Bracketed HDR merging, seamless Panorama Stitcher, Collage Maker, and Film Negative Converter.</li>
-        <li><strong>Flexible Exporting:</strong> Export to JPEG, PNG, WebP, AVIF, TIFF, JXL, or LUT formats with custom watermarking and EXIF retention.</li><br><br>
-      </ul>
-    </td>
-  </tr>
-</table>
-
-## Supported Formats, Lenses & Languages
-
-RapidRAW supports a wide array of camera RAW formats, non-RAW image files, and automatic lens corrections.
-
-<details>
-<summary><strong>Supported Camera RAW Formats</strong></summary>
-
-RapidRAW relies on [dnglab / rawler](https://github.com/dnglab/dnglab) for RAW file decoding. You can check out the full list of specific camera models on the **[dnglab Supported Cameras List](https://github.com/dnglab/dnglab/blob/main/SUPPORTED_CAMERAS.md)**.
-
-| Brand / Manufacturer  | Supported Extensions           | Description                |
-| :-------------------- | :----------------------------- | :------------------------- |
-| **Adobe**             | `.dng`                         | Digital Negative           |
-| **Apple**             | `.pro`                         | Apple ProRAW               |
-| **ARRI**              | `.ari`                         | ARRI Raw                   |
-| **Canon**             | `.crw`, `.cr2`, `.cr3`         | Canon Raw 1, 2, 3          |
-| **Casio**             | `.bay`                         | Casio Raw                  |
-| **Contax**            | `.raw`                         | Contax Raw                 |
-| **Epson**             | `.erf`                         | Epson Raw                  |
-| **Fujifilm**          | `.raf`                         | Fuji Raw (X-Trans & Bayer) |
-| **Hasselblad**        | `.3fr`, `.fff`                 | Hasselblad Raw             |
-| **Kodak**             | `.kdc`, `.k25`, `.dcs`, `.dcr` | Kodak Raw formats          |
-| **Leaf / Imacon**     | `.mos`, `.iiq`                 | Leaf / Imacon Raw          |
-| **Leica**             | `.rwl`                         | Leica Raw                  |
-| **Mamiya**            | `.mef`                         | Mamiya Raw                 |
-| **Minolta**           | `.mrw`                         | Minolta Raw                |
-| **Nikon**             | `.nef`, `.nrw`                 | Nikon Electronic Format    |
-| **Olympus**           | `.orf`                         | Olympus Raw                |
-| **Panasonic / Leica** | `.rw2`, `.raw`                 | Panasonic / Leica Raw      |
-| **Pentax / Ricoh**    | `.pef`, `.ptx`                 | Pentax Electronic File     |
-| **Phase One**         | `.iiq`                         | Phase One Raw              |
-| **Samsung**           | `.srw`                         | Samsung Raw                |
-| **Sigma**             | `.x3f`                         | Sigma Foveon Raw           |
-| **Sony**              | `.arw`, `.srf`, `.sr2`         | Sony Alpha Raw formats     |
-
-> **Note:** Is your camera's RAW file unsupported? Please open an issue directly with **[dnglab](https://github.com/dnglab/dnglab/issues)** to request RAW decoding support for your camera model. Once added there, support will be updated in RapidRAW.
+If your camera's RAW files aren't supported, please request support from [dnglab](https://github.com/dnglab/dnglab/issues).
 
 </details>
 
 <details>
-<summary><strong>Supported Non-RAW Formats</strong></summary>
+<summary><strong>Non-RAW formats</strong></summary>
 
-RapidRAW isn't just for RAW files! You can also import, edit, and convert standard image formats:
-
-- **Standard Formats:** `.jpg`, `.jpeg`, `.png`, `.webp`, `.jxl`, `.tiff`, `.tif`, `.bmp`, `.gif`
-- **High Dynamic Range (HDR) / Wide Gamut:** `.exr`, `.hdr`
-- **Graphics & Textures:** `.tga`, `.ico`, `.dds`
-- **Specialist Formats:** `.qoi`, `.ff`
-- **Netpbm Bitmaps:** `.pnm`, `.pbm`, `.pgm`, `.ppm`, `.pam`
+- **Standard:** `.jpg`, `.jpeg`, `.png`, `.webp`, `.jxl`, `.tiff`, `.tif`, `.bmp`, `.gif`
+- **HDR / wide gamut:** `.exr`, `.hdr`
+- **Graphics:** `.tga`, `.ico`, `.dds`
+- **Specialist:** `.qoi`, `.ff`
+- **Netpbm:** `.pnm`, `.pbm`, `.pgm`, `.ppm`, `.pam`
 
 </details>
 
 <details>
-<summary><strong>Lens Correction Support</strong></summary>
+<summary><strong>Lens correction</strong></summary>
 
-RapidRAW supports automatic lens profile detection, distortion, transverse chromatic aberration (TCA), and vignetting correction powered by **[Lensfun](https://lensfun.github.io/)**.
-
-> **Note:** If your lens profile is missing, please open an issue directly on the **[Lensfun repository](https://github.com/lensfun/lensfun/issues)** to request profile addition.
+Automatic lens detection plus distortion, TCA and vignetting correction come from [Lensfun](https://lensfun.github.io/). Missing lens profiles can be requested on the [Lensfun repository](https://github.com/lensfun/lensfun/issues).
 
 </details>
 
 <details>
-<summary><strong>Supported Languages</strong></summary>
+<summary><strong>Languages</strong></summary>
 
-RapidRAW is fully translated into the following 15 languages:
-
-- 🇬🇧 **English**
-- 🇪🇸 **Català**
-- 🇨🇿 **Čeština**
-- 🇩🇪 **Deutsch**
-- 🇪🇸 **Español**
-- 🇫🇷 **Français**
-- 🇮🇹 **Italiano**
-- 🇳🇱 **Nederlands**
-- 🇵🇱 **Polski**
-- 🇵🇹 **Português**
-- 🇷🇺 **Русский**
-- 🇯🇵 **日本語**
-- 🇰🇷 **한국어**
-- 🇨🇳 **简体中文**
-- 🇹🇼 **繁體中文**
+English, Català, Čeština, Deutsch, Español, Français, Italiano, Nederlands, Polski, Português, Русский, 日本語, 한국어, 简体中文 and 繁體中文.
 
 </details>
 
-## Current Priorities
+## Camera tethering
 
-Here is an outlook on what is actively being developed and planned for the coming months:
+RapidRAW can control a USB-connected camera on **macOS and Linux**. Features include live view, exposure controls, autofocus, ghost overlay, battery level, automatic presets and instant ingestion. It uses [libgphoto2](http://gphoto.org/), which supports [thousands of cameras](http://gphoto.org/proj/libgphoto2/support.php). Set your camera's USB mode to **PC Remote**, **Tether Shooting** or **PTP**. Windows and Android are not supported.
 
-- **Astrophotography Stacking:** Implementing GPU-accelerated star alignment and stacking (mean, median, sigma-clipping) to merge multi-exposure night sky sequences into 32-bit linear composites.
-- **Bug Fixes & Stability:** Continuous memory optimization, resolving OS-specific crashes (such as Linux Wayland/WebKit edge cases), and refining GPU processing backend auto-selection for seamless performance across all platforms.
-- **Cloud AI Inpainting:** Launching the optional cloud generative AI integration to deliver high-quality object removal and generative replace without requiring local ComfyUI setups or heavy GPU hardware.
-- **Performance & Algorithm Refinements:** Further optimizing processing speed on older GPU architectures, refining Fujifilm X-Trans sensor demosaicing algorithms, and expanding UI responsiveness on mobile/Android devices.
-
-## AI Strategy
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/inpainting.gif" alt="RapidRAW AI Inpainting" width="100%">
-</p>
-
-I've designed RapidRAW's AI architecture with absolute flexibility, privacy, and user choice in mind. Whether you want a purely traditional RAW workflow without any neural networks, fast local automation, powerful self-hosting, or simple cloud convenience, you have four distinct ways to use RapidRAW:
-
-### 1. Built-in AI Tools (Local & Free)
-
-These features are integrated directly into RapidRAW and run entirely on your local machine using your CPU or GPU. They are fast, completely private, free, and require zero setup:
-
-- **AI Masking:** Instantly detect and mask subjects, skies, foregrounds, and depth maps (powered by SAM 2, U-2-Net, and Depth Anything V2).
-- **Automatic Tagging:** The image library is automatically indexed with keywords using a local CLIP model for effortless search.
-- **Simple Generative Replace:** A lightweight, CPU-based inpainting tool (via LaMa) for removing sensor dust, blemishes, and small distractions.
-
-### 2. Self-Hosted Integration with ComfyUI (Local & Free)
-
-For users with a capable GPU who want maximum control over generative features, RapidRAW connects directly to your local [ComfyUI](https://github.com/comfyanonymous/ComfyUI) server through the [**RapidRAW-AI-Connector**](https://github.com/CyberTimon/RapidRAW-AI-Connector).
-
-**Why this approach?** The AI Connector acts as a high-performance middleware that handles image caching, workflow injection, and coordination. Instead of transferring the entire high-resolution image for every edit, the full image is cached once; subsequent generative tweaks transfer only the tiny mask and prompt.
-
-- **Full Control:** Use your own local hardware and any custom Diffusion model or checkpoint.
-- **Cost-Free Power:** Utilize your existing GPU for heavy generative edits without subscriptions.
-- **Custom Workflow Selection:** Import your own ComfyUI node graphs and workflows into RapidRAW-AI-Connector.
-
-### 3. Optional Cloud Service (Subscription)
-
-To be clear: **core software functionality is never locked behind a paywall.** All features remain free if you use built-in tools or choose to self-host.
-
-However, not everyone has access to a powerful GPU or wants the technical overhead of configuring and maintaining a local ComfyUI server. For users who prefer seamless convenience, RapidRAW offers an optional **$TBD/month cloud subscription**:
-
-- **Turnkey Setup:** No local server or model weights to download. Just log in and run high-end inpainting/generative tools immediately.
-- **Support Indie Development:** Subscribing is the best way to directly fund continuous development, updates, and maintenance.
-
-### 4. AI-Free Mode (Local & Distraction-Free)
-
-For purists, contest photographers, or those with ethical or privacy-related objections to AI tools, RapidRAW can function as a **purely traditional, non-AI RAW editor** with a single toggle in **Settings → General**:
-
-- **Decluttered UI:** All AI-related buttons, generative patch menus, AI selection tabs, and AI-driven lens blur tools are hidden from the interface.
-- **Algorithmic Fallbacks:** Features like Denoise automatically fall back to classic algorithmic filters (such as BM3D) and disable neural-based models.
-- **Non-Destructive Compatibility:** Any existing AI masks or edits in previously edited sidecar files (`.rrdata`) will still render faithfully without breaking your library.
-
----
-
-### Strategy Comparison
-
-| Feature      | Built-in AI (Free)             | Self-Hosted (ComfyUI)               | Optional Cloud Service  | AI-Free Mode                            |
-| :----------- | :----------------------------- | :---------------------------------- | :---------------------- | :-------------------------------------- |
-| **Cost**     | Free, included                 | Free (requires your own GPU)        | $TBD / month            | Free, included                          |
-| **Setup**    | None                           | Manual ComfyUI / AI Connector setup | None (Just log in)      | Single switch in Settings               |
-| **Privacy**  | 100% Local execution           | 100% Local / Self-hosted            | Processed via Cloud API | 100% Local (Zero AI execution)          |
-| **Use Case** | Everyday workflow acceleration | Maximum control for power users     | Maximum convenience     | Traditional editing & contest workflows |
-
-## Initial Development Log
-
-This project began as an intensive sprint to build the core functionality. Here's a summary of the initial progress and key milestones:
-
-<details>
-<summary><strong>Click to expand the day-by-day development log</strong></summary>
-
-- **Day 1: June 13th, 2025** - Project inception, basic Tauri setup, and initial brightness/contrast shader implementation.
-- **Day 2: June 14th** - Core architecture refactor, full library support (folder tree, image list), and optimized image loading. Implemented histogram and curve editor support. Added UI themes.
-- **Day 3: June 15th** - Implemented a working crop tool, preset system, and context menus. Enabled auto-saving of edits to sidecar files and auto-thumbnail generation. Refined color adjustments.
-- **Day 4: June 16th** - Initial prototype for local adjustments with masking. Added mask support to presets. Bug-free image preview switching.
-- **Day 5: June 17th** - Major UI overhaul. Created the filmstrip and resizable panel layout. Fixed mask scaling issues and improved the library/welcome screen.
-- **Day 6: June 18th** - Performance tuning. Reduced GPU calls for adjustments, leading to a much smoother cropping and editing experience. Implemented saving of panel UI state.
-- **Day 7: June 19th** - Enhanced library functionality. Added multi-selection and the ability to copy/paste adjustments across multiple images.
-- **Day 8: June 20th** - Implemented initial RAW file support and an EXIF metadata viewer.
-- **Day 9: June 21st** - Added advanced detail adjustments (Clarity, Sharpening, Dehaze, etc.) and film grain. Developed a linear RAW processing pipeline.
-- **Day 10: June 22nd** - Implemented layer stacking for smooth preview transitions. Built a robust export panel with batch export capabilities. Added import/export for presets.
-- **Day 11: June 23rd** - Added full undo/redo functionality integrated with a custom history hook. Improved context menus and completed the settings panel.
-- **Day 12: June 24th** - Implemented image rotation and fixed all mask scaling/alignment issues related to cropping and rotation.
-- **Day 13: June 25th** - Rewrote the mask system to be bitmap-based. Implemented brush and linear gradient tools, with semi-transparent visualization.
-- **Day 14: June 26th-27th** - Final polish. Added universal keyboard shortcuts, full adjustment support for masks, theme management, and final UI/UX improvements. This ReadMe.
-
-</details>
-
-## Getting Started
-
-You have two options to run RapidRAW:
-
-**1. Download the Latest Release (Recommended)**
-
-**Windows & macOS:**
-
-- Grab the pre-built installer or application bundle for your operating system from the [**Releases**](https://github.com/CyberTimon/RapidRAW/releases) page.
-
-**Linux:**
-
-- The official Flatpak package supports all Linux distributions and is available on [**Flathub**](https://flathub.org/apps/io.github.CyberTimon.RapidRAW).
-- On Debian-based distributions, install the `.deb` package from the [**Releases**](https://github.com/CyberTimon/RapidRAW/releases) page.
-- On Arch-based distributions, use the [`rapidraw-bin`](https://aur.archlinux.org/packages/rapidraw-bin) package from the AUR.
-
-**2. Build from Source**
-
-If you want to build the project yourself, you'll need to have [Rust](https://www.rust-lang.org/tools/install) and [Node.js](https://nodejs.org/) installed.
+Tethering is a separate build because it links against `libgphoto2`. No Fujifilm Edition tethering builds are published. Build it from source:
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/CyberTimon/RapidRAW.git
-cd RapidRAW
-
-# 2. Install frontend dependencies
-npm install
-
-# 3. Build and run the application
-npm start
-```
-
-To build the release build:
-
-```bash
-# 1. Make the release build
-npm run tauri build
-
-# 2. Run the release build
-./src-tauri/target/release/RapidRAW
-```
-
-<details>
-<summary><strong>Camera Tethering Build (macOS & Linux)</strong></summary>
-
-To build with camera tethering support, install the system dependencies first:
-
-```bash
-# macOS (Homebrew)
+# macOS
 brew install libgphoto2 pkg-config
-
-# Linux (Ubuntu / Debian)
+# Debian / Ubuntu
 sudo apt-get install -y libgphoto2-dev pkg-config
+# Arch:   sudo pacman -S libgphoto2 pkgconf
+# Fedora: sudo dnf install libgphoto2-devel pkgconf-pkg-config
+
+npm run start:tethering                        # development
+npm run tauri build -- --features tethering    # release
 ```
 
-Then run or build using the `tethering` feature flag:
+## Command line interface (CLI)
+
+A headless exporter applies the edits in `.rrdata` sidecars, or a JSON adjustments file, without opening the GUI:
 
 ```bash
-# Development mode with Tethering
-npm run start:tethering
-# or: npm start -- -- --features tethering
-
-# Release build with Tethering
-npm run tauri build -- --features tethering
-```
-
-</details>
-
-## Camera Tethering
-
-RapidRAW includes camera tethering for studio, portrait, and product photography workflows. Connect your camera via USB to control exposure settings, monitor your shot in real time, and automatically ingest files directly into your workspace.
-
-<table width="100%">
-  <tr>
-    <td width="65%" valign="top">
-      <h3>Key Capabilities</h3>
-      <ul>
-        <li><strong>Real-Time Live View:</strong> High-frame-rate live view with composition guides, 90° rotation, and horizontal flip.</li>
-        <li><strong>Full Camera Control:</strong> Adjust Aperture, Shutter Speed, ISO, White Balance, Exposure Compensation, Exposure Mode, and Metering Mode directly from RapidRAW.</li>
-        <li><strong>Autofocus Control:</strong> Trigger autofocus directly from RapidRAW.</li>
-        <li><strong>Ghost Overlay:</strong> Overlay previous captures with adjustable opacity to maintain consistent framing and perspective.</li>
-        <li><strong>Battery Monitoring:</strong> View the connected camera's battery level directly in RapidRAW.</li>
-        <li><strong>Automatic Presets:</strong> Automatically apply a selected preset to newly captured images.</li>
-        <li><strong>Instant Ingestion:</strong> Captured images are automatically saved to your active library, indexed, and optionally opened in the editor.</li>
-        <br>
-      </ul>
-    </td>
-    <td width="35%" valign="top" align="center">
-      <br>
-      <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/tethering.jpeg" alt="RapidRAW Camera Tethering Setup" width="100%" style="border-radius: 8px;">
-      <br><br>
-      <strong>Live Camera Tethering</strong><br>
-      <sub>Sony α7 III connected with real-time Live View</sub>
-    </td>
-  </tr>
-</table>
-
-### Supported Cameras
-
-Tethering is powered by **[libgphoto2](http://gphoto.org/)** and supports over **2,500+ camera models** across Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic, and other manufacturers.
-
-- **[View the Full List of Supported Cameras](http://gphoto.org/proj/libgphoto2/support.php)**
-
-> **Note:** Ensure your camera's USB connection mode is set to **PC Remote**, **Tether Shooting**, or **PTP** in the camera settings.
-
-### Platform Support & Installation
-
-Tethering is supported on **macOS** and **Linux**. Windows and Android are not supported.
-
-<details>
-<summary><strong>Why is Tethering a Separate Build?</strong></summary>
-
-The tethering build dynamically links directly against `libgphoto2`. If these system libraries are not present on a machine, an executable linked against them will fail to launch entirely. To ensure standard RapidRAW builds remain dependency-free and start on any system without extra installation steps, tethering is distributed as a dedicated `_tethering` release.
-
-</details>
-
-<details>
-<summary><strong>Why is Windows Unsupported?</strong></summary>
-
-`libgphoto2` is designed for POSIX environments and requires direct low-level access via `libusb`. On Windows, connected cameras are claimed by the operating system's native Windows Portable Device (WPD) drivers. Interfacing with `libgphoto2` on Windows requires overriding OEM drivers with WinUSB (using tools like Zadig), which breaks standard file transfer and camera utilities. Because of these driver conflicts and platform limitations, Windows is fully unsupported.
-
-</details>
-
-#### Setting up the Tethering Build
-
-To run the `_tethering` release binaries (or build from source), you **must install `libgphoto2` on your machine first**.
-
-<details>
-<summary><strong>How to install libgphoto2 dependencies</strong></summary>
-
-**macOS (via Homebrew):**
-
-```bash
-brew install libgphoto2 pkg-config
-```
-
-**Linux (Ubuntu / Debian):**
-
-```bash
-sudo apt-get update
-sudo apt-get install -y libgphoto2-dev pkg-config
-```
-
-**Linux (Arch Linux):**
-
-```bash
-sudo pacman -S libgphoto2 pkgconf
-```
-
-**Linux (Fedora):**
-
-```bash
-sudo dnf install libgphoto2-devel pkgconf-pkg-config
-```
-
-</details>
-
-After installing the system dependencies, download the corresponding `_tethering` build from the [Releases](https://github.com/CyberTimon/RapidRAW/releases) page, or run/build from source using the `tethering` feature flag.
-
-## Command Line Interface (CLI)
-
-RapidRAW includes a headless export tool for batch processing photos in automated scripts, terminal pipelines, or server environments without opening the GUI:
-
-```bash
-# Export an entire folder using edits found in .rrdata sidecar files
 rapidraw export /path/to/photos --output /path/to/output_dir --format jpeg --quality 90
-
-# Export a single image directly to a specific target file
 rapidraw export /path/to/photo.raw --output /path/to/output.png --format png
-
-# Export a true 16-bit TIFF (the TIFF default; use 8 for an RGB8 TIFF)
 rapidraw export /path/to/photo.raw --output /path/to/output.tiff --format tiff --tiff-bit-depth 16
-
-# Batch export a folder using a custom adjustments JSON file to override sidecars
 rapidraw export /path/to/photos --output /path/to/output_dir --adjustments /path/to/preset.json
 ```
 
-> **Note:** By default, headless export automatically detects and applies edits stored in `.rrdata` sidecar files located alongside your source images. You can override sidecars for all exported images by passing a custom JSON file using the `--adjustments` flag.
+| Option                 | Description                                                          | Default           |
+| :--------------------- | :------------------------------------------------------------------- | :---------------- |
+| `<source>`             | Image file or directory                                              | _(Required)_      |
+| `--output <path>`      | Target directory or output file                                      | _(Required)_      |
+| `--format <fmt>`       | `jpeg`, `png`, `webp`, `avif`, `tiff`, `jxl`, `cube`                 | `jpeg`            |
+| `--quality <1-100>`    | Export quality                                                       | `90`              |
+| `--tiff-bit-depth <n>` | TIFF channel depth (`8` or `16`)                                     | `16`              |
+| `--keep-metadata`      | Retain EXIF/capture metadata                                         | `false`           |
+| `--adjustments <path>` | JSON adjustments file that overrides sidecars                        | _(Auto-detected)_ |
 
-| Option                 | Description                                                            | Default           |
-| :--------------------- | :--------------------------------------------------------------------- | :---------------- |
-| `<source>`             | Path to an image file or directory containing images                   | _(Required)_      |
-| `--output <path>`      | Target directory or specific output file path                          | _(Required)_      |
-| `--format <fmt>`       | Output format (`jpeg`, `png`, `webp`, `avif`, `tiff`, `jxl`, `cube`)   | `jpeg`            |
-| `--quality <1-100>`    | Image export quality                                                   | `90`              |
-| `--tiff-bit-depth <n>` | TIFF channel depth (`8` or `16`)                                       | `16`              |
-| `--keep-metadata`      | Retain EXIF/capture metadata in exported files                         | `false`           |
-| `--adjustments <path>` | Path to a custom JSON file containing adjustments to override sidecars | _(Auto-detected)_ |
+## Companion apps
 
-## Companion Apps & Ecosystem
+- **[RapidTimelapse](https://github.com/crispin81/RapidTimelapse)** by [@crispin81](https://github.com/crispin81): keyframe ramping and deflicker for time-lapses, written into `.rrdata` sidecars.
+- **[RapidReady](https://github.com/on370/rapidready)** by [@on370](https://github.com/on370): ingest, culling and DAM tool with rating and metadata sync to RapidRAW.
 
-The community has created dedicated standalone companion tools designed to integrate directly with RapidRAW's non-destructive editing workflow and `.rrdata` sidecars:
+## System requirements
 
-- **[RapidTimelapse](https://github.com/crispin81/RapidTimelapse)** by [@crispin81](https://github.com/crispin81): An LRTimelapse-style keyframe ramping and deflicker utility. Edit key turning-point frames in RapidRAW, mark them with 5 stars, and RapidTimelapse will smoothly calculate and write interpolated adjustments straight to intermediate `.rrdata` sidecars.
-- **[RapidReady](https://github.com/on370/rapidready)** by [@on370](https://github.com/on370) ([Website](https://rapidready.de/)): A high-speed digital asset manager (DAM), ingest, and culling tool. It offers zero-latency browsing through instant embedded preview extraction, Difference-of-Gradients focus peaking, GPS geotagging, virtual albums, and bidirectional rating and metadata synchronization with RapidRAW.
-
-> Developed a tool, script, or workflow integration for RapidRAW? Please open a pull request to have it listed here!
-
-## System Requirements
-
-RapidRAW is built to be lightweight and cross-platform. The minimum (tested) requirements are:
-
-**Operating System:**
-
-- **Windows:** Windows 10 or newer
-- **macOS:** macOS 13 (Ventura) or newer
-- **Linux:** Ubuntu 22.04+ or a compatible modern distribution
-
-**Hardware Recommendations:**
-
-- **RAM:** **16GB or more is highly recommended.** While the application may run on systems with less memory, performance is best with 16GB+ to handle high-resolution RAW files, undo history, and complex layer masking without slowdowns.
-- **GPU:** A dedicated GPU is recommended. RapidRAW relies heavily on GPU acceleration for its processing pipeline. Very old GPU architectures (generally pre-2015) or older integrated graphics may struggle, leading to instability or graphical artifacts.
-
-### Common Problems
+- **OS:** Windows 10+, macOS 13 (Ventura)+, or Ubuntu 22.04+ / a comparable modern Linux.
+- **RAM:** 16 GB or more is recommended for high-resolution RAWs and complex masks.
+- **GPU:** a dedicated GPU is recommended. Very old GPUs (roughly pre-2015) or older integrated graphics may struggle.
 
 <details>
-<summary>App crashes when opening an image / entering edit mode</summary>
+<summary><strong>App crashes when opening an image or entering edit mode</strong></summary>
 
-If the application crashes immediately when you try to start editing a picture, it is often due to the automatic selection of the GPU backend.
-
-1.  Open **Settings** on the **Home Screen** (Gear icon).
-2.  Navigate to the **Processing** tab.
-3.  Locate the **Processing Backend** setting.
-4.  Change it from **Auto** to a specific backend supported by your OS (e.g., **Vulkan**, **DirectX12**, **OpenGL**, or **Metal**).
-5.  Restart the application and try opening the image again. Experiment with different backends if the first one doesn't work.
+This is often caused by automatic GPU backend selection. Open **Settings** on the home screen, go to **Processing → Processing Backend**, choose a specific backend (Vulkan, DirectX12, OpenGL or Metal), and restart.
 
 </details>
 
 <details>
-<summary>Linux Wayland/WebKit Crash</summary>
+<summary><strong>Linux Wayland/WebKit crash</strong></summary>
 
-If RapidRAW crashes on Wayland (e.g. GNOME + NVIDIA), try launching it with:
-
-```bash
-WEBKIT_DISABLE_DMABUF_RENDERER=1 RapidRAW
-```
-
-or
-
-```bash
-WEBKIT_DISABLE_COMPOSITING_MODE=1 RapidRAW
-```
-
-This issue is related to **WebKit** and **NVIDIA drivers**, not RapidRAW directly. Switching to **X11** or using **AMD / Intel GPUs** may also help.
-
-See [#306](https://github.com/CyberTimon/RapidRAW/issues/306) for more information.
+On Wayland (e.g. GNOME with NVIDIA), try launching with `WEBKIT_DISABLE_DMABUF_RENDERER=1 RapidRAW` or `WEBKIT_DISABLE_COMPOSITING_MODE=1 RapidRAW`. Switching to X11 or an AMD/Intel GPU may also help. See [upstream #306](https://github.com/CyberTimon/RapidRAW/issues/306).
 
 </details>
 
 ## Contributing
 
-I’m really grateful for any contributions you make to RapidRAW! Whether you’re reporting a bug, suggesting a new feature, or submitting a pull request - your input helps shape the project and makes it better for everyone. Don’t hesitate to open an issue or share your ideas.
+- **Profile and Look behaviour, Android imports, or anything else specific to this fork:** please open an issue on [this repository](https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/issues).
+- **General RapidRAW behaviour:** check [upstream RapidRAW](https://github.com/CyberTimon/RapidRAW/issues) too.
+- **Unsupported RAW files:** report them to [dnglab/rawler](https://github.com/dnglab/dnglab/issues).
 
-### Image format issues
+## Special thanks (from upstream)
 
-If your camera’s RAW files aren’t supported, please open a issue here first: [rawler issues](https://github.com/dnglab/dnglab/issues). Once support is added in rawler, create a issue for RapidRAW so I can update the packages and keep everything in sync.
+[rawler](https://github.com/dnglab/dnglab/tree/main/rawler) · [Lensfun](https://lensfun.github.io/) · [LaMa](https://github.com/advimman/lama) · [SAM 2](https://github.com/facebookresearch/sam2) · [U-2-Net](https://github.com/xuebinqin/U-2-Net) · [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2) · [nind-denoise](https://github.com/trougnouf/nind-denoise) · [NegPy](https://github.com/marcinz606/NegPy) · [pixls.us](https://discuss.pixls.us/) · [darktable](https://github.com/darktable-org/darktable) · [libgphoto2](http://gphoto.org/) · [spektrafilm](https://github.com/andreavolpato/spektrafilm) · [Google AI Studio](https://aistudio.google.com)
 
-## Special Thanks
+## License
 
-A huge thank you to the following projects and tools that were very important in the development of RapidRAW:
-
-- **[Google AI Studio](https://aistudio.google.com):** For providing amazing assistance in researching, implementing image processing algorithms and giving an overall speed boost.
-- **[rawler](https://github.com/dnglab/dnglab/tree/main/rawler):** For the excellent Rust crate that provides the foundation for RAW file processing in this project.
-- **[lensfun](https://lensfun.github.io/):** For its invaluable open-source library and comprehensive database for automatic lens correction.
-- **[LaMa](https://github.com/advimman/lama):** For the powerful & simple image inpainting model, which enables content-aware fill and object removal.
-- **[SAM 2](https://github.com/facebookresearch/sam2):** For providing the foundation model used for the AI subject detection capabilities.
-- **[U-2-Net](https://github.com/xuebinqin/U-2-Net):** For providing the robust architecture used for the AI sky and foreground detection capabilities.
-- **[Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2):** For the powerful monocular depth estimation model that enables the AI depth masking capabilities.
-- **[nind-denoise](https://github.com/trougnouf/nind-denoise):** For providing AI models that power the AI noise reduction capabilities in RapidRAW.
-- **[NegPy](https://github.com/marcinz606/NegPy):** For the inspiration behind the negative conversion logic, particularly the mathematical approach to film inversion using characteristic curves.
-- **[pixls.us](https://discuss.pixls.us/):** For being an incredible community full of knowledgeable people who offered inspiration, advice, and ideas.
-- **[darktable & co.](https://github.com/darktable-org/darktable):** For some reference implementations that guided parts of this work.
-- **[libgphoto2](http://gphoto.org/):** For the comprehensive camera communication library powering RapidRAW's tethering and remote capture subsystem.
-- **[spektrafilm](https://github.com/andreavolpato/spektrafilm):** For the spectrally-based film emulation LUTs by Andrea Volpato, used to power RapidRAW's built-in film emulations.
-- **You:** For using and supporting RapidRAW. Your interest keeps this project alive and evolving.
-
-## Support the Project
-
-As a young developer balancing this project with an apprenticeship, your support means the world. If you find RapidRAW useful or exciting, please consider donating to help me dedicate more time to its development and cover any associated costs.
-
-- **Ko-fi:** [Donate on Ko-fi](https://ko-fi.com/cybertimon)
-- **Crypto:**
-  - BTC: `36yHjo2dkBwQ63p3YwtqoYAohoZhhUTkCJ` (min. 0.0001)
-  - ETH: `0x597e6bdb97f3d0f1602b5efc8f3b7beb21eaf74a` (min. 0.005)
-  - SOL: `CkXM3C777S8iJX9h3MGSfwGxb85Yx7GHmynQUFSbZXUL` (min. 0.01)
-
-## License & Philosophy
-
-This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. I chose this license to ensure that RapidRAW and any of its derivatives will always remain open-source and free for the community. It protects the project from being used in closed-source commercial software, ensuring that improvements benefit everyone.
-
-See the [LICENSE](LICENSE) file for more details.
+RapidRAW and this fork are licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**, which keeps RapidRAW and its derivatives open source. See [LICENSE](LICENSE) and [NOTICE.md](NOTICE.md).
