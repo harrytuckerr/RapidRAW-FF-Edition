@@ -1,8 +1,5 @@
 import { Progress } from './AppProperties';
 
-export const EXPORT_TIMEOUT = 4000;
-export const IMPORT_TIMEOUT = 5000;
-
 export enum FileFormats {
   Jpeg = 'jpeg',
   Png = 'png',
@@ -25,6 +22,7 @@ export const FILE_FORMATS: Array<FileFormat> = [
 
 export const FILENAME_VARIABLES: Array<string> = [
   '{original_filename}',
+  '{original_filename_number}',
   '{sequence}',
   '{YYYY}',
   '{MM}',
@@ -33,9 +31,17 @@ export const FILENAME_VARIABLES: Array<string> = [
   '{mm}',
 ];
 
+const UNIQUE_FILENAME_VARIABLES: Array<string> = ['{original_filename}', '{original_filename_number}', '{sequence}'];
+
+export const isUniqueFilenameTemplate = (template: string): boolean =>
+  UNIQUE_FILENAME_VARIABLES.some((variable) => template.includes(variable));
+
+export type TiffBitDepth = 8 | 16;
+
 export interface ExportSettings {
   filenameTemplate: string | null;
   jpegQuality: number;
+  tiffBitDepth: TiffBitDepth;
   keepMetadata: boolean;
   preserveTimestamps: boolean;
   resize: {
@@ -43,10 +49,29 @@ export interface ExportSettings {
     value: number;
     dontEnlarge: boolean;
   } | null;
+  border: {
+    basis: BorderBasis;
+    horizontalPercent: number;
+    verticalPercent: number;
+    color: string;
+  } | null;
+  pad: {
+    ratioWidth: number;
+    ratioHeight: number;
+    color: string;
+  } | null;
   stripGps: boolean;
   watermark: WatermarkSettings | null;
   exportMasks?: boolean;
   preserveFolders?: boolean;
+  destinationType?: string;
+  subfolder?: string;
+}
+
+export enum BorderBasis {
+  LongEdge = 'longEdge',
+  ShortEdge = 'shortEdge',
+  EachEdge = 'eachEdge',
 }
 
 export enum WatermarkAnchor {
@@ -61,7 +86,7 @@ export enum WatermarkAnchor {
   BottomRight = 'bottomRight',
 }
 
-export interface WatermarkSettings {
+interface WatermarkSettings {
   path: string;
   anchor: WatermarkAnchor;
   scale: number;
@@ -103,10 +128,20 @@ export interface ExportPreset {
   name: string;
   fileFormat: string;
   jpegQuality: number;
+  tiffBitDepth?: TiffBitDepth;
   enableResize: boolean;
   resizeMode: string;
   resizeValue: number;
   dontEnlarge: boolean;
+  enablePad?: boolean;
+  padRatioWidth?: number;
+  padRatioHeight?: number;
+  padColor?: string;
+  enableBorder?: boolean;
+  borderBasis?: string;
+  borderHorizontalPercent?: number;
+  borderVerticalPercent?: number;
+  borderColor?: string;
   keepMetadata: boolean;
   preserveTimestamps: boolean;
   stripGps: boolean;
@@ -120,4 +155,6 @@ export interface ExportPreset {
   watermarkSpacing: number;
   watermarkOpacity: number;
   lastExportPath?: string;
+  destinationType?: string;
+  subfolder?: string;
 }

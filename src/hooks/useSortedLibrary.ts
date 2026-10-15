@@ -1,13 +1,21 @@
 import { useMemo } from 'react';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { RawStatus, EditedStatus, SortDirection, ImageFile, GroupingMode } from '../components/ui/AppProperties';
+import {
+  RawStatus,
+  EditedStatus,
+  FlagStatus,
+  ImageFlag,
+  SortDirection,
+  ImageFile,
+  GroupingMode,
+} from '../components/ui/AppProperties';
 import { buildImageGroups, GroupBadgeInfo, GroupId } from '../utils/imageGrouping';
 
 export const ADVANCED_QUERY_REGEX =
   /^(iso|aperture|f|shutter|s|focal|mm|rating|color|camera|make|model|lens)\s*(?::)?\s*(>=|<=|>|<|=)?\s*(.+)$/i;
 
-export const parseShutter = (val: string | undefined): number => {
+const parseShutter = (val: string | undefined): number => {
   if (!val) return 0;
   const cleanVal = val.replace(/s/i, '').trim();
   const parts = cleanVal.split('/');
@@ -20,14 +28,14 @@ export const parseShutter = (val: string | undefined): number => {
   return isNaN(numVal) ? 0 : numVal;
 };
 
-export const parseAperture = (val: string | undefined): number => {
+const parseAperture = (val: string | undefined): number => {
   if (!val) return 0;
   const match = val.match(/(\d+(\.\d+)?)/);
   const numVal = match ? parseFloat(match[0]) : 0;
   return isNaN(numVal) ? 0 : numVal;
 };
 
-export const parseFocalLength = (val: string | undefined): number => {
+const parseFocalLength = (val: string | undefined): number => {
   if (!val) return 0;
   const match = val.match(/(\d+(\.\d+)?)/);
   if (!match) return 0;
@@ -40,7 +48,7 @@ export interface GroupedLibrary {
   badges: Map<GroupId, GroupBadgeInfo> | null;
 }
 
-export function computeGroupedLibrary(libraryState: any, settingsState: any): GroupedLibrary {
+function computeGroupedLibrary(libraryState: any, settingsState: any): GroupedLibrary {
   const { imageList, imageRatings, filterCriteria, searchCriteria, sortCriteria } = libraryState;
   const { appSettings } = settingsState;
 
@@ -51,8 +59,12 @@ export function computeGroupedLibrary(libraryState: any, settingsState: any): Gr
     if (filterCriteria.rating !== 0) {
       const rating = imageRatings[image.path] || 0;
       if (filterCriteria.rating === -1 && rating !== 0) return false;
-      if (filterCriteria.rating === 5 && rating !== 5) return false;
-      if (filterCriteria.rating > 0 && filterCriteria.rating < 5 && rating < filterCriteria.rating) return false;
+      if (filterCriteria.rating > 0) {
+        const op = filterCriteria.ratingOperator ?? 'gte';
+        if (op === 'eq' && rating !== filterCriteria.rating) return false;
+        if (op === 'gte' && rating < filterCriteria.rating) return false;
+        if (op === 'lte' && rating > filterCriteria.rating) return false;
+      }
     }
 
     if (filterCriteria.rawStatus && filterCriteria.rawStatus !== RawStatus.All) {
@@ -63,6 +75,12 @@ export function computeGroupedLibrary(libraryState: any, settingsState: any): Gr
     if (filterCriteria.editedStatus && filterCriteria.editedStatus !== EditedStatus.All) {
       if (filterCriteria.editedStatus === EditedStatus.EditedOnly && !image.is_edited) return false;
       if (filterCriteria.editedStatus === EditedStatus.UneditedOnly && image.is_edited) return false;
+    }
+
+    if (filterCriteria.flagStatus && filterCriteria.flagStatus !== FlagStatus.All) {
+      if (filterCriteria.flagStatus === FlagStatus.Picked && image.flag !== ImageFlag.Pick) return false;
+      if (filterCriteria.flagStatus === FlagStatus.ExcludeRejected && image.flag === ImageFlag.Reject) return false;
+      if (filterCriteria.flagStatus === FlagStatus.Rejected && image.flag !== ImageFlag.Reject) return false;
     }
 
     if (filterCriteria.colors && filterCriteria.colors.length > 0) {
@@ -169,12 +187,12 @@ export function computeGroupedLibrary(libraryState: any, settingsState: any): Gr
     return tagsMatch && textMatch;
   };
 
-  let processedList = imageList;
+  let processedList = imageList.filter((image: ImageFile) => matchesFilter(image));
   let searchMatchingGroupIds: Set<string> | null = null;
 
   if (isGroupingActive) {
     const groupEditedFiles = appSettings?.groupEditedFiles ?? true;
-    const groupingResult = buildImageGroups(imageList, groupingMode, groupEditedFiles);
+    const groupingResult = buildImageGroups(processedList, groupingMode, groupEditedFiles);
     processedList = groupingResult.displayList;
 
     if (isSearchActive) {
@@ -188,16 +206,17 @@ export function computeGroupedLibrary(libraryState: any, settingsState: any): Gr
     }
   }
 
-  const filteredList = processedList.filter((image: ImageFile) => matchesFilter(image));
-
   const filteredBySearch = !isSearchActive
-    ? filteredList
-    : filteredList.filter((image: ImageFile) => {
+    ? processedList
+    : processedList.filter((image: ImageFile) => {
         if (searchMatchingGroupIds && image.group_id && searchMatchingGroupIds.has(image.group_id)) return true;
         return matchesSearch(image);
       });
 
   const list = [...filteredBySearch];
+
+  const getRatingSortValue = (image: ImageFile) =>
+    image.flag === ImageFlag.Reject ? -1 : imageRatings[image.path] || 0;
 
   list.sort((a, b) => {
     const { key, order } = sortCriteria;
@@ -233,7 +252,7 @@ export function computeGroupedLibrary(libraryState: any, settingsState: any): Gr
         comparison = a.modified - b.modified;
         break;
       case 'rating':
-        comparison = (imageRatings[a.path] || 0) - (imageRatings[b.path] || 0);
+        comparison = getRatingSortValue(a) - getRatingSortValue(b);
         break;
       case 'edited':
         comparison = a.is_edited === b.is_edited ? 0 : a.is_edited ? 1 : -1;

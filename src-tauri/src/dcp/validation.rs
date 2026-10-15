@@ -1,20 +1,21 @@
-//! DCP validation harness: synthetic tests, golden-image guards, and
-//! GPU-vs-CPU parity (W9).
+//! DCP validation harness: synthetic colour-science tests and optional GPU parity.
 //!
-//! This module houses the validation tests that CI runs on every push.
-//! Vendor-asset-dependent tests are `#[ignore]`'d and gated on
-//! `RAPIDRAW_TEST_ASSETS=1` (§7.1).
+//! The default suite verifies synthetic renderer properties, not upstream
+//! no-profile equivalence or ACR reference acceptance. D2/D6 acceptance is
+//! unimplemented here. The separate ignored acceptance tests fail with explicit
+//! blockers when invoked; assets or environment flags cannot make them pass.
 //!
 //! # Test categories
 //!
-//! | Category          | CI?  | Asset-free | What it checks                        |
-//! |-------------------|------|------------|---------------------------------------|
-//! | Identity profile  | Yes  | Yes        | DcpRenderer with identity DCP → ΔE≈0  |
-//! | Neutral axis      | Yes  | Yes        | Camera neutral → neutral in ProPhoto  |
-//! | Known-matrix RT   | Yes  | Yes        | Matrix * inverse → identity (ΔE≈0)    |
-//! | HSV wrap/clamp    | Yes  | Yes        | Hue 89→0 wrap, sat clamp, val scale   |
-//! | Golden no-profile | No   | No         | No-profile path → upstream identical  |
-//! | GPU parity        | No   | No         | GPU vs CPU render within §7.3 bounds  |
+//! | Category          | Default | Scope                                  |
+//! |-------------------|---------|----------------------------------------|
+//! | Identity profile  | Yes     | Synthetic identity transform tolerance |
+//! | Neutral axis      | Yes     | Synthetic camera neutral in ProPhoto   |
+//! | Known-matrix RT   | Yes     | Synthetic matrix round-trip            |
+//! | HSV wrap/clamp    | Yes     | Synthetic table interpolation          |
+//! | Upstream equality | Ignored | Unimplemented acceptance blocker       |
+//! | ACR comparison    | Ignored | Unimplemented acceptance blocker       |
+//! | GPU parity        | Ignored | Synthetic CPU/GPU comparison; needs GPU |
 
 use crate::dcp::model::*;
 use std::path::PathBuf;
@@ -69,9 +70,9 @@ struct ParUniforms {
 @group(0) @binding(0) var input_texture: texture_2d<f32>;
 @group(0) @binding(1) var output_texture: texture_storage_2d<rgba32float, write>;
 @group(0) @binding(2) var<storage, read> u: ParUniforms;
-@group(0) @binding(3) var dcp_huesat_tex: texture_3d<f32>;
-@group(0) @binding(4) var dcp_look_tex: texture_3d<f32>;
-@group(0) @binding(5) var dcp_tone_curve_tex: texture_1d<f32>;
+@group(0) @binding(14) var dcp_huesat_tex: texture_3d<f32>;
+@group(0) @binding(15) var dcp_look_tex: texture_3d<f32>;
+@group(0) @binding(16) var dcp_tone_curve_tex: texture_1d<f32>;
 
 @compute @workgroup_size(8, 8, 1)
 fn main_parity(@builtin(global_invocation_id) id: vec3<u32>) {
@@ -206,9 +207,8 @@ fn dual_illuminant_profile() -> DcpProfile {
 }
 
 /// Build a single-illuminant profile with exactly-identity camera→ProPhoto
-/// (cam_to_prophoto = I). Used for the D6 no-profile bit-identity test:
-/// with no effective transform, the renderer is a no-op and output must
-/// equal input within f32 epsilon.
+/// (cam_to_prophoto = I). Used only for synthetic identity-profile tests;
+/// this does not exercise the application no-profile path or upstream output.
 ///
 /// Constructed as: ColorMatrix=I, ForwardMatrix=ProPhoto→XYZ (inverse of
 /// XYZ→ProPhoto), CameraCalibration/AB=None, as_shot_neutral=[1,1,1].
@@ -300,20 +300,39 @@ mod tests {
         let caps = naga::valid::Capabilities::all();
         let flags = naga::valid::ValidationFlags::all();
 
-        // Production shader: concatenated dcp.wgsl + shader.wgsl.
-        {
-            let dcp_src =
-                std::fs::read_to_string(shader_dir.join("dcp.wgsl")).expect("read dcp.wgsl");
-            let main_src =
-                std::fs::read_to_string(shader_dir.join("shader.wgsl")).expect("read shader.wgsl");
-            let combined = format!("{}\n{}", dcp_src, main_src);
-            let module =
-                naga::front::wgsl::parse_str(&combined).expect("production shader: naga parse");
-            let mut validator = naga::valid::Validator::new(flags, caps);
-            if let Err(e) = validator.validate(&module) {
-                panic!("production shader: naga validation failed: {e}");
+        // Exercise the exact source builders used by both production outputs.
+        for (name, source) in [
+            ("8-bit", crate::gpu_processing::production_shader_source()),
+            (
+                "16-bit",
+                crate::gpu_processing::high_precision_shader_source(),
+            ),
+        ] {
+            let module = naga::front::wgsl::parse_str(&source)
+                .unwrap_or_else(|e| panic!("{name}: {}", e.emit_to_string(&source)));
+            naga::valid::Validator::new(flags, caps)
+                .validate(&module)
+                .unwrap_or_else(|e| panic!("{name}: {e}"));
+            for (resource, expected) in [
+                ("gf_coeffs_texture", 12),
+                ("gf_dehaze_texture", 13),
+                ("dcp_huesat_tex", 14),
+                ("dcp_look_tex", 15),
+                ("dcp_tone_curve_tex", 16),
+            ] {
+                let (_, var) = module
+                    .global_variables
+                    .iter()
+                    .find(|(_, var)| var.name.as_deref() == Some(resource))
+                    .unwrap();
+                let binding = var.binding.as_ref().unwrap();
+                assert_eq!(
+                    (binding.group, binding.binding),
+                    (0, expected),
+                    "{resource}"
+                );
             }
-            eprintln!("naga: production shader VALID");
+            eprintln!("naga: production {name} VALID");
         }
 
         // Standalone shaders.
@@ -349,6 +368,106 @@ mod tests {
             }
             eprintln!("naga: parity shader VALID");
         }
+    }
+
+    #[test]
+    fn production_adjustment_layout_matches_wgsl() {
+        use crate::image_processing::{AllAdjustments, GlobalAdjustments, MaskAdjustments};
+        let source = crate::gpu_processing::production_shader_source();
+        let module = naga::front::wgsl::parse_str(&source).unwrap();
+        macro_rules! check_layout {
+            ($ty:ty, $name:literal, [$($field:ident),*]) => {{
+                let (_, ty) = module.types.iter().find(|(_, ty)| ty.name.as_deref() == Some($name)).unwrap();
+                let naga::TypeInner::Struct { members, span } = &ty.inner else { panic!("not a struct") };
+                assert_eq!(*span as usize, std::mem::size_of::<$ty>(), "{} size", $name);
+                $(let member = members.iter().find(|m| m.name.as_deref() == Some(stringify!($field))).unwrap();
+                  assert_eq!(member.offset as usize, std::mem::offset_of!($ty, $field), "{}::{}", $name, stringify!($field));)*
+            }};
+        }
+        check_layout!(
+            GlobalAdjustments,
+            "GlobalAdjustments",
+            [
+                exposure,
+                wb_log_gain_l,
+                wb_rgb_to_lms_matrix,
+                wb_lms_to_rgb_matrix,
+                has_dcp,
+                dcp_baseline_exposure_offset,
+                dcp_huesat_dims,
+                dcp_look_dims,
+                cam_to_prophoto,
+                prophoto_to_working
+            ]
+        );
+        check_layout!(
+            MaskAdjustments,
+            "MaskAdjustments",
+            [exposure, wb_log_gain_l, hsl]
+        );
+        check_layout!(
+            AllAdjustments,
+            "AllAdjustments",
+            [global, mask_adjustments, mask_count, tile_offset_x]
+        );
+    }
+
+    #[test]
+    fn as_shot_neutral_uses_rgb_and_rejects_invalid_gains() {
+        use crate::dcp::pipeline::neutral_from_wb;
+        for fourth in [f32::NAN, f32::INFINITY, 0.0, 7.0] {
+            assert_eq!(
+                neutral_from_wb([2.0, 1.0, 1.5, fourth]).unwrap(),
+                [0.5, 1.0, 2.0 / 3.0]
+            );
+        }
+        for channel in 0..3 {
+            for invalid in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.0, -1.0] {
+                let mut wb = [2.0, 1.0, 1.5, f32::NAN];
+                wb[channel] = invalid;
+                assert!(neutral_from_wb(wb).is_err());
+            }
+        }
+        assert!(neutral_from_wb([f32::MIN_POSITIVE, f32::MAX, 1.0, f32::NAN]).is_err());
+        assert!(neutral_from_wb([f32::MAX, f32::MIN_POSITIVE, 1.0, f32::NAN]).is_err());
+    }
+
+    #[test]
+    fn dcp_texture_upload_preserves_cpu_table_coordinates() {
+        let mut prof = super::identity_profile();
+        let table = HsvTable {
+            hue_div: 3,
+            sat_div: 2,
+            val_div: 2,
+            data: (0..12).map(|i| [i as f32, 1.0, 1.0]).collect(),
+        };
+        prof.look_table = Some(table.clone());
+        let renderer = DcpRenderer::new(&prof, [1.0; 3]).unwrap();
+        let upload = crate::image_processing::dcp_texture_data_from_renderer(&renderer);
+        assert_eq!(upload.look_dims, [3, 2, 2]);
+        for v in 0..2usize {
+            for h in 0..3usize {
+                for s in 0..2usize {
+                    let cpu_index = (v * 3 + h) * 2 + s;
+                    let gpu_index = ((v * 2 + s) * 3 + h) * 4;
+                    assert_eq!(
+                        &upload.look[gpu_index..gpu_index + 3],
+                        &table.data[cpu_index]
+                    );
+                }
+            }
+        }
+        let mut global = crate::image_processing::GlobalAdjustments::default();
+        global.exposure = 1.5;
+        crate::image_processing::set_dcp_uniforms(&mut global, &renderer, 1.0);
+        let no_table = DcpRenderer::new(&super::identity_profile(), [1.0; 3]).unwrap();
+        crate::image_processing::set_dcp_uniforms(&mut global, &no_table, 1.0);
+        assert_eq!(global.dcp_look_dims, [0; 4]);
+        assert_eq!(global.dcp_huesat_dims, [0; 4]);
+        assert_eq!(
+            global.exposure, 1.5,
+            "DCP must not overwrite upstream exposure"
+        );
     }
 
     // ---- identity / neutral-axis tests (delta-E quantified) ----------------
@@ -641,23 +760,13 @@ mod tests {
     }
 
     // -------------------------------------------------------------------
-    // No-profile bit-identity test (D6)
+    // Synthetic identity-profile renderer test
     // -------------------------------------------------------------------
 
-    /// D6: with no DCP profile applied, the render pipeline is identity —
-    /// output equals input in ProPhoto space, within f32 epsilon.
-    ///
-    /// Synthetic verification (runs in CI, no vendor assets): we build a
-    /// DcpRenderer with exactly-identity cam_to_prophoto, render 4096
-    /// pseudo-random camera-RGB values through `render_slice`, and assert
-    /// each output channel matches its input within f32 epsilon. With no
-    /// tables or curve and an identity matrix, the renderer is a no-op.
-    ///
-    /// The FULL golden-image comparison against upstream RAW output requires
-    /// W4 pipeline integration + vendor RAW/golden TIFFs. That portion is
-    /// gated on `RAPIDRAW_TEST_ASSETS=1`.
+    /// Render synthetic RGB through an identity DCP and check absolute error
+    /// below 1e-6. This is a tolerance test, not bit equality with upstream.
     #[test]
-    fn no_profile_bit_identical_to_upstream() {
+    fn identity_profile_preserves_synthetic_rgb_within_tolerance() {
         let prof = super::identity_profile();
         let as_shot = [1.0f32, 1.0, 1.0];
         let r = DcpRenderer::new(&prof, as_shot).expect("identity renderer");
@@ -696,38 +805,23 @@ mod tests {
             }
             assert!(
                 err < 1e-6,
-                "D6 identity violation at element {i}: input {inp:.8}, output {out:.8}, diff {err:.2e}",
+                "Synthetic identity-profile violation at element {i}: input {inp:.8}, output {out:.8}, diff {err:.2e}",
             );
         }
         eprintln!(
-            "D6 identity path: {n_px} px rendered, max per-channel error {:.2e} (< 1e-6)",
+            "Synthetic identity profile: {n_px} px rendered, max per-channel error {:.2e} (< 1e-6)",
             max_err
         );
+    }
 
-        // ---- 2. Golden-image comparison (gated on vendor assets) -----------
-        if std::env::var("RAPIDRAW_TEST_ASSETS").as_deref() != Ok("1") {
-            eprintln!("D6: RAPIDRAW_TEST_ASSETS not set — skipping golden-image comparison");
-            return;
-        }
-
-        let raw_path = std::path::Path::new("test-assets/raw/test_frame.RAF");
-        if !raw_path.exists() {
-            eprintln!("D6: SKIPPED golden comparison — no test-assets/raw/test_frame.RAF");
-            return;
-        }
-
-        let golden_path = std::path::Path::new("test-assets/reference/test_frame_golden.tif");
-        if !golden_path.exists() {
-            eprintln!(
-                "D6: SKIPPED golden comparison — no golden reference TIFF at {golden_path:?}"
-            );
-            return;
-        }
-
-        // TODO: load RAW through the full W4 pipeline with has_dcp=0, render,
-        // and compare pixel-by-pixel against the golden TIFF.
-        let _golden = std::fs::read(golden_path).expect("read golden TIFF");
-        eprintln!("D6: golden reference loaded ({golden_path:?}) — pipeline comparison pending W4");
+    /// Reserved for an actual application-render comparison against upstream.
+    /// Synthetic identity profiles do not establish no-profile equivalence.
+    #[test]
+    #[ignore = "unimplemented: requires actual upstream and merged no-profile render comparison"]
+    fn no_profile_upstream_acceptance() {
+        panic!(
+            "UNIMPLEMENTED upstream no-profile acceptance (D6): render identical inputs and settings through upstream and merged application pipelines, then compare decoded output pixels. Synthetic identity-profile tests do not satisfy this acceptance gate."
+        );
     }
 
     // -------------------------------------------------------------------
@@ -747,7 +841,24 @@ mod tests {
     #[ignore = "requires GPU adapter (headless wgpu); run with --ignored"]
     fn gpu_vs_cpu_parity() {
         // ---- 1. Build the CPU oracle ---------------------------------------
-        let prof = super::dual_illuminant_profile();
+        let mut prof = super::dual_illuminant_profile();
+        let table = HsvTable {
+            hue_div: 3,
+            sat_div: 2,
+            val_div: 2,
+            data: (0..12)
+                .map(|i| [-12.0 + i as f32, 0.9 + i as f32 * 0.005, 0.95])
+                .collect(),
+        };
+        prof.hue_sat_map = Some(DualHueSatMap {
+            map_1: table.clone(),
+            map_2: None,
+        });
+        prof.look_table = Some(table);
+        prof.baseline_exposure_offset = Some(0.25);
+        prof.tone_curve = Some(ToneCurve {
+            points: vec![[0.0, 0.0], [0.2, 0.08], [0.5, 0.4], [0.8, 0.9], [1.0, 1.05]],
+        });
         let as_shot = [0.5f32, 1.0, 0.8];
         let cpu = DcpRenderer::new(&prof, as_shot).expect("DcpRenderer");
 
@@ -755,8 +866,21 @@ mod tests {
         let seed = 0xdead_c0de_u64;
         let n_pixels: u32 = 512 * 512;
         let mut test_rgb: Vec<f32> = Vec::with_capacity((n_pixels * 3) as usize);
+        // Unequal channels distinguish per-channel curves from luminance curves.
+        // Explicit signed/HDR cases exercise both out-of-domain LUT branches.
+        let edge_pixels = [
+            [0.05, 0.25, 0.75],
+            [2.0, 0.3, 1.2],
+            [-0.25, 0.4, 1.5],
+            [-0.4, -0.2, -0.1],
+            [0.0, 0.0, 0.0],
+            [4.0, 2.0, 0.5],
+        ];
+        for pixel in edge_pixels {
+            test_rgb.extend_from_slice(&pixel);
+        }
         let mut state = seed;
-        for _ in 0..n_pixels {
+        for _ in edge_pixels.len() as u32..n_pixels {
             state ^= state >> 12;
             state ^= state << 25;
             state ^= state >> 27;
@@ -802,7 +926,7 @@ mod tests {
                 }
             };
 
-        // Input texture (rgba16float, 512x512).
+        // Input texture (rgba32float, matching the f32 CPU oracle, 512x512).
         let tex_size = wgpu::Extent3d {
             width: 512,
             height: 512,
@@ -820,7 +944,7 @@ mod tests {
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba16Float,
+                format: wgpu::TextureFormat::Rgba32Float,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
             },
@@ -843,6 +967,8 @@ mod tests {
         let out_view = out_tex.create_view(&Default::default());
 
         // Uniforms: DCP matrices, dims, encodings from CPU renderer.
+        let textures = crate::image_processing::dcp_texture_data_from_renderer(&cpu);
+        let dims = |d: [u32; 3]| [d[0], d[1], d[2], 0];
         let u = DcpParityUniforms {
             has_dcp: 1,
             dcp_huesat_encoding: match cpu.hue_sat_map_encoding() {
@@ -854,8 +980,8 @@ mod tests {
                 TableEncoding::Srgb => 1,
             },
             dcp_baseline_exposure_offset: cpu.baseline_exposure_offset(),
-            dcp_huesat_dims: [0; 4],
-            dcp_look_dims: [0; 4],
+            dcp_huesat_dims: dims(textures.huesat_dims),
+            dcp_look_dims: dims(textures.look_dims),
             cam_to_prophoto: mat3_to_cols(cpu.cam_to_prophoto()),
             prophoto_to_working: mat3_to_cols(cpu.prophoto_to_working()),
         };
@@ -865,25 +991,35 @@ mod tests {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
         });
 
-        // Dummy 3D texture (1x1x1, rgba16float).
-        let d3 = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("p-3d"),
-            size: wgpu::Extent3d {
-                width: 1,
-                height: 1,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D3,
-            format: wgpu::TextureFormat::Rgba16Float,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[],
-        });
-        let d3v = d3.create_view(&Default::default());
+        // Use the same f32 packing and hue-fast texture layout as production.
+        let upload_table = |label, data: &[f32], dims: [u32; 3]| {
+            device.create_texture_with_data(
+                &queue,
+                &wgpu::TextureDescriptor {
+                    label: Some(label),
+                    size: wgpu::Extent3d {
+                        width: dims[0],
+                        height: dims[1],
+                        depth_or_array_layers: dims[2],
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D3,
+                    format: wgpu::TextureFormat::Rgba32Float,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                },
+                wgpu::util::TextureDataOrder::MipMajor,
+                bytemuck::cast_slice(data),
+            )
+        };
+        let hs_tex = upload_table("p-huesat", &textures.huesat, textures.huesat_dims);
+        let look_tex = upload_table("p-look", &textures.look, textures.look_dims);
+        let hs_view = hs_tex.create_view(&Default::default());
+        let look_view = look_tex.create_view(&Default::default());
 
-        // Tone curve 1D (identity: y=x, 4096 entries).
-        let tc_data: Vec<f32> = (0..4096u32).map(|i| i as f32 / 4095.0).collect();
+        // Nonlinear tone curve LUT from the CPU renderer (same upload as production).
+        let tc_data = textures.tone_curve;
         let tc_tex = device.create_texture_with_data(
             &queue,
             &wgpu::TextureDescriptor {
@@ -946,7 +1082,7 @@ mod tests {
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 3,
+                    binding: 14,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Float { filterable: false },
@@ -956,7 +1092,7 @@ mod tests {
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 4,
+                    binding: 15,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Float { filterable: false },
@@ -966,7 +1102,7 @@ mod tests {
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 5,
+                    binding: 16,
                     visibility: wgpu::ShaderStages::COMPUTE,
                     ty: wgpu::BindingType::Texture {
                         sample_type: wgpu::TextureSampleType::Float { filterable: false },
@@ -1007,15 +1143,15 @@ mod tests {
                     resource: u_buf.as_entire_binding(),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::TextureView(&d3v),
+                    binding: 14,
+                    resource: wgpu::BindingResource::TextureView(&hs_view),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::TextureView(&d3v),
+                    binding: 15,
+                    resource: wgpu::BindingResource::TextureView(&look_view),
                 },
                 wgpu::BindGroupEntry {
-                    binding: 5,
+                    binding: 16,
                     resource: wgpu::BindingResource::TextureView(&tc_v),
                 },
             ],
@@ -1092,6 +1228,14 @@ mod tests {
                         .try_into()
                         .unwrap(),
                 );
+                assert!(
+                    [gr, gg, gb].iter().all(|v| v.is_finite()),
+                    "nonfinite GPU pixel {pi}"
+                );
+                assert!(
+                    cpu_ws[pi..pi + 3].iter().all(|v| v.is_finite()),
+                    "nonfinite CPU pixel {pi}"
+                );
                 let d = (gr - cpu_ws[pi])
                     .abs()
                     .max((gg - cpu_ws[pi + 1]).abs())
@@ -1117,104 +1261,17 @@ mod tests {
     }
 
     // -------------------------------------------------------------------
-    // ACR-reference comparison (gated, vendor-asset)
+    // ACR-reference acceptance blocker
     // -------------------------------------------------------------------
 
-    /// Compare DCP render output against ACR reference TIFFs (§7.2).
-    ///
-    /// Requires:
-    /// - `test-assets/dcp/*.dcp` — the profiles under test.
-    /// - `test-assets/raw/*.RAF` — the corresponding RAW files.
-    /// - `test-assets/reference/*_acr.tif` — 16-bit ProPhoto TIFFs exported
-    ///   from ACR with all adjustments zeroed (§7.2).
-    ///
-    /// Gated on `RAPIDRAW_TEST_ASSETS=1`. When assets are absent, the test
-    /// emits a visible SKIPPED message — it does NOT silently pass.
+    /// Reserved for real RAW/profile pairing, rendering, and measured comparison
+    /// against ACR references in a common colour space. File presence is not evidence.
     #[test]
-    #[ignore = "requires vendor assets + ACR reference TIFFs; enable with RAPIDRAW_TEST_ASSETS=1"]
+    #[ignore = "unimplemented: requires actual RAW/profile render and ACR pixel comparison"]
     fn acr_reference_comparison() {
-        if std::env::var("RAPIDRAW_TEST_ASSETS").as_deref() != Ok("1") {
-            eprintln!(
-                "SKIPPED: RAPIDRAW_TEST_ASSETS not set — cannot run ACR reference comparison"
-            );
-            return;
-        }
-
-        let raw_dir = std::path::Path::new("test-assets/raw");
-        let ref_dir = std::path::Path::new("test-assets/reference");
-        let dcp_dir = std::path::Path::new("test-assets/dcp");
-
-        if !raw_dir.is_dir() || !ref_dir.is_dir() || !dcp_dir.is_dir() {
-            eprintln!(
-                "SKIPPED: ACR reference comparison — test-assets incomplete                  (raw={}, ref={}, dcp={})",
-                raw_dir.is_dir(),
-                ref_dir.is_dir(),
-                dcp_dir.is_dir(),
-            );
-            return;
-        }
-
-        // ---- Scan for matching RAW+reference pairs --------------------------
-        let all_de: Vec<f64> = Vec::new();
-        let all_shadows: Vec<bool> = Vec::new();
-        let all_highlights: Vec<bool> = Vec::new();
-
-        for raw_entry in std::fs::read_dir(raw_dir).expect("read raw dir") {
-            let raw_entry = raw_entry.expect("raw entry");
-            let raw_path = raw_entry.path();
-            if raw_path.extension().and_then(|e| e.to_str()).is_none() {
-                continue;
-            }
-            let stem = raw_path.file_stem().unwrap().to_str().unwrap();
-
-            let ref_path = ref_dir.join(format!("{stem}_acr.tif"));
-            if !ref_path.exists() {
-                eprintln!("  SKIPPED {stem}: no ACR reference TIFF at {ref_path:?}");
-                continue;
-            }
-
-            let ref_img = match image::open(&ref_path) {
-                Ok(img) => img.into_rgb32f(),
-                Err(e) => {
-                    eprintln!("  SKIPPED {stem}: cannot open reference TIFF {ref_path:?}: {e}");
-                    continue;
-                }
-            };
-
-            eprintln!(
-                "  {stem}: reference {ref_path:?} loaded ({}px)",
-                ref_img.len() / 3
-            );
-
-            // TODO: load the matching RAW, render through DcpRenderer, compute
-            // delta-E2000 per pixel against ref_img, append to all_de/all_shadows/
-            // all_highlights.
-            eprintln!("  {stem}: DCP render pending W4 pipeline integration + profile pairing");
-        }
-
-        if all_de.is_empty() {
-            eprintln!("SKIPPED: ACR reference comparison — no matching RAW+reference pairs found");
-            return;
-        }
-
-        let stats = compute_stats(&all_de, &all_shadows, &all_highlights);
-        eprintln!(
-            "ACR comparison: {} pixels, mean={:.4}, p95={:.4}, max={:.4} ({} excluded: {} shadow, {} highlight)",
-            stats.count,
-            stats.mean,
-            stats.p95,
-            stats.max,
-            stats.excluded,
-            stats.deep_shadows_excluded,
-            stats.clipped_highlights_excluded
+        panic!(
+            "UNIMPLEMENTED ACR reference acceptance (D2): pair RAW inputs with DCP profiles and ACR references, render the actual pipeline, compare pixels in a common colour space, and enforce measured delta-E thresholds. No reference comparison is implemented here."
         );
-
-        if !check_thresholds(&stats) {
-            panic!(
-                "ACR reference comparison failed §7.3 thresholds: mean={:.4} (limit 2.0), p95={:.4} (limit 3.0), max={:.4} (limit 5.0)",
-                stats.mean, stats.p95, stats.max
-            );
-        }
     }
 
     // -------------------------------------------------------------------

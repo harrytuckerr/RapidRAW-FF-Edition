@@ -1,0 +1,77 @@
+[
+  {
+    "package_path": "node_modules/@tauri-apps/api",
+    "desktop": "2.12.1",
+    "android": "2.11.1"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli-darwin-arm64",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli-darwin-x64",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli-linux-arm-gnueabihf",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli-linux-arm64-gnu",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli-linux-arm64-musl",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli-linux-riscv64-gnu",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli-linux-x64-gnu",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli-linux-x64-musl",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli-win32-arm64-msvc",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli-win32-ia32-msvc",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/cli-win32-x64-msvc",
+    "desktop": "2.12.1",
+    "android": "2.11.4"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/plugin-http",
+    "desktop": "2.8.0",
+    "android": "2.7.0"
+  },
+  {
+    "package_path": "node_modules/@tauri-apps/plugin-http/node_modules/@tauri-apps/api",
+    "desktop": null,
+    "android": "2.12.4"
+  }
+]

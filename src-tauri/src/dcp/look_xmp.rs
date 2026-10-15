@@ -240,7 +240,10 @@ pub fn parse_look_xmp_bytes(
                     attrs.clear();
                     open.clear();
                     completed.clear();
-                    for a in e.attributes().flatten() {
+                    for a in e.attributes() {
+                        let a = a.map_err(|e| {
+                            DcpError::NotACobaltLook(format!("invalid XML attribute: {e}"))
+                        })?;
                         // Attribute keys are matched by local name (no prefix).
                         let key = local_name(a.key.as_ref()).to_vec();
                         let value = a
@@ -283,6 +286,11 @@ pub fn parse_look_xmp_bytes(
                     let entry = open.pop().unwrap();
                     completed.push(entry);
                 }
+            }
+            Event::Eof => {
+                return Err(DcpError::NotACobaltLook(
+                    "unexpected EOF before a complete rdf:Description".into(),
+                ));
             }
             _ => {}
         }
@@ -460,9 +468,12 @@ fn decompress_block(compressed: &[u8]) -> Result<Vec<u8>, DcpError> {
         )));
     }
     use std::io::Read;
-    let mut out = Vec::with_capacity(expected);
-    let mut dec = flate2::bufread::ZlibDecoder::new(compressed[4..].as_ref());
-    dec.read_to_end(&mut out)
+    // Do not trust the header: stop after at most expected+1 actual bytes.
+    // The extra byte detects a lying header without inflating a zip bomb.
+    let mut out = Vec::with_capacity(expected.min(64 * 1024));
+    let dec = flate2::bufread::ZlibDecoder::new(compressed[4..].as_ref());
+    dec.take(expected as u64 + 1)
+        .read_to_end(&mut out)
         .map_err(|e| DcpError::TableDecode(format!("zlib inflate: {e}")))?;
     if out.len() != expected {
         return Err(DcpError::TableDecode(format!(
@@ -542,7 +553,7 @@ fn parse_rgb_table(raw: &[u8]) -> Result<CobaltRgbTable, DcpError> {
         )));
     }
     let n = divisions;
-    if n == 0 || n > 256 {
+    if !(2..=256).contains(&n) {
         return Err(DcpError::TableDecode(format!(
             "implausible table divisions {n}"
         )));
@@ -570,6 +581,25 @@ fn parse_rgb_table(raw: &[u8]) -> Result<CobaltRgbTable, DcpError> {
     };
     let min_amount = f64!();
     let max_amount = f64!();
+    if !min_amount.is_finite()
+        || !max_amount.is_finite()
+        || !(0.0..=1.0).contains(&min_amount)
+        || max_amount < 1.0
+    {
+        return Err(DcpError::TableDecode(
+            "invalid RGB table amount range".into(),
+        ));
+    }
+    // SDK optional flags affect table semantics. Do not discard unknown flags.
+    if raw.len() - off == 4 {
+        if u32!() != 0 {
+            return Err(DcpError::TableDecode("unsupported RGB table flags".into()));
+        }
+    } else if raw.len() != off {
+        return Err(DcpError::TableDecode(
+            "unexpected trailing RGB table data".into(),
+        ));
+    }
 
     Ok(CobaltRgbTable {
         divisions: n,
@@ -674,6 +704,97 @@ mod tests {
         let w = table.sample(3, 3, 3);
         for v in w {
             assert!((v - 1.0).abs() < 1e-4, "white corner {w:?} not identity");
+        }
+    }
+
+    #[test]
+    fn malformed_xml_eof_is_error_not_partial_success() {
+        for bytes in [b"".as_slice(), b"<not-a-look>".as_slice(),
+            br#"<rdf:Description xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" crs:PresetType="Look" crs:Cluster="test" crs:UUID="test" crs:CameraProfile="base" crs:RGBTable="table" crs:SupportsAmount="True" crs:ProcessVersion="15.4">"#.as_slice()] {
+            assert!(parse_look_xmp_bytes(bytes,"malformed.xmp".into(),"test".into()).is_err());
+        }
+    }
+
+    fn raw_test_table(n: u32) -> Vec<u8> {
+        let mut raw = Vec::new();
+        for v in [1u32, 1, 3, n] {
+            raw.extend_from_slice(&v.to_le_bytes());
+        }
+        raw.resize(16 + (n as usize).pow(3) * 6, 0);
+        for v in [2u32, 2, 0] {
+            raw.extend_from_slice(&v.to_le_bytes());
+        }
+        raw.extend_from_slice(&0.2f64.to_le_bytes());
+        raw.extend_from_slice(&1.5f64.to_le_bytes());
+        raw
+    }
+
+    #[test]
+    fn malicious_single_division_is_rejected_before_sampling() {
+        assert!(
+            parse_rgb_table(&raw_test_table(1))
+                .unwrap_err()
+                .to_string()
+                .contains("divisions")
+        );
+    }
+
+    #[test]
+    fn malicious_inflation_cannot_exceed_declared_size() {
+        use std::io::Write;
+        let mut enc = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+        enc.write_all(&vec![0u8; 1024 * 1024]).unwrap();
+        let compressed = enc.finish().unwrap();
+        for expected in [0u32, 1, 64] {
+            let mut block = expected.to_le_bytes().to_vec();
+            block.extend_from_slice(&compressed);
+            let error = decompress_block(&block).unwrap_err().to_string();
+            assert!(
+                error.contains(&format!("inflated {}", expected + 1)),
+                "{error}"
+            );
+        }
+        let mut block = ((1u32 << 28) + 1).to_le_bytes().to_vec();
+        block.extend_from_slice(&compressed);
+        assert!(
+            decompress_block(&block)
+                .unwrap_err()
+                .to_string()
+                .contains("exceeds")
+        );
+    }
+
+    #[test]
+    fn unsupported_rgb_enums_and_flags_are_errors() {
+        let raw = raw_test_table(2);
+        let metadata = 16 + 8 * 6;
+        for offset in [metadata, metadata + 4, metadata + 8] {
+            let mut broken = raw.clone();
+            broken[offset..offset + 4].copy_from_slice(&99u32.to_le_bytes());
+            assert!(
+                parse_rgb_table(&broken)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("unknown")
+            );
+        }
+        let mut flags = raw.clone();
+        flags.extend_from_slice(&1u32.to_le_bytes());
+        assert!(
+            parse_rgb_table(&flags)
+                .unwrap_err()
+                .to_string()
+                .contains("flags")
+        );
+        for value in [f64::NAN, f64::INFINITY, -1.0, 1.1] {
+            let mut broken = raw.clone();
+            broken[metadata + 12..metadata + 20].copy_from_slice(&value.to_le_bytes());
+            assert!(
+                parse_rgb_table(&broken)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("amount")
+            );
         }
     }
 

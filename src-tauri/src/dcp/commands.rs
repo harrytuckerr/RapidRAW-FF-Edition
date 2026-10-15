@@ -198,17 +198,14 @@ pub struct ImportResult {
     pub failed: Vec<ImportFailure>,
 }
 
-/// Minimal XMP well-formedness check. Full Look validation (PresetType ==
-/// "Look", required fields) is W7's job; here we only refuse to copy files
-/// that are not even well-formed XML.
-fn xmp_is_well_formed(bytes: &[u8]) -> bool {
-    let mut reader = quick_xml::Reader::from_reader(bytes);
-    loop {
-        match reader.read_event() {
-            Ok(quick_xml::events::Event::Eof) => return true,
-            Ok(_) => continue,
-            Err(_) => return false,
-        }
+fn look_metadata(look: &crate::dcp::look_xmp::CobaltLook) -> LookMetadata {
+    LookMetadata {
+        uuid: look.uuid.clone(),
+        name: look.name.clone(),
+        group: look.group.clone(),
+        required_base_profile: look.required_base_profile.clone(),
+        camera_model_restriction: look.camera_model_restriction.clone(),
+        file_path: look.file_path.clone(),
     }
 }
 
@@ -216,8 +213,7 @@ fn xmp_is_well_formed(bytes: &[u8]) -> bool {
 ///
 /// DCPs are parsed (via W1) before acceptance — an unparseable file is
 /// rejected with a specific reason and never copied (§6.W5 req 4). XMP files
-/// are checked for well-formedness and copied; resolving them into registered
-/// Looks happens when W7 lands (see the `registry` module docs).
+/// are parsed as Looks before copying and registered immediately.
 #[tauri::command]
 pub fn import_profiles(
     app_handle: AppHandle,
@@ -335,18 +331,17 @@ fn import_bytes(
         registry.insert_dcp(entry);
         Ok(true)
     } else if ext == "xmp" {
-        // Minimal well-formedness check; full Look validation is W7.
-        if !xmp_is_well_formed(&bytes) {
-            return Err(format!(
-                "invalid XMP '{}': not well-formed XML",
-                source_path.display()
-            ));
-        }
+        let mut look = crate::dcp::look_xmp::parse_look_xmp_bytes(
+            &bytes,
+            source_path.to_path_buf(),
+            blake3::hash(&bytes).to_hex().to_string(),
+        )
+        .map_err(|e| format!("invalid Look '{}': {e}", source_path.display()))?;
         let destination = unique_destination(looks_dir, stem, "xmp");
         fs::write(&destination, &bytes)
             .map_err(|e| format!("failed to copy '{}': {e}", source_path.display()))?;
-        // W7 integration: resolve the copied XMP into a LookMetadata and call
-        // registry.register_look once parse_look_xmp lands.
+        look.file_path = destination;
+        registry.register_look(look_metadata(&look));
         Ok(true)
     } else {
         Ok(false)
@@ -510,15 +505,45 @@ pub fn import_captured_lut(
     Ok(())
 }
 
+/// Headless exports must resolve installed profiles before starting, rather than
+/// racing the asynchronous GUI discovery pass.
+pub fn rescan_profiles_sync(app_handle: &AppHandle) -> Result<(), String> {
+    let registry = app_handle.state::<AppState>().profile_registry.clone();
+    let dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    let discovery = discover_profiles(&dir, &registry)?;
+    for pending in discovery.pending_xmp {
+        match crate::dcp::look_xmp::parse_look_xmp(&pending.path) {
+            Ok(look) => registry.register_look(look_metadata(&look)),
+            Err(error) => log::warn!("Cannot register Look '{}': {error}", pending.path.display()),
+        }
+    }
+    Ok(())
+}
+
 /// Spawn a background discovery pass and emit `profiles-rescanned` when done.
 fn spawn_rescan(app_handle: AppHandle, registry: Arc<ProfileRegistry>, data_dir: PathBuf) {
     std::thread::spawn(move || {
         let result = discover_profiles(&data_dir, &registry);
         match result {
             Ok(discovery) => {
+                let mut look_count = 0;
+                for pending in &discovery.pending_xmp {
+                    match crate::dcp::look_xmp::parse_look_xmp(&pending.path) {
+                        Ok(look) => {
+                            registry.register_look(look_metadata(&look));
+                            look_count += 1;
+                        }
+                        Err(e) => {
+                            log::warn!("Cannot register Look '{}': {e}", pending.path.display())
+                        }
+                    }
+                }
                 let payload = serde_json::json!({
                     "dcpCount": discovery.dcp_entries.len(),
-                    "lookCount": discovery.pending_xmp.len(),
+                    "lookCount": look_count,
                     "skipped": discovery.skipped.len(),
                 });
                 let _ = app_handle.emit("profiles-rescanned", payload);
@@ -572,45 +597,4 @@ pub fn log_discovery_roots() {
             log::debug!("profile discovery root: {}", root.display());
         }
     }
-}
-
-// ---- W4: profile resolution for the rendering pipeline --------------------
-
-use crate::dcp::model::DcpProfile;
-use crate::dcp::render::DcpRenderer;
-
-/// Resolve a profile selection for rendering.
-///
-/// Given the profile hex ID from the UI's `profile.base`, the in-memory
-/// registry, and the camera metadata from `RawImage`, this:
-/// 1. Looks up the `ProfileEntry` by content hash.
-/// 2. Parses the `.dcp` file into a `DcpProfile`.
-/// 3. Computes `as_shot_neutral` from the white-balance coefficients.
-/// 4. Builds a `DcpRenderer` with the precomputed matrices and tables.
-///
-/// Returns the renderer along with the profile (for `EmbedNever` checks).
-/// Errors are returned as strings suitable for logging; a missing profile
-/// or unparseable DCP is not fatal to the render.
-pub fn resolve_dcp_for_rendering(
-    registry: &ProfileRegistry,
-    profile_hex: &str,
-    wb_coeffs: [f32; 4],
-) -> Result<(DcpRenderer, DcpProfile), String> {
-    let entry = registry
-        .get_by_hex(profile_hex)
-        .ok_or_else(|| format!("profile '{profile_hex}' not found in registry"))?;
-
-    let profiles = crate::dcp::parser::parse_dcp(&entry.file_path)
-        .map_err(|e| format!("failed to parse DCP '{}': {e}", entry.file_path.display()))?;
-    let profile = profiles
-        .into_iter()
-        .next()
-        .ok_or_else(|| format!("DCP '{}' contained no profiles", entry.file_path.display()))?;
-
-    let as_shot_neutral = crate::image_processing::as_shot_neutral_from_wb(wb_coeffs);
-
-    let renderer = DcpRenderer::new(&profile, as_shot_neutral)
-        .map_err(|e| format!("failed to build DCP renderer: {e}"))?;
-
-    Ok((renderer, profile))
 }

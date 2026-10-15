@@ -1,0 +1,50 @@
+{
+  "status": "Pass: final attempt6 APK built, signed and native artifact verified; final runtime owned by main",
+  "apk": {
+    "path": "/private/tmp/rapidraw-android-prep-20261015-v2/src-tauri/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk",
+    "sha256": "797a270fcdaeb9327b875a65cfddd9b6f65e1885ce19691dfb9b304d57c63fee",
+    "bytes": 206956359
+  },
+  "native_library_sha256": "51b62d27e87af12f19a6556173863ddd01a64cc9c0e44bf749c62a864867eceb",
+  "source_manifest_sha256": "2421a9621f868db17d7d7976ef5b49e0117b55ca084daf918ba6ea594da5a6b3",
+  "prepared_manifest_sha256": "0af8a31f8e779f3cad4980549d2fda123ba81a453b7c267abec9216f32f8c831",
+  "full_input_receipt": {
+    "path": "/private/tmp/rapidraw-integration-20261015/android/scripts/android-attempt6-source-receipt-20261015.json",
+    "sha256": "01855a6d53592dcb2e5f39e330ee9f2390670e98a79a6eab9a0febe566f4b802"
+  },
+  "exact_main_matches": {
+    "src-tauri/src/gpu_processing.rs": "d02767e76a565d2937b460fd3079e53e9ad67c850fd3d1146f9236b52069cb22",
+    "src/components/ui/ProfileBrowser.tsx": "25489e41b4484a94a4e917a4aa052c453789422f01f62f01f194be00d0f72a67",
+    "src/__tests__/profileCompatibility.test.mjs": "a30b1845b0cfba52576aa7b66157bfb5714501cfaede0c812903542a0e3e379a",
+    "src-tauri/src/raw_processing.rs": "8db7b2209ad9fb5d2ceb9af2cb7c6023ee6d83b3b09e49a4eff744d1384bd160"
+  },
+  "android_locks": {
+    "src-tauri/Cargo.lock": "2958d08a0cdf5303f165ae0e9b05c2ba99aa902d428fab21db875165149c8c49",
+    "package-lock.json": "1fab8b696139c37da88d1c76980799f210a4b00914cd91f717e3b100923bd37c"
+  },
+  "logs": {
+    "/private/tmp/rapidraw-android-prep-20261015-v2/android-build-20261015-attempt6.log": "bac54a47ccb07ed2be4f1ea8047a457aacba26e88f135d472c7b3fa5bf2f4f47",
+    "/private/tmp/rapidraw-android-prep-20261015-v2/apk-verification-attempt6.log": "b0a1af67205efcd284e5bbae691ebf4a0d296b4fcae02cd28e7e0509d0e0efbc"
+  },
+  "build_exit_code": 0,
+  "elapsed_seconds": 191,
+  "free_gib_after_build": 14.84,
+  "gpu_requirements": {
+    "max_storage_textures_per_shader_stage": 2,
+    "max_bind_groups": 2,
+    "max_uniform_buffers_per_shader_stage": 1
+  },
+  "main_reported_previous_runtime": {
+    "artifact": "attempt5,089d0624",
+    "visible_editor": "Pass",
+    "GPU_validation_errors": "none reported",
+    "backend": "Vulkan SwiftShader",
+    "final_attempt6_runtime": "not exercised by this worker"
+  },
+  "owned_handoff": {
+    "path": "/private/tmp/rapidraw-integration-20261015/android/scripts/android-owned-handoff-20261015.json",
+    "sha256": "ca6bb8ec72b160ff12d3a92d745b314a16d2ec4979c28392b6c641837710ce62"
+  },
+  "no_worker_device_mutation": true,
+  "no_additional_source_differences_at_verification": true
+}

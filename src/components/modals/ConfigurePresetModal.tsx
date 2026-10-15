@@ -56,7 +56,7 @@ const PresetTypeSwitch = ({ selectedType, onChange }: PresetTypeSwitchProps) => 
     const targetWidth = `${widthPercent}%`;
 
     if (isInitialAnimation.current) {
-      let initialX = selectedType === 'style' ? '-25%' : '100%';
+      const initialX = selectedType === 'style' ? '-25%' : '100%';
 
       setBubbleStyle({
         x: [initialX, targetX],
@@ -153,7 +153,7 @@ export default function ConfigurePresetModal({ isOpen, onClose, onSave, initialP
       onSave(name.trim(), includeMasks, includeCropTransform, presetType, includeProfile);
       onClose();
     }
-  }, [name, includeMasks, includeCropTransform, presetType, onSave, onClose]);
+  }, [name, includeMasks, includeCropTransform, presetType, includeProfile, onSave, onClose]);
 
   const handleKeyDown = useCallback(
     (e: any) => {

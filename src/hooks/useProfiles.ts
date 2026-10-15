@@ -48,9 +48,12 @@ export function useProfiles(imagePath: string | null) {
   const [browserModel, setBrowserModel] = useState<ProfileBrowserModel | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const lastPathRef = useRef<string | null>(null);
+  const activePathRef = useRef(imagePath);
+  const requestRef = useRef(0);
+  const [modelPath, setModelPath] = useState<string | null>(null);
 
   const fetchProfiles = useCallback(async (path: string) => {
+    const request = ++requestRef.current;
     if (!path) {
       setBrowserModel(null);
       setError(null);
@@ -61,33 +64,41 @@ export function useProfiles(imagePath: string | null) {
     setError(null);
     try {
       const model: ProfileBrowserModel = await invoke('list_profiles_for_image', { path });
+      if (request !== requestRef.current || path !== activePathRef.current) return;
       setBrowserModel(model);
-      lastPathRef.current = path;
+      setModelPath(path);
     } catch (err) {
+      if (request !== requestRef.current || path !== activePathRef.current) return;
       console.error('Failed to list profiles:', err);
       setError(String(err));
       setBrowserModel(null);
     } finally {
-      setIsLoading(false);
+      if (request === requestRef.current) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (imagePath && imagePath !== lastPathRef.current) {
-      fetchProfiles(imagePath);
-    } else if (!imagePath) {
-      setBrowserModel(null);
-      setError(null);
-      lastPathRef.current = null;
+    activePathRef.current = imagePath;
+    setBrowserModel(null);
+    setModelPath(null);
+    setError(null);
+    if (imagePath) {
+      void fetchProfiles(imagePath);
+    } else {
+      setIsLoading(false);
     }
+    return () => {
+      ++requestRef.current;
+      activePathRef.current = null;
+    };
   }, [imagePath, fetchProfiles]);
 
   const importProfiles = useCallback(async (paths: string[]): Promise<ImportResult> => {
     try {
       const result: ImportResult = await invoke('import_profiles', { sourcePaths: paths });
       // Re-fetch after import
-      if (lastPathRef.current) {
-        await fetchProfiles(lastPathRef.current);
+      if (activePathRef.current) {
+        await fetchProfiles(activePathRef.current);
       }
       return result;
     } catch (err) {
@@ -99,8 +110,8 @@ export function useProfiles(imagePath: string | null) {
   const removeProfile = useCallback(async (id: string): Promise<void> => {
     try {
       await invoke('remove_profile', { id });
-      if (lastPathRef.current) {
-        await fetchProfiles(lastPathRef.current);
+      if (activePathRef.current) {
+        await fetchProfiles(activePathRef.current);
       }
     } catch (err) {
       console.error('Failed to remove profile:', err);
@@ -111,8 +122,8 @@ export function useProfiles(imagePath: string | null) {
   const rescanProfiles = useCallback(async (): Promise<void> => {
     try {
       await invoke('rescan_profiles');
-      if (lastPathRef.current) {
-        await fetchProfiles(lastPathRef.current);
+      if (activePathRef.current) {
+        await fetchProfiles(activePathRef.current);
       }
     } catch (err) {
       console.error('Failed to rescan profiles:', err);
@@ -136,7 +147,7 @@ export function useProfiles(imagePath: string | null) {
   }, []);
 
   return {
-    browserModel,
+    browserModel: modelPath === imagePath ? browserModel : null,
     isLoading,
     error,
     fetchProfiles,
