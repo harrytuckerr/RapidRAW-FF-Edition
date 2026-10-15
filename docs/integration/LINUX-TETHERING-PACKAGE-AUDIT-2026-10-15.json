@@ -1,0 +1,64 @@
+[
+  {
+    "platform": "ubuntu22.04",
+    "objdump_exit": 0,
+    "needed": [
+      "NEEDED       libssl.so.3",
+      "NEEDED       libcrypto.so.3",
+      "NEEDED       libgphoto2.so.6",
+      "NEEDED       libgphoto2_port.so.12",
+      "NEEDED       libm.so.6",
+      "NEEDED       libgdk-3.so.0",
+      "NEEDED       libgdk_pixbuf-2.0.so.0",
+      "NEEDED       libcairo.so.2",
+      "NEEDED       libgobject-2.0.so.0",
+      "NEEDED       libglib-2.0.so.0",
+      "NEEDED       libdbus-1.so.3",
+      "NEEDED       libwebkit2gtk-4.1.so.0",
+      "NEEDED       libgtk-3.so.0",
+      "NEEDED       libsoup-3.0.so.0",
+      "NEEDED       libgio-2.0.so.0",
+      "NEEDED       libjavascriptcoregtk-4.1.so.0",
+      "NEEDED       libgcc_s.so.1",
+      "NEEDED       libc.so.6",
+      "required from libgphoto2_port.so.12:",
+      "0x064c6160 0x00 15 LIBGPHOTO2_5_0"
+    ],
+    "bundled_gphoto_paths": [],
+    "declared_dependencies": [
+      "libwebkit2gtk-4.1-0",
+      "libgtk-3-0"
+    ]
+  },
+  {
+    "platform": "ubuntu24.04",
+    "objdump_exit": 0,
+    "needed": [
+      "NEEDED       libssl.so.3",
+      "NEEDED       libcrypto.so.3",
+      "NEEDED       libgphoto2.so.6",
+      "NEEDED       libgphoto2_port.so.12",
+      "NEEDED       libm.so.6",
+      "NEEDED       libgdk-3.so.0",
+      "NEEDED       libgdk_pixbuf-2.0.so.0",
+      "NEEDED       libcairo.so.2",
+      "NEEDED       libgobject-2.0.so.0",
+      "NEEDED       libglib-2.0.so.0",
+      "NEEDED       libdbus-1.so.3",
+      "NEEDED       libwebkit2gtk-4.1.so.0",
+      "NEEDED       libgtk-3.so.0",
+      "NEEDED       libsoup-3.0.so.0",
+      "NEEDED       libgio-2.0.so.0",
+      "NEEDED       libjavascriptcoregtk-4.1.so.0",
+      "NEEDED       libgcc_s.so.1",
+      "NEEDED       libc.so.6",
+      "required from libgphoto2_port.so.12:",
+      "0x064c6160 0x00 15 LIBGPHOTO2_5_0"
+    ],
+    "bundled_gphoto_paths": [],
+    "declared_dependencies": [
+      "libwebkit2gtk-4.1-0",
+      "libgtk-3-0"
+    ]
+  }
+]
