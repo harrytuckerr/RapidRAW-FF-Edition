@@ -218,6 +218,21 @@ pub struct VerifiedAccountCandidate {
     missing: Vec<ApprovedScope>,
 }
 impl VerifiedAccountCandidate {
+    /// Immutable credential expiry metadata, not an admission/session deadline
+    /// or proof of remote validity. Does not expose or extend the credentials.
+    pub fn credential_expires_at(&self) -> Instant {
+        self.input.tokens().expires_at()
+    }
+
+    /// Local credential validation-time/expiry check only. This does NOT check
+    /// admission, current controller state, registration mapping, revocation or
+    /// Drive readiness. This is not an account/session proof. At adoption,
+    /// matches_native_attempt and the controller's
+    /// atomic current-state checks remain mandatory; this is not a substitute.
+    pub fn credentials_usable_at(&self, now: Instant) -> bool {
+        self.input.tokens().is_usable_at(now)
+    }
+
     /// This borrowed key is syntax/data, not independently transferable proof.
     pub fn account_key(&self) -> &AccountKey {
         &self.key
@@ -1880,6 +1895,523 @@ mod tests {
         assert_eq!(
             error(finish(owned, binding, parsed, &mut rx, Instant::now())),
             AccountError::Deadline
+        );
+        drop(tx);
+    }
+}
+
+// Synthetic inputs are available to sibling tests only. No production endpoint,
+// credential setter or verified-candidate constructor is exported by this module.
+#[cfg(test)]
+pub(in crate::drive_auth) mod session_test_support {
+    use super::{
+        AccountError, ApprovedScope, ExchangeAttempt, Limits, OwnedInput, ParsedTokenResponse,
+        RegistrationField, Target, VerificationContext, VerifiedAccountCandidate, verify_at,
+    };
+    use crate::drive_auth::token_response::{TokenResponseError, parse_google_token_response};
+    use std::net::SocketAddr;
+    use std::time::{Duration, Instant};
+    use tokio::sync::oneshot;
+
+    #[derive(Clone, Copy)]
+    pub(in crate::drive_auth) enum SyntheticLabel {
+        A,
+        B,
+    }
+
+    /// Static errors around existing binding/parser errors, confined to tests.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(in crate::drive_auth) enum FixtureError {
+        Binding(AccountError),
+        Tokens(TokenResponseError),
+    }
+
+    /// Input syntax only, never account proof. No raw token/response argument,
+    /// public fields, Debug, Clone, deserializer or credential accessor.
+    pub(in crate::drive_auth) struct FixtureSpec {
+        attempt: ExchangeAttempt,
+        tokens: ParsedTokenResponse,
+    }
+    impl FixtureSpec {
+        pub(in crate::drive_auth) fn new(
+            label: SyntheticLabel,
+            attempt: ExchangeAttempt,
+            actual_scopes: &[ApprovedScope],
+            issued_at: Instant,
+            expires_in: u64,
+        ) -> Result<Self, FixtureError> {
+            if attempt.id.is_nil() || attempt.generation == 0 {
+                return Err(FixtureError::Binding(AccountError::InvalidRegistration(
+                    RegistrationField::AttemptIdentity,
+                )));
+            }
+            // Validate before constructing a scope string; even fixture requests
+            // cannot allocate an arbitrarily large scope list. Unsupported
+            // scopes/labels are unrepresentable in the closed input enums.
+            if actual_scopes.is_empty()
+                || actual_scopes.len() > 2
+                || (actual_scopes.len() == 2 && actual_scopes[0] == actual_scopes[1])
+            {
+                return Err(FixtureError::Tokens(
+                    TokenResponseError::InvalidRequestedScopes,
+                ));
+            }
+            let (access, refresh) = match label {
+                SyntheticLabel::A => ("synthetic-session-A", "synthetic-session-refresh-A"),
+                SyntheticLabel::B => ("synthetic-session-B", "synthetic-session-refresh-B"),
+            };
+            let scope = actual_scopes
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            // All text here comes from fixed literals or the closed scope enum.
+            let body = format!(
+                r#"{{"access_token":"{access}","refresh_token":"{refresh}","token_type":"Bearer","expires_in":{expires_in},"scope":"{scope}"}}"#,
+            );
+            let tokens = parse_google_token_response(
+                200,
+                body.as_bytes(),
+                actual_scopes,
+                issued_at,
+                issued_at,
+            )
+            .map_err(FixtureError::Tokens)?;
+            // Parse exactly once at the caller's explicit fixture time. Retaining
+            // this result prevents verify_fixture from renewing its expiry.
+            Ok(Self { attempt, tokens })
+        }
+    }
+
+    pub(in crate::drive_auth) async fn verify_fixture(
+        spec: FixtureSpec,
+        context: VerificationContext,
+        cancel: oneshot::Receiver<()>,
+        loopback: SocketAddr,
+    ) -> Result<VerifiedAccountCandidate, AccountError> {
+        verify_at(
+            OwnedInput::Fixture {
+                attempt: spec.attempt,
+                tokens: spec.tokens,
+            },
+            context,
+            cancel,
+            Target::Loopback(loopback),
+            Limits {
+                total: Duration::from_secs(2),
+                connect: Duration::from_millis(500),
+                read: Duration::from_millis(500),
+            },
+        )
+        .await
+    }
+}
+
+#[cfg(test)]
+mod lifetime_tests {
+    use super::session_test_support::{FixtureError, FixtureSpec, SyntheticLabel, verify_fixture};
+    use super::{
+        AccountError, ApprovedScope, ExchangeAttempt, RegistrationField, VerificationContext,
+    };
+    use crate::drive_auth::token_response::TokenResponseError;
+    use std::io::{Read, Write};
+    use std::net::{Ipv4Addr, SocketAddr, TcpListener};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+    use std::thread::{self, JoinHandle};
+    use std::time::{Duration, Instant};
+    use tokio::sync::oneshot;
+    use uuid::Uuid;
+
+    fn attempt(id: u128) -> ExchangeAttempt {
+        ExchangeAttempt {
+            id: Uuid::from_u128(id),
+            generation: 11,
+        }
+    }
+    fn context(id: u128, deadline: Instant) -> VerificationContext {
+        VerificationContext::from_native_attempt(
+            "desktop-fixture",
+            "synthetic-lifetime.apps.googleusercontent.com",
+            "123",
+            &[ApprovedScope::AppData, ApprovedScope::File],
+            &attempt(id),
+            deadline,
+        )
+        .expect("bounded native fixture context")
+    }
+    fn failure<T, E>(result: Result<T, E>) -> E {
+        match result {
+            Err(error) => error,
+            Ok(_) => panic!("expected fixture failure"),
+        }
+    }
+
+    enum Reply {
+        A,
+        B,
+        MissingUser,
+    }
+    // One request, at most16KiB captured, fixed response,3s worker lifetime,
+    // stop-aware accept/read loop and finite writes. Joined Drop on panic too.
+    // This is a new owned peer; existing author/independent fixtures are untouched.
+    struct Peer {
+        address: SocketAddr,
+        stop: Arc<AtomicBool>,
+        request: Arc<Mutex<Option<Vec<u8>>>>,
+        worker: Option<JoinHandle<()>>,
+    }
+    impl Peer {
+        fn new(reply: Reply) -> Self {
+            let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("ephemeral peer");
+            listener.set_nonblocking(true).expect("nonblocking peer");
+            let address = listener.local_addr().expect("local address");
+            let stop = Arc::new(AtomicBool::new(false));
+            let request = Arc::new(Mutex::new(None));
+            let (halt, captured) = (Arc::clone(&stop), Arc::clone(&request));
+            let worker = thread::spawn(move || {
+                let end = Instant::now() + Duration::from_secs(3);
+                while !halt.load(Ordering::Acquire) && Instant::now() < end {
+                    let (mut stream, _) = match listener.accept() {
+                        Ok(pair) => pair,
+                        Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                            thread::sleep(Duration::from_millis(2));
+                            continue;
+                        }
+                        Err(_) => return,
+                    };
+                    if stream
+                        .set_read_timeout(Some(Duration::from_millis(10)))
+                        .is_err()
+                        || stream
+                            .set_write_timeout(Some(Duration::from_millis(20)))
+                            .is_err()
+                    {
+                        return;
+                    }
+                    let mut bytes = Vec::new();
+                    let mut buffer = [0u8; 1024];
+                    while !bytes.windows(4).any(|part| part == b"\r\n\r\n")
+                        && !halt.load(Ordering::Acquire)
+                        && Instant::now() < end
+                    {
+                        match stream.read(&mut buffer) {
+                            Ok(0) => return,
+                            Ok(n) => {
+                                if bytes.len() + n > 16 * 1024 {
+                                    return;
+                                }
+                                bytes.extend_from_slice(&buffer[..n]);
+                            }
+                            Err(error)
+                                if matches!(
+                                    error.kind(),
+                                    std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock
+                                ) => {}
+                            Err(_) => return,
+                        }
+                    }
+                    if halt.load(Ordering::Acquire) || Instant::now() >= end {
+                        return;
+                    }
+                    *captured.lock().expect("fixture capture") = Some(bytes);
+                    let body = match reply {
+                        Reply::A => r#"{"user":{"permissionId":"session_A"}}"#,
+                        Reply::B => r#"{"user":{"permissionId":"session_B"}}"#,
+                        Reply::MissingUser => r#"{}"#,
+                    };
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                        body.len(),
+                    );
+                    let _ = stream.write_all(response.as_bytes());
+                    return;
+                }
+            });
+            Self {
+                address,
+                stop,
+                request,
+                worker: Some(worker),
+            }
+        }
+        fn captured(&self) -> Vec<u8> {
+            self.request
+                .lock()
+                .expect("fixture capture")
+                .as_ref()
+                .expect("captured request")
+                .clone()
+        }
+    }
+    impl Drop for Peer {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::Release);
+            if let Some(worker) = self.worker.take() {
+                let _ = worker.join();
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn lifetime_metadata_separates_admission_validation_and_expiry_without_renewal() {
+        let peer = Peer::new(Reply::A);
+        let issued = Instant::now();
+        let admission = issued + Duration::from_secs(5);
+        let expected_expiry = issued + Duration::from_secs(60);
+        let spec = FixtureSpec::new(
+            SyntheticLabel::A,
+            attempt(1),
+            &[ApprovedScope::File],
+            issued,
+            60,
+        )
+        .expect("synthetic input");
+        let expected = context(1, admission);
+        let (tx, rx) = oneshot::channel();
+        let candidate = verify_fixture(spec, context(1, admission), rx, peer.address)
+            .await
+            .expect("actual synthetic HTTP candidate");
+        let now = Instant::now();
+        assert!(now < admission);
+        assert_eq!(candidate.credential_expires_at(), expected_expiry);
+        assert!(candidate.credentials_usable_at(now));
+        assert!(candidate.matches_native_attempt(&expected, now));
+        assert!(!candidate.credentials_usable_at(issued - Duration::from_millis(1)));
+        assert!(candidate.credentials_usable_at(admission));
+        assert!(!candidate.matches_native_attempt(&expected, admission));
+        assert!(candidate.credentials_usable_at(expected_expiry - Duration::from_nanos(1)));
+        assert!(!candidate.credentials_usable_at(expected_expiry));
+        assert!(!candidate.credentials_usable_at(expected_expiry + Duration::from_millis(1)));
+        assert!(!candidate.matches_native_attempt(&expected, expected_expiry));
+        // These are explicit clock comparisons, not sleeps or altered credentials.
+        assert_eq!(candidate.credential_expires_at(), expected_expiry);
+        drop(tx);
+    }
+
+    #[tokio::test]
+    async fn sibling_bridge_binds_distinct_fixed_credentials_to_actual_http_candidates() {
+        for (label, reply, id, access, permission) in [
+            (
+                SyntheticLabel::A,
+                Reply::A,
+                1,
+                "Bearer synthetic-session-A",
+                "session_A",
+            ),
+            (
+                SyntheticLabel::B,
+                Reply::B,
+                2,
+                "Bearer synthetic-session-B",
+                "session_B",
+            ),
+        ] {
+            let peer = Peer::new(reply);
+            let issued = Instant::now();
+            let spec = FixtureSpec::new(label, attempt(id), &[ApprovedScope::File], issued, 60)
+                .expect("synthetic input");
+            let (tx, rx) = oneshot::channel();
+            let candidate = verify_fixture(
+                spec,
+                context(id, issued + Duration::from_secs(5)),
+                rx,
+                peer.address,
+            )
+            .await
+            .expect("actual verifier response");
+            assert_eq!(
+                candidate.account_key().drive_permission_id.as_str(),
+                permission
+            );
+            assert_eq!(candidate.granted_scopes(), &[ApprovedScope::File]);
+            assert_eq!(
+                candidate.missing_requested_scopes(),
+                &[ApprovedScope::AppData]
+            );
+            assert_eq!(
+                candidate.credential_expires_at(),
+                issued + Duration::from_secs(60)
+            );
+            let captured = peer.captured();
+            let wire = std::str::from_utf8(&captured).expect("synthetic ASCII request");
+            assert!(wire.starts_with("GET /drive/v3/about?fields="));
+            let authorization: Vec<_> = wire
+                .lines()
+                .filter_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("authorization")
+                        .then_some(value.trim())
+                })
+                .collect();
+            assert_eq!(authorization, vec![access]);
+            assert!(!wire.contains("synthetic-session-refresh"));
+            assert!(
+                !wire
+                    .lines()
+                    .next()
+                    .expect("request line")
+                    .contains("synthetic-session")
+            );
+            drop(tx);
+        }
+    }
+
+    #[test]
+    fn fixture_constructor_rejects_invalid_binding_scopes_and_lifetime() {
+        let now = Instant::now();
+        for invalid in [
+            ExchangeAttempt {
+                id: Uuid::nil(),
+                generation: 11,
+            },
+            ExchangeAttempt {
+                id: Uuid::from_u128(1),
+                generation: 0,
+            },
+        ] {
+            assert_eq!(
+                failure(FixtureSpec::new(
+                    SyntheticLabel::A,
+                    invalid,
+                    &[ApprovedScope::File],
+                    now,
+                    60
+                )),
+                FixtureError::Binding(AccountError::InvalidRegistration(
+                    RegistrationField::AttemptIdentity
+                ))
+            );
+        }
+        for invalid in [
+            vec![],
+            vec![ApprovedScope::File; 2],
+            vec![ApprovedScope::File; 3],
+        ] {
+            assert_eq!(
+                failure(FixtureSpec::new(
+                    SyntheticLabel::B,
+                    attempt(1),
+                    &invalid,
+                    now,
+                    60
+                )),
+                FixtureError::Tokens(TokenResponseError::InvalidRequestedScopes)
+            );
+        }
+        assert_eq!(
+            failure(FixtureSpec::new(
+                SyntheticLabel::A,
+                attempt(1),
+                &[ApprovedScope::File],
+                now,
+                0
+            )),
+            FixtureError::Tokens(TokenResponseError::InvalidExpiry)
+        );
+        assert_eq!(
+            failure(FixtureSpec::new(
+                SyntheticLabel::A,
+                attempt(1),
+                &[ApprovedScope::File],
+                now,
+                u64::MAX
+            )),
+            FixtureError::Tokens(TokenResponseError::ExpiryOverflow)
+        );
+        // Closed enums admit neither arbitrary token labels nor broad scopes.
+        assert!(
+            FixtureSpec::new(
+                SyntheticLabel::B,
+                attempt(1),
+                &[ApprovedScope::AppData, ApprovedScope::File],
+                now,
+                60
+            )
+            .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn bridge_requires_a_valid_local_transport_response_and_matching_binding() {
+        let peer = Peer::new(Reply::MissingUser);
+        let issued = Instant::now();
+        let spec = FixtureSpec::new(
+            SyntheticLabel::A,
+            attempt(1),
+            &[ApprovedScope::File],
+            issued,
+            60,
+        )
+        .expect("fixture");
+        let (tx, rx) = oneshot::channel();
+        assert_eq!(
+            failure(
+                verify_fixture(
+                    spec,
+                    context(1, issued + Duration::from_secs(5)),
+                    rx,
+                    peer.address
+                )
+                .await
+            ),
+            AccountError::MissingUser
+        );
+        assert!(!peer.captured().is_empty());
+        drop(tx);
+        for (address, expected) in [
+            (
+                SocketAddr::from(([0, 0, 0, 0], 12345)),
+                AccountError::ClientSetup,
+            ),
+            (
+                SocketAddr::from(([127, 0, 0, 1], 0)),
+                AccountError::ClientSetup,
+            ),
+        ] {
+            let spec = FixtureSpec::new(
+                SyntheticLabel::B,
+                attempt(1),
+                &[ApprovedScope::File],
+                issued,
+                60,
+            )
+            .expect("fixture");
+            let (tx, rx) = oneshot::channel();
+            assert_eq!(
+                failure(
+                    verify_fixture(
+                        spec,
+                        context(1, issued + Duration::from_secs(5)),
+                        rx,
+                        address
+                    )
+                    .await
+                ),
+                expected
+            );
+            drop(tx);
+        }
+        let spec = FixtureSpec::new(
+            SyntheticLabel::A,
+            attempt(1),
+            &[ApprovedScope::File],
+            issued,
+            60,
+        )
+        .expect("fixture");
+        let (tx, rx) = oneshot::channel();
+        assert_eq!(
+            failure(
+                verify_fixture(
+                    spec,
+                    context(2, issued + Duration::from_secs(5)),
+                    rx,
+                    peer.address
+                )
+                .await
+            ),
+            AccountError::AttemptMismatch
         );
         drop(tx);
     }
