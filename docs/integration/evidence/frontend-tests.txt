@@ -1,0 +1,139 @@
+
+> test:profiles
+> node --test src/__tests__/profileCompatibility.test.mjs
+
+TAP version 13
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# Subtest: preset opt-in survives configure, duplicate, overwrite, folder storage and tool conversion
+ok 1 - preset opt-in survives configure, duplicate, overwrite, folder storage and tool conversion
+  ---
+  duration_ms: 13.935167
+  type: 'test'
+  ...
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# Subtest: profile loading rejects stale responses and refreshes the current camera after import
+ok 2 - profile loading rejects stale responses and refreshes the current camera after import
+  ---
+  duration_ms: 5.053875
+  type: 'test'
+  ...
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# Subtest: unpaired Looks stay visibly disabled and cannot be selected by keyboard or click
+ok 3 - unpaired Looks stay visibly disabled and cannot be selected by keyboard or click
+  ---
+  duration_ms: 6.693584
+  type: 'test'
+  ...
+# Subtest: normalization, section resets, copy settings and reordered layouts preserve profile boundaries
+ok 4 - normalization, section resets, copy settings and reordered layouts preserve profile boundaries
+  ---
+  duration_ms: 0.612125
+  type: 'test'
+  ...
+# Subtest: profile checkbox is included when saving without editing another field
+ok 5 - profile checkbox is included when saving without editing another field
+  ---
+  duration_ms: 2.525916
+  type: 'test'
+  ...
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# Subtest: zero preset intensity resets only keys present in the preset
+ok 6 - zero preset intensity resets only keys present in the preset
+  ---
+  duration_ms: 55.049541
+  type: 'test'
+  ...
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# Subtest: explicit empty profile capture survives style-to-tool conversion
+ok 7 - explicit empty profile capture survives style-to-tool conversion
+  ---
+  duration_ms: 2.451333
+  type: 'test'
+  ...
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# Subtest: profile browser focus, scrolling and selection on coarse pointer
+ok 8 - profile browser focus, scrolling and selection on coarse pointer
+  ---
+  duration_ms: 4.899291
+  type: 'test'
+  ...
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# Subtest: profile browser focus, scrolling and selection on narrow viewport
+ok 9 - profile browser focus, scrolling and selection on narrow viewport
+  ---
+  duration_ms: 3.489584
+  type: 'test'
+  ...
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# Subtest: profile browser focus, scrolling and selection on desktop keyboard
+ok 10 - profile browser focus, scrolling and selection on desktop keyboard
+  ---
+  duration_ms: 3.948583
+  type: 'test'
+  ...
+# Subtest: strict profile IDs normalize legacy serde bytes and hex without mutating source
+ok 11 - strict profile IDs normalize legacy serde bytes and hex without mutating source
+  ---
+  duration_ms: 1.197458
+  type: 'test'
+  ...
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# Subtest: loaded and imported presets normalize nested legacy IDs without adding uncaptured settings
+ok 12 - loaded and imported presets normalize nested legacy IDs without adding uncaptured settings
+  ---
+  duration_ms: 1.584917
+  type: 'test'
+  ...
+# Subtest: preview binary normalization handles ArrayBuffer, Tauri fallback arrays and sliced Uint8Array
+ok 13 - preview binary normalization handles ArrayBuffer, Tauri fallback arrays and sliced Uint8Array
+  ---
+  duration_ms: 0.230416
+  type: 'test'
+  ...
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# Subtest: profile updates trigger IPC with canonical profile and exit original comparison
+ok 14 - profile updates trigger IPC with canonical profile and exit original comparison
+  ---
+  duration_ms: 166.447
+  type: 'test'
+  ...
+# Failed to apply adjustments: Profile render failed
+# Failed to apply adjustments: Preview worker stopped before returning a result
+# Failed to apply adjustments: Newest failed
+# Failed to apply adjustments: Error: Invalid profile.base: expected a 64-character hex ID or exactly 32 integer bytes (0–255).
+#     at normalizeProfileBaseId (eval at <anonymous> (file:///private/tmp/rapidraw-integration-20261015/working/src/__tests__/profileCompatibility.test.mjs:71:1), <anonymous>:29023:9)
+#     at Object.eval [as executeApplyAdjustments] (eval at <anonymous> (file:///private/tmp/rapidraw-integration-20261015/working/src/__tests__/profileCompatibility.test.mjs:71:1), <anonymous>:31544:34)
+#     at file:///private/tmp/rapidraw-integration-20261015/working/src/__tests__/profileCompatibility.test.mjs:636:15
+#     at process.env.NODE_ENV.exports.act (/private/tmp/rapidraw-integration-20261015/working/node_modules/react/cjs/react.development.js:814:22)
+#     at TestContext.<anonymous> (file:///private/tmp/rapidraw-integration-20261015/working/src/__tests__/profileCompatibility.test.mjs:635:11)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+# Failed to apply adjustments: Error: Invalid preview response: expected binary image bytes.
+#     at normalizePreviewResponse (eval at <anonymous> (file:///private/tmp/rapidraw-integration-20261015/working/src/__tests__/profileCompatibility.test.mjs:71:1), <anonymous>:31410:9)
+#     at Object.eval [as executeApplyAdjustments] (eval at <anonymous> (file:///private/tmp/rapidraw-integration-20261015/working/src/__tests__/profileCompatibility.test.mjs:71:1), <anonymous>:31560:24)
+#     at async file:///private/tmp/rapidraw-integration-20261015/working/src/__tests__/profileCompatibility.test.mjs:593:7
+# react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+# Subtest: current render errors toast, superseded/stale jobs stay quiet, only latest success dismisses
+ok 15 - current render errors toast, superseded/stale jobs stay quiet, only latest success dismisses
+  ---
+  duration_ms: 4.638458
+  type: 'test'
+  ...
+# Failed to apply adjustments: Error: Preview renderer returned no image bytes.
+#     at Object.eval [as executeApplyAdjustments] (eval at <anonymous> (file:///private/tmp/rapidraw-integration-20261015/working/src/__tests__/profileCompatibility.test.mjs:71:1), <anonymous>:31561:44)
+# Subtest: interactive preview decodes ROI headers identically from binary and JSON byte replies
+ok 16 - interactive preview decodes ROI headers identically from binary and JSON byte replies
+  ---
+  duration_ms: 12.064292
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1162.979833
