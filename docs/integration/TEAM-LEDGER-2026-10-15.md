@@ -33,7 +33,7 @@ Read-only discovery also found 20 DCP files under `~/Pictures/Lightroom Library.
 
 Every worker receives one active bounded task. Reviewers are dispatched only after an artifact is ready. Workers do not stage, commit, push, merge, refresh dependencies or write other checkouts. Lead alone imports reviewed allowlisted files and owns shared contracts. Every report includes model, base, paths, changed-file hashes, commands/results, evidence, limitations and next-consumer readiness. Pass / Fail / Not exercised / User-reported remain literal.
 
-All snapshots below are detached at the frozen base, under `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/`.
+Worker snapshots below are detached at the frozen base or the explicitly named documentation successor, under `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/`.
 
 | Package | Owner / configured model | Snapshot | Writable paths | Dependencies, acceptance and stop point |
 |---|---|---|---|---|
@@ -43,16 +43,19 @@ All snapshots below are detached at the frozen base, under `/Users/harrisontucke
 | H6a | Codex CLI, slot ending `2bbf` / GPT-6 Luna | `docs-audit` | `docs/integration/H6-DOC-AUDIT-2026-10-15.md` | Read-only audit of historical claims and E/GD file map. Return contradictions with exact lines; no mechanical fixes yet |
 | H6b | Codex CLI - Luna / GPT-6 Luna | `docs-fix` | `docs/profiles.md`, `docs/BUILD.md`; `docs/integration/H6B-RECEIPT-2026-10-15.md` | H6a reviewed/imported. Correct user-guide/build claims mechanically from frozen evidence. No bench README, architecture/colour math or source changes. Stop at patch for lead review |
 | H0b | Claude Code - Haiku / configured Haiku | `asset-inventory` | `docs/integration/H0-ASSET-INVENTORY-2026-10-15.md` | Bounded private RAW/model/pair metadata inventory; no asset changes, image copies, Adobe UI or devices; stop at receipt |
-| H2 implementation | Claude Code / Opus | Not dispatched | Reserved: `src-tauri/src/bin/validate_dcp.rs`, `src-tauri/src/dcp/validation.rs`, `src-tauri/src/dcp/delta_e.rs`, `bench/dcp_validation/` | Wait for reviewed H2a contract; one bounded implementation slice at a time |
+| H2 later slices | Unassigned | Not dispatched | Reserved: `src-tauri/src/bin/validate_dcp.rs`, `src-tauri/src/dcp/validation.rs`, `bench/dcp_validation/` | Serial H2b2–H2b7 after separate reviewed prerequisites. H2b1 ownership below is the only active harness source grant |
 | H1R diagnosis | Claude Code - Opus / configured Opus | `raf-diagnosis` | `docs/integration/ANDROID-RAF-DIAGNOSIS-2026-10-15.md`; task-private evidence only | New user-reported Android RAF failure. Locate decoder-selection cause/reproducer and propose exact repair ownership. Source read-only initially; no device commands or dependency refresh. Return diagnostic artifact before repair assignment |
 | H1R device evidence | Codex CLI - Sol / GPT-6.1 Sol | `device` | `docs/integration/ANDROID-RAF-DEVICE-2026-10-15.md`; private H1 evidence | H1a complete/idle. Read-only current-app logs, failed-source identity/header/hash if identifiable. No UI interaction or mutation. Supplies Opus diagnosis; stop at receipt |
 | H1R payload | Codex CLI - Sol / GPT-6.1 Sol | `device` | `docs/integration/ANDROID-RAF-PAYLOAD-2026-10-15.md`; new private H1 payload evidence | Previous diagnostic receipt accepted. Read-only transfer of the exact identified 2.94MB staged file to private host evidence, hash match and host format validity/dimensions; no UI/original-source assumptions. Supplies Opus reproducible bytes, then stop |
 | H1R independent repair design review | Codex CLI - Astra / GPT-6 Astra | `raf-review` | `docs/integration/ANDROID-RAF-REPAIR-REVIEW-2026-10-15.md` | Accepted device evidence and pinned source ready. Review proposed future-import and existing-open guards, supported-format boundaries and minimal regression plan. No source/device edits; stop at actionable repair ownership |
+| R1 existing-open guard | Claude Code - Opus / configured Opus | `raf-guards`, frozen `8877d7ea` (documentation successor, same production input) | `src-tauri/src/formats.rs`, `src-tauri/src/image_loader.rs`, `docs/integration/R1-GUARDS-RECEIPT-2026-10-15.md` | H1R review ready. Typed empty/RAF-JPEG contradiction check at both open boundaries; meaningful actual-route/regression tests. Exclusive reuse of task's historical desktop build cache; no other builds until receipt. Stop at diff for independent review |
 | H2a independent review | Grok Build / Grok 4.7 | `harness-review` | `docs/integration/H2A-INDEPENDENT-REVIEW-2026-10-15.md` | Frozen completed Astra contract SHA a17b2e45…; read-only source/contract review, verify numerical/encoding/failure design and split implementation workload; no source/device edits |
+| H2a contract revision | Codex CLI - Astra / GPT-6 Astra | `harness-design` | `docs/integration/H2-COMPARISON-CONTRACT-2026-10-15.md` | Grok review complete. Correct effective settings, resource/attestation/API details; adjudicate ICC quantization and split slices. Docs only, no builds; stop at revised contract |
+| H2b1 statistics | Codex CLI - Sol / GPT-6.1 Sol | `stats-guards`, frozen `8877d7ea` | `src-tauri/src/dcp/delta_e.rs`, `docs/integration/H2B1-STATISTICS-RECEIPT-2026-10-15.md` | R1 cache released, now exclusive owner of desktop cache. Fallible validated statistics only, unchanged colour formula/D50/34 known answers. Stop at diff/tests for independent review; no later harness work |
 | UI implementation | Antigravity / Gemini 3.8 Flash high | Not dispatched | To be assigned after reproduced H1 defects or E contracts | No speculative UI or colour changes |
 | Small regression tasks | Claude Code / Haiku | Not dispatched | To be assigned by exact paths | No colour, JNI, concurrency or storage design |
 
-All production source, lockfiles, `lib.rs`, device operations beyond H1a and expansion work remain reserved, unassigned. H1b will authorize a dedicated synthetic profile/render/export flow after device preflight. H2b will implement a reviewed comparator contract before H3 fidelity. H4 follows reproduced defects; H5 begins with measurements. No old-emulator repair, CCT rewrite or blob decoding.
+Production source outside the explicit R1/H2b1 grants, lockfiles, `lib.rs`, device UI operations and expansion work remain reserved, unassigned. H1b will authorize a dedicated synthetic profile/render/export flow after device preflight. H2b will implement a reviewed comparator contract before H3 fidelity. H4 follows reproduced defects; H5 begins with measurements. No old-emulator repair, CCT rewrite or blob decoding.
 
 ## Expansion queue and shared-file reservations
 
@@ -91,3 +94,11 @@ Expanded H0/H0b inventory completed:356 X-Pro2 RAFs plus1DNG among the initial f
 Source-receipt comparison: all 456 matching recorded files remain unchanged; three differences are documentation/evidence only (`docs/android-integration-2026-10-15.md`, historical status report, desktop render receipt), no missing files. Detailed receipt: `H0-SOURCE-RECEIPT-CHECK-2026-10-15.json`.
 
 D1–D10: not closed by handover or CI. Physical profile preview/export, Adobe thresholds, cross-route agreement, production performance and release acceptance are separate gates. Each future receipt updates this ledger without erasing historical failures. No completion percentage or compatibility claim is justified.
+
+## Current bounded dispatch update
+
+R1 worker delivered a frozen two-source-file patch and host receipts; no Android result follows. Astra owns read-only independent review of `raf-guards` formats.rs/image_loader.rs, writable report only `raf-review/docs/integration/R1-INDEPENDENT-REVIEW-2026-10-15.md`. No build cache/device/source writes for this review. Review receipt is required before source import.
+
+R1 released `/private/tmp/rapidraw-integration-20261015/target`; H2b1 may use it exclusively. Its queued resource dependency is cleared without asserting R1 acceptance. Source base remains 8877d7ea, independent one-file ownership. H2 contract revision f2993625 is delivered; only its H2b1 scope is authorized now. ICC slice and all later slices remain gated.
+
+Lead independently reran preserved R1 worker test binary (verified SHA12649936…): formats5Pass, image_loader6Pass/3ignored. Source/receipt hashes plus full-suite/control-log hashes match the worker handoff. This verifies the worker artifact only; canonical combined-source tests and Android remain Not exercised. See `R1-LEAD-ARTIFACT-CHECK-2026-10-15.json`.
