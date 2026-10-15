@@ -1,7 +1,7 @@
 //! One native authorization owner: legacy pending or configured verification.
 //!
-//! Configured success discards the candidate (VerifiedNotAdopted), never connects.
-//! No browser/IPC, persistence, refresh, credential retention or Drive readiness.
+//! Configured first/same-account success retains a native session with expiry.
+//! No browser/IPC, persistence, refresh, credential lease or Drive readiness.
 //! Run `begin`/`shutdown` on a native async runtime. Socket binding and pumping
 //! run on one owned blocking worker. Cancellation is cooperative: the slot stays
 //! Draining until that worker returns, including after a startup deadline. Drop
@@ -17,6 +17,8 @@ use futures::FutureExt;
 use tokio::sync::{oneshot, watch};
 use uuid::Uuid;
 
+use crate::drive::model::AccountKey;
+
 use super::account::{AccountError, VerificationContext, VerifiedAccountCandidate, verify_account};
 use super::exchange::{ExchangeAttempt, ExchangeResult, exchange_code};
 use super::loopback::{Cancellation, LoopbackError, LoopbackSession};
@@ -26,6 +28,7 @@ use super::registration::{NativeRegistrationCatalog, RegistrationError, Registra
 const ATTEMPT_LIFETIME: Duration = Duration::from_secs(300);
 const STARTUP_LIFETIME: Duration = Duration::from_secs(5);
 const HANDOFF_LIFETIME: Duration = Duration::from_secs(10);
+const CONNECTION_RETENTION: Duration = Duration::from_secs(3600);
 
 /// Trusted native configuration, not authenticated project/account membership.
 /// It cannot carry a caller-supplied authorization URL, token or endpoint.
@@ -83,6 +86,7 @@ pub enum ControllerError {
     Closed,
     Poisoned,
     CounterExhausted,
+    WatcherFailure,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StartError {
@@ -157,10 +161,11 @@ pub struct AuthSnapshot {
     pub granted_subset_pending_verification: Vec<ApprovedScope>,
 }
 
-/// Native-only verification status. Success is immediate discard, not connection.
+/// Native-only verification/adoption outcome, never Drive readiness.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VerificationOutcome {
-    VerifiedNotAdopted,
+    AdoptedSessionOnly,
+    SwitchRequired,
     Cancelled,
     TimedOut,
     Closed,
@@ -191,6 +196,46 @@ pub struct VerificationSnapshot {
     pub phase: VerificationPhase,
     pub last_terminal: Option<VerificationTerminalRecord>,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectionStatus {
+    Disconnected,
+    ConnectedSessionOnly,
+    Expired,
+    Closed,
+}
+/// Bounded native metadata, not a provider lease. Contains account identity:
+/// deliberately no Debug, Clone, Display or serde implementation.
+pub struct ConnectionSnapshot {
+    pub status: ConnectionStatus,
+    pub connection_id: Option<Uuid>,
+    pub epoch: u64,
+    pub account_key: Option<AccountKey>,
+    pub granted_scopes: Vec<ApprovedScope>,
+}
+struct ConnectedOwner {
+    candidate: VerifiedAccountCandidate,
+    timer: ConnectionTimer,
+    adopted: Instant,
+}
+struct IdentityStamp {
+    key: AccountKey,
+    id: Uuid,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct ConnectionTimer {
+    id: Uuid,
+    epoch: u64,
+    deadline: Instant,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WatcherState {
+    Dormant,
+    Starting(Instant),
+    Running,
+    Finishing,
+    Stopped,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum VerificationState {
     NotStarted,
@@ -217,6 +262,7 @@ struct Slot {
     terminal: Option<AuthorizationOutcome>,
     registration: NativeStart,
     configured_selection: Option<RegistrationSelection>,
+    expected_connection_epoch: u64,
     verification: VerificationState,
     stop: watch::Sender<bool>,
     listener: Option<Cancellation>,
@@ -229,6 +275,13 @@ struct State {
     slot: Option<Slot>,
     last: Option<TerminalRecord>,
     last_verification: Option<VerificationTerminalRecord>,
+    connection_epoch: u64,
+    connected: Option<ConnectedOwner>,
+    identity: Option<IdentityStamp>,
+    watcher: WatcherState,
+    lifecycle_changed: watch::Sender<()>,
+    #[cfg(test)]
+    watcher_test: WatcherTestHooks,
 }
 struct Inner {
     catalog: Option<NativeRegistrationCatalog>,
@@ -313,6 +366,13 @@ impl SessionController {
                     slot: None,
                     last: None,
                     last_verification: None,
+                    connection_epoch: 0,
+                    connected: None,
+                    identity: None,
+                    watcher: WatcherState::Dormant,
+                    lifecycle_changed: changed.clone(),
+                    #[cfg(test)]
+                    watcher_test: WatcherTestHooks::default(),
                 }),
                 changed,
             }),
@@ -413,6 +473,29 @@ impl SessionController {
         })
     }
 
+    pub fn connection_snapshot(&self) -> Result<ConnectionSnapshot, ControllerError> {
+        let state = self.inner.lock()?; // Shared expiry check precedes observation.
+        let status = if state.closed {
+            ConnectionStatus::Closed
+        } else if state.connected.is_some() {
+            ConnectionStatus::ConnectedSessionOnly
+        } else if state.identity.is_some() {
+            ConnectionStatus::Expired
+        } else {
+            ConnectionStatus::Disconnected
+        };
+        Ok(ConnectionSnapshot {
+            status,
+            connection_id: state.identity.as_ref().map(|stamp| stamp.id),
+            epoch: state.connection_epoch,
+            account_key: state.identity.as_ref().map(|stamp| stamp.key.clone()),
+            granted_scopes: state
+                .connected
+                .as_ref()
+                .map_or_else(Vec::new, |owner| owner.candidate.granted_scopes().to_vec()),
+        })
+    }
+
     pub fn cancel(&self, attempt_id: Uuid) -> Result<CancelDisposition, ControllerError> {
         let mut state = self.inner.lock()?;
         if state.closed {
@@ -431,13 +514,14 @@ impl SessionController {
     }
 
     /// Both explicit intents invalidate the generation; neither revokes remote
-    /// access nor touches local edits. There is no verified session in S1.
+    /// access nor touches local edits. Both explicitly disconnect retained ownership.
     pub fn invalidate(&self, _reason: DisconnectOrSwitch) -> Result<(), ControllerError> {
         let mut state = self.inner.lock()?;
         if state.closed {
             return Err(ControllerError::Closed);
         }
         advance(&mut state)?;
+        invalidate_connection(&mut state)?;
         terminate(&mut state, AuthorizationOutcome::Cancelled);
         self.inner.changed.send_replace(());
         Ok(())
@@ -457,7 +541,10 @@ impl SessionController {
                     Ok(state) => state,
                     Err(poison) => poison.into_inner(),
                 };
-                (state.slot.is_none(), state.fault)
+                (
+                    state.slot.is_none() && watcher_finished(&state),
+                    state.fault,
+                )
             };
             if empty {
                 return fault.map_or(Ok(()), Err);
@@ -544,10 +631,11 @@ type Worker = tauri::async_runtime::JoinHandle<Result<CallbackOutcome, Authoriza
 impl Inner {
     fn lock(&self) -> Result<MutexGuard<'_, State>, ControllerError> {
         match self.state.lock() {
-            Ok(state) => {
+            Ok(mut state) => {
                 if let Some(error) = state.fault {
                     Err(error)
                 } else {
+                    expire_connection(&mut state, Instant::now());
                     Ok(state)
                 }
             }
@@ -637,6 +725,7 @@ impl Inner {
             terminal: None,
             registration: request,
             configured_selection,
+            expected_connection_epoch: state.connection_epoch,
             verification: VerificationState::NotStarted,
             stop,
             listener: None,
@@ -664,6 +753,7 @@ impl Inner {
         };
         if !state.closed {
             let _ = advance(&mut state);
+            let _ = invalidate_connection(&mut state);
             state.closed = true;
             terminate(&mut state, AuthorizationOutcome::Closed);
         }
@@ -862,39 +952,179 @@ impl Inner {
     }
 
     fn verification_completed(&self, key: Key, candidate: VerifiedAccountCandidate, now: Instant) {
+        // Entropy acquisition is outside the shared commit lock.
+        let connection_id = Uuid::new_v4();
         let Ok(mut state) = self.lock() else {
             return;
         };
         if !verification_owned(&state, key) {
             return;
         }
-        let outcome = if !verification_current(&state, key) {
-            VerificationOutcome::BindingMismatch
+        if state.watcher != WatcherState::Running {
+            fault(&mut state, ControllerError::WatcherFailure);
+            return;
+        }
+        let decision = if !verification_current(&state, key) {
+            Err(VerificationOutcome::BindingMismatch)
         } else if let Some(slot) = state.slot.as_ref() {
             let context = self.configured_context(slot);
-            // Context construction cannot refresh the admission deadline. Re-read
-            // the clock after it, immediately before the guarded commit decision.
             let now = now.max(Instant::now());
             if now < slot.admitted || now >= slot.deadline {
-                VerificationOutcome::TimedOut
+                Err(VerificationOutcome::TimedOut)
+            } else if slot.expected_connection_epoch != state.connection_epoch {
+                Err(VerificationOutcome::BindingMismatch)
             } else if !candidate.credentials_usable_at(now) {
-                VerificationOutcome::Failed(AccountError::TokenExpired)
+                Err(VerificationOutcome::Failed(AccountError::TokenExpired))
+            } else if !matches!(&context, Ok(context) if candidate.matches_native_attempt(context, now))
+            {
+                Err(VerificationOutcome::BindingMismatch)
             } else {
-                match context {
-                    Ok(context) if candidate.matches_native_attempt(&context, now) => {
-                        VerificationOutcome::VerifiedNotAdopted
+                let retention = CONNECTION_RETENTION;
+                #[cfg(test)]
+                let retention = state.watcher_test.retention.unwrap_or(retention);
+                match now.checked_add(retention) {
+                    Some(end) => Ok((now, end.min(candidate.credential_expires_at()))),
+                    None => {
+                        fault(&mut state, ControllerError::CounterExhausted);
+                        return;
                     }
-                    _ => VerificationOutcome::BindingMismatch,
                 }
             }
         } else {
             return;
         };
-        // Discard the entire sealed result BEFORE publishing success. Never
-        // store it in Slot/State, expose parts, or renew an admission lifetime.
-        drop(candidate);
+        let outcome = match decision {
+            Err(outcome) => {
+                drop(candidate);
+                outcome
+            }
+            Ok((adopted, deadline)) => {
+                if state
+                    .identity
+                    .as_ref()
+                    .is_some_and(|stamp| &stamp.key != candidate.account_key())
+                {
+                    drop(candidate);
+                    VerificationOutcome::SwitchRequired
+                } else {
+                    if advance_connection(&mut state).is_err() {
+                        return;
+                    }
+                    let key = candidate.account_key().clone();
+                    let epoch = state.connection_epoch;
+                    state.connected = Some(ConnectedOwner {
+                        candidate,
+                        timer: ConnectionTimer {
+                            id: connection_id,
+                            epoch,
+                            deadline,
+                        },
+                        adopted,
+                    });
+                    state.identity = Some(IdentityStamp {
+                        key,
+                        id: connection_id,
+                    });
+                    state.lifecycle_changed.send_replace(());
+                    VerificationOutcome::AdoptedSessionOnly
+                }
+            }
+        };
         finish_verification(&mut state, outcome);
         self.changed.send_replace(());
+    }
+
+    fn prepare_watcher(
+        self: &Arc<Self>,
+        key: Key,
+        deadline: Instant,
+    ) -> Result<Option<WatcherGuard>, AuthorizationOutcome> {
+        let mut guard = WatcherGuard {
+            inner: Arc::clone(self),
+            armed: false,
+        };
+        let mut state = self
+            .lock()
+            .map_err(|_| AuthorizationOutcome::WorkerFailure)?;
+        if !live(&state, key, Phase::Starting, Instant::now())
+            || state
+                .slot
+                .as_ref()
+                .is_none_or(|slot| slot.configured_selection.is_none())
+        {
+            return Err(AuthorizationOutcome::Cancelled);
+        }
+        match state.watcher {
+            WatcherState::Dormant => {
+                state.watcher = WatcherState::Starting(deadline);
+                guard.armed = true;
+                #[cfg(test)]
+                {
+                    state.watcher_test.starts += 1;
+                }
+                state.lifecycle_changed.send_replace(());
+                Ok(Some(guard))
+            }
+            WatcherState::Starting(_) | WatcherState::Running => Ok(None),
+            WatcherState::Finishing | WatcherState::Stopped => {
+                fault(&mut state, ControllerError::WatcherFailure);
+                Err(AuthorizationOutcome::WorkerFailure)
+            }
+        }
+    }
+
+    fn watcher_finalizing(&self, expected: bool) {
+        let (mut state, poisoned) = match self.state.lock() {
+            Ok(state) => (state, false),
+            Err(poison) => (poison.into_inner(), true),
+        };
+        let expected = expected && state.closed;
+        if poisoned && state.fault.is_none() {
+            fault(&mut state, ControllerError::Poisoned);
+        }
+        if !expected && state.fault.is_none() {
+            fault(&mut state, ControllerError::WatcherFailure);
+        }
+        if !expected {
+            clear_connection(&mut state);
+            state.closed = true;
+            terminate(&mut state, AuthorizationOutcome::Closed);
+        }
+        if state.watcher != WatcherState::Stopped {
+            state.watcher = WatcherState::Finishing;
+        }
+        state.lifecycle_changed.send_replace(());
+    }
+
+    fn watcher_finalized(&self, expected: bool) {
+        let (mut state, poisoned) = match self.state.lock() {
+            Ok(state) => (state, false),
+            Err(poison) => (poison.into_inner(), true),
+        };
+        let expected = expected && state.closed;
+        if poisoned && state.fault.is_none() {
+            fault(&mut state, ControllerError::Poisoned);
+        }
+        if !expected && state.fault.is_none() {
+            fault(&mut state, ControllerError::WatcherFailure);
+        }
+        if !expected {
+            clear_connection(&mut state);
+            state.closed = true;
+            terminate(&mut state, AuthorizationOutcome::Closed);
+        }
+        match state.watcher {
+            WatcherState::Dormant => {
+                // No matching startup ownership: do not advertise release.
+                fault(&mut state, ControllerError::WatcherFailure);
+                state.watcher = WatcherState::Finishing;
+            }
+            WatcherState::Starting(_) | WatcherState::Running | WatcherState::Finishing => {
+                state.watcher = WatcherState::Stopped
+            }
+            WatcherState::Stopped => {}
+        }
+        state.lifecycle_changed.send_replace(());
     }
 
     fn adopt_pending(&self, key: Key, value: Pending, now: Instant) -> Option<Instant> {
@@ -954,12 +1184,58 @@ impl Inner {
             Ok(s) => s,
             Err(p) => p.into_inner(),
         };
+        expire_connection(&mut state, Instant::now());
         // Match the original slot even after generation invalidation. Called
         // ONLY after the owned blocking handle and local exchange future ended.
         if state.slot.as_ref().is_some_and(|slot| slot.key == key) {
             state.slot = None;
             self.changed.send_replace(());
         }
+    }
+}
+
+fn watcher_finished(state: &State) -> bool {
+    matches!(state.watcher, WatcherState::Dormant | WatcherState::Stopped)
+}
+fn clear_connection(state: &mut State) {
+    state.connected = None;
+    state.identity = None;
+    state.lifecycle_changed.send_replace(());
+}
+fn advance_connection(state: &mut State) -> Result<(), ControllerError> {
+    match state.connection_epoch.checked_add(1) {
+        Some(next) => {
+            state.connection_epoch = next;
+            Ok(())
+        }
+        None => {
+            fault(state, ControllerError::CounterExhausted);
+            Err(ControllerError::CounterExhausted)
+        }
+    }
+}
+fn invalidate_connection(state: &mut State) -> Result<(), ControllerError> {
+    let result = advance_connection(state);
+    clear_connection(state);
+    result
+}
+fn expire_connection(state: &mut State, now: Instant) {
+    if state.connected.as_ref().is_some_and(|owner| {
+        now < owner.adopted
+            || now >= owner.timer.deadline
+            || !owner.candidate.credentials_usable_at(now)
+    }) {
+        state.connected = None; // Identity/epoch deliberately survive expiry.
+        state.lifecycle_changed.send_replace(());
+    }
+}
+fn expire_observed_connection(state: &mut State, observed: ConnectionTimer, now: Instant) {
+    if state
+        .connected
+        .as_ref()
+        .is_some_and(|owner| owner.timer == observed)
+    {
+        expire_connection(state, now);
     }
 }
 
@@ -978,7 +1254,9 @@ fn advance(state: &mut State) -> Result<(), ControllerError> {
 fn fault(state: &mut State, error: ControllerError) {
     state.closed = true;
     state.fault = Some(error);
+    clear_connection(state);
     terminate(state, AuthorizationOutcome::Closed);
+    state.lifecycle_changed.send_replace(());
 }
 fn current(state: &State, key: Key) -> bool {
     !state.closed
@@ -1109,6 +1387,185 @@ async fn stopped(stop: &mut watch::Receiver<bool>) {
     }
 }
 
+struct WatcherGuard {
+    inner: Arc<Inner>,
+    armed: bool,
+}
+impl WatcherGuard {
+    fn finish(mut self, expected: bool) {
+        self.inner.watcher_finalized(expected);
+        self.armed = false;
+    }
+}
+impl Drop for WatcherGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            self.inner.watcher_finalized(false);
+        }
+    }
+}
+
+async fn ensure_watcher(inner: &Arc<Inner>, work: &mut Work) -> Result<(), AuthorizationOutcome> {
+    let mut changed = inner.changed.subscribe();
+    if let Some(guard) = inner.prepare_watcher(work.key, work.startup_deadline)? {
+        // The future already owns its guard if spawn panics or never polls it.
+        tauri::async_runtime::spawn(watcher_task(guard));
+    }
+    loop {
+        let deadline = {
+            let mut state = inner
+                .lock()
+                .map_err(|_| AuthorizationOutcome::WorkerFailure)?;
+            if !live(&state, work.key, Phase::Starting, Instant::now()) {
+                return Err(AuthorizationOutcome::Cancelled);
+            }
+            if Instant::now() >= work.startup_deadline {
+                if matches!(state.watcher, WatcherState::Starting(_)) {
+                    fault(&mut state, ControllerError::WatcherFailure);
+                }
+                return Err(AuthorizationOutcome::TimedOut);
+            }
+            match state.watcher {
+                WatcherState::Running => return Ok(()),
+                WatcherState::Starting(end) => end.min(work.startup_deadline),
+                _ => return Err(AuthorizationOutcome::WorkerFailure),
+            }
+        };
+        tokio::select! {
+            biased;
+            _ = stopped(&mut work.stop) => return Err(AuthorizationOutcome::Cancelled),
+            _ = until(deadline) => {
+                let mut state = inner.lock().map_err(|_| AuthorizationOutcome::WorkerFailure)?;
+                if matches!(state.watcher, WatcherState::Starting(_)) { fault(&mut state, ControllerError::WatcherFailure); }
+                return Err(AuthorizationOutcome::TimedOut);
+            }
+            result = changed.changed() => if result.is_err() { return Err(AuthorizationOutcome::WorkerFailure); },
+        }
+    }
+}
+
+async fn watcher_task(guard: WatcherGuard) {
+    // Declared before loop/gate futures, so their resources drop before guard on
+    // unwind/cancellation. No SessionController or public abort handle is held.
+    let outcome = {
+        AssertUnwindSafe(watch_connections(Arc::clone(&guard.inner)))
+            .catch_unwind()
+            .await
+    };
+    let expected = matches!(&outcome, Ok(Ok(())));
+    drop(outcome);
+    guard.inner.watcher_finalizing(expected);
+    #[cfg(test)]
+    let expected = {
+        let gate = guard
+            .inner
+            .state
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .watcher_test
+            .cleanup
+            .take();
+        match gate {
+            Some(gate) => gate.wait().await && expected,
+            None => expected,
+        }
+    };
+    // All receiver/timer/test-gate resources have ended. Last cleanup action;
+    // nothing awaits after this actual finalization notification.
+    guard.finish(expected);
+}
+
+async fn watch_connections(inner: Arc<Inner>) -> Result<(), ControllerError> {
+    let mut changed = inner.changed.subscribe();
+    #[cfg(test)]
+    {
+        let gate = inner.lock()?.watcher_test.startup.take();
+        if let Some(gate) = gate
+            && !gate.wait().await
+        {
+            if inner.lock()?.closed {
+                return Ok(());
+            }
+            return Err(ControllerError::WatcherFailure);
+        }
+    }
+    {
+        let mut state = inner.lock()?;
+        if state.closed {
+            return Ok(());
+        }
+        #[cfg(test)]
+        if state.watcher_test.fail_start {
+            return Err(ControllerError::WatcherFailure);
+        }
+        match state.watcher {
+            WatcherState::Starting(end) if Instant::now() < end => {
+                state.watcher = WatcherState::Running
+            }
+            _ => return Err(ControllerError::WatcherFailure),
+        }
+        state.lifecycle_changed.send_replace(());
+    }
+    loop {
+        let observed = {
+            let state = inner.lock()?;
+            #[cfg(test)]
+            let mut state = state;
+            if state.closed {
+                return Ok(());
+            }
+            if state.watcher != WatcherState::Running {
+                return Err(ControllerError::WatcherFailure);
+            }
+            #[cfg(test)]
+            if std::mem::take(&mut state.watcher_test.panic_next) {
+                drop(state);
+                panic!("synthetic watcher loop failure");
+            }
+            // lock() has performed expiry already; this is an owned timer copy.
+            state.connected.as_ref().map(|owner| owner.timer)
+        };
+        if let Some(observed) = observed {
+            tokio::select! {
+                biased;
+                result = changed.changed() => if result.is_err() { return Err(ControllerError::WatcherFailure); },
+                _ = until(observed.deadline) => {
+                    let mut state = inner.lock()?;
+                    expire_observed_connection(&mut state, observed, Instant::now());
+                },
+            }
+        } else if changed.changed().await.is_err() {
+            return Err(ControllerError::WatcherFailure);
+        }
+    }
+}
+
+#[cfg(test)]
+#[derive(Default)]
+struct WatcherTestHooks {
+    startup: Option<WatcherTestGate>,
+    cleanup: Option<WatcherTestGate>,
+    fail_start: bool,
+    panic_next: bool,
+    retention: Option<Duration>,
+    starts: u32,
+}
+#[cfg(test)]
+struct WatcherTestGate {
+    entered: oneshot::Sender<()>,
+    release: oneshot::Receiver<()>,
+}
+#[cfg(test)]
+impl WatcherTestGate {
+    async fn wait(self) -> bool {
+        let _ = self.entered.send(());
+        matches!(
+            tokio::time::timeout(Duration::from_secs(2), self.release).await,
+            Ok(Ok(()))
+        )
+    }
+}
+
 fn bind_worker(
     inner: Arc<Inner>,
     key: Key,
@@ -1215,6 +1672,9 @@ async fn run_attempt(
     acknowledgment: &mut Option<oneshot::Receiver<BrowserHandoff>>,
 ) -> Result<(), AuthorizationOutcome> {
     let key = work.key;
+    if work.mode == AttemptMode::Configured {
+        ensure_watcher(inner, &mut work).await?;
+    }
     let (ready_tx, ready_rx) = oneshot::channel();
     let worker_inner = Arc::clone(inner);
     let deadline = work.deadline;
@@ -2329,12 +2789,15 @@ mod configured_tests {
             .expect("reducer ack");
         assert!(owner.inner.exchanging(key, Instant::now()));
     }
-    fn reserved() -> (SessionController, Work) {
+    async fn reserved() -> (SessionController, Work) {
         let owner = SessionController::with_catalog(catalog());
-        let work = owner
+        let mut work = owner
             .inner
             .reserve_configured(selection(), Instant::now())
             .expect("configured reserve");
+        ensure_watcher(&owner.inner, &mut work)
+            .await
+            .expect("actual watcher readiness");
         exchanging(&owner, work.key); // Reducer fixture: no callback/code/worker exists.
         (owner, work)
     }
@@ -2675,13 +3138,13 @@ mod configured_tests {
     }
 
     #[tokio::test]
-    async fn actual_a_b_and_partial_grants_are_verified_then_discarded() {
+    async fn actual_a_b_and_partial_grants_are_verified_then_retained() {
         for (label, bearer) in [
             (SyntheticLabel::A, "synthetic-session-A"),
             (SyntheticLabel::B, "synthetic-session-B"),
         ] {
             let peer = Peer::new(label, false);
-            let (owner, mut work) = reserved();
+            let (owner, mut work) = reserved().await;
             let value = input(
                 work.key,
                 peer.address,
@@ -2697,7 +3160,7 @@ mod configured_tests {
             .await
             .unwrap()
             .unwrap();
-            assert_eq!(terminal(&owner), VerificationOutcome::VerifiedNotAdopted);
+            assert_eq!(terminal(&owner), VerificationOutcome::AdoptedSessionOnly);
             assert_auth_once(&owner);
             assert_eq!(owner.snapshot().unwrap().phase, Phase::Draining);
             let wire = peer.request();
@@ -2723,10 +3186,10 @@ mod configured_tests {
         }
     }
 
-    #[test]
-    fn extraction_rejects_wrong_identity_scope_and_retained_mapping() {
+    #[tokio::test]
+    async fn extraction_rejects_wrong_identity_scope_and_retained_mapping() {
         for defect in 0..9 {
-            let (owner, work) = reserved();
+            let (owner, work) = reserved().await;
             let mut value = input(
                 work.key,
                 ([127, 0, 0, 1], 1).into(),
@@ -2780,7 +3243,7 @@ mod configured_tests {
     async fn completion_rebuilds_current_mapping_before_discard_commit() {
         for defect in 0..5 {
             let peer = Peer::new(SyntheticLabel::A, false);
-            let (owner, work) = reserved();
+            let (owner, work) = reserved().await;
             let result = candidate(&owner, &work, &peer).await;
             assert_eq!(result.granted_scopes(), &[ApprovedScope::File]);
             {
@@ -2806,7 +3269,7 @@ mod configured_tests {
     async fn cancellation_and_real_candidate_commit_serialize_and_late_results_are_inert() {
         for cancel_first in [true, false] {
             let peer = Peer::new(SyntheticLabel::A, false);
-            let (owner, work) = reserved();
+            let (owner, work) = reserved().await;
             let result = candidate(&owner, &work, &peer).await;
             if cancel_first {
                 owner.cancel(work.key.id).unwrap();
@@ -2825,13 +3288,13 @@ mod configured_tests {
                 if cancel_first {
                     VerificationOutcome::Cancelled
                 } else {
-                    VerificationOutcome::VerifiedNotAdopted
+                    VerificationOutcome::AdoptedSessionOnly
                 }
             );
             assert_auth_once(&owner);
         }
         let peer = Peer::new(SyntheticLabel::A, false);
-        let (owner, work) = reserved();
+        let (owner, work) = reserved().await;
         let result = candidate(&owner, &work, &peer).await;
         let barrier = Barrier::new(3);
         thread::scope(|threads| {
@@ -2851,7 +3314,7 @@ mod configured_tests {
         });
         assert!(matches!(
             terminal(&owner),
-            VerificationOutcome::Cancelled | VerificationOutcome::VerifiedNotAdopted
+            VerificationOutcome::Cancelled | VerificationOutcome::AdoptedSessionOnly
         ));
         assert_auth_once(&owner);
         owner.inner.reaped(work.key);
@@ -2872,9 +3335,9 @@ mod configured_tests {
     #[tokio::test]
     async fn foreign_and_late_real_candidates_cannot_rebind_or_overwrite() {
         let peer = Peer::new(SyntheticLabel::A, false);
-        let (left, left_work) = reserved();
+        let (left, left_work) = reserved().await;
         let result = candidate(&left, &left_work, &peer).await;
-        let (right, right_work) = reserved();
+        let (right, right_work) = reserved().await;
         let right_input = input(
             right_work.key,
             ([127, 0, 0, 1], 1).into(),
@@ -2894,7 +3357,7 @@ mod configured_tests {
         assert_auth_once(&right);
 
         let peer = Peer::new(SyntheticLabel::A, false);
-        let (owner, work) = reserved();
+        let (owner, work) = reserved().await;
         let late = candidate(&owner, &work, &peer).await;
         owner.cancel(work.key.id).unwrap();
         owner.inner.reaped(work.key); // No actual listener belongs to this fixture.
@@ -2923,7 +3386,7 @@ mod configured_tests {
     async fn original_and_token_expiry_do_not_renew_at_completion() {
         for token_boundary in [false, true] {
             let peer = Peer::new(SyntheticLabel::A, false);
-            let (owner, work) = reserved();
+            let (owner, work) = reserved().await;
             let result = candidate(&owner, &work, &peer).await;
             let at = if token_boundary {
                 result.credential_expires_at()
@@ -2931,10 +3394,10 @@ mod configured_tests {
                 work.deadline
             };
             owner.inner.verification_completed(work.key, result, at);
-            assert_ne!(terminal(&owner), VerificationOutcome::VerifiedNotAdopted);
+            assert_ne!(terminal(&owner), VerificationOutcome::AdoptedSessionOnly);
             assert_auth_once(&owner);
         }
-        let (owner, work) = reserved();
+        let (owner, work) = reserved().await;
         let expired = input(
             work.key,
             ([127, 0, 0, 1], 1).into(),
@@ -2977,7 +3440,7 @@ mod configured_tests {
     async fn stalled_real_transport_cancel_close_and_owner_drop_preserve_authorization() {
         for mode in 0..3 {
             let peer = Peer::new(SyntheticLabel::A, true);
-            let (owner, mut work) = reserved();
+            let (owner, mut work) = reserved().await;
             let inner = Arc::clone(&owner.inner);
             let mut owner = Some(owner);
             let value = input(
@@ -3026,7 +3489,7 @@ mod configured_tests {
     async fn real_transport_deadline_preserves_one_authorization_result() {
         for token_limited in [false, true] {
             let peer = Peer::new(SyntheticLabel::A, true);
-            let (owner, mut work) = reserved();
+            let (owner, mut work) = reserved().await;
             let now = Instant::now();
             let original = if token_limited {
                 work.deadline
@@ -3089,7 +3552,7 @@ mod configured_tests {
     async fn post_authorization_worker_fault_poison_and_counter_overflow_fail_closed() {
         for mode in 0..3 {
             let peer = Peer::new(SyntheticLabel::A, false);
-            let (owner, work) = reserved();
+            let (owner, work) = reserved().await;
             let result = candidate(&owner, &work, &peer).await;
             match mode {
                 0 => owner
@@ -3139,6 +3602,756 @@ mod configured_tests {
             owner.inner.reaped(work.key);
         }
     }
+    #[cfg(test)]
+    mod lifecycle_tests {
+        use super::*;
+
+        fn gate() -> (WatcherTestGate, oneshot::Receiver<()>, oneshot::Sender<()>) {
+            let (entered, seen) = oneshot::channel();
+            let (release, released) = oneshot::channel();
+            (
+                WatcherTestGate {
+                    entered,
+                    release: released,
+                },
+                seen,
+                release,
+            )
+        }
+        async fn watch_state(inner: &Arc<Inner>, expected: WatcherState) {
+            let mut changed = inner.changed.subscribe();
+            tokio::time::timeout(Duration::from_secs(3), async {
+                loop {
+                    if inner
+                        .state
+                        .lock()
+                        .unwrap_or_else(|p| p.into_inner())
+                        .watcher
+                        == expected
+                    {
+                        return;
+                    }
+                    changed.changed().await.unwrap();
+                }
+            })
+            .await
+            .expect("bounded actual watcher transition");
+        }
+        async fn vacant(inner: &Arc<Inner>) {
+            let mut changed = inner.changed.subscribe();
+            tokio::time::timeout(Duration::from_secs(3), async {
+                loop {
+                    if inner
+                        .state
+                        .lock()
+                        .unwrap_or_else(|p| p.into_inner())
+                        .slot
+                        .is_none()
+                    {
+                        return;
+                    }
+                    changed.changed().await.unwrap();
+                }
+            })
+            .await
+            .expect("actual attempt resource reaping");
+        }
+        async fn next(owner: &SessionController) -> Work {
+            let mut work = owner
+                .inner
+                .reserve_configured(selection(), Instant::now())
+                .unwrap();
+            ensure_watcher(&owner.inner, &mut work).await.unwrap();
+            exchanging(owner, work.key);
+            work
+        }
+        async fn proof(
+            owner: &SessionController,
+            work: &Work,
+            peer: &Peer,
+            label: SyntheticLabel,
+            actual: &[ApprovedScope],
+            seconds: u64,
+        ) -> VerifiedAccountCandidate {
+            let value = input(
+                work.key,
+                peer.address,
+                label,
+                actual,
+                Instant::now(),
+                seconds,
+            );
+            let (context, _) = owner
+                .inner
+                .start_verification(work.key, &value, Instant::now())
+                .unwrap();
+            let (keep, cancel) = oneshot::channel();
+            let candidate = value
+                .verify(context, cancel)
+                .await
+                .expect("actual synthetic about response");
+            drop(keep);
+            assert_eq!(candidate.granted_scopes(), actual);
+            candidate
+        }
+        async fn initial(actual: &[ApprovedScope]) -> (SessionController, ConnectionTimer) {
+            let (owner, work) = reserved().await;
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let value = proof(&owner, &work, &peer, SyntheticLabel::A, actual, 7200).await;
+            owner
+                .inner
+                .verification_completed(work.key, value, Instant::now());
+            assert_eq!(terminal(&owner), VerificationOutcome::AdoptedSessionOnly);
+            let timer = owner
+                .inner
+                .state
+                .lock()
+                .unwrap()
+                .connected
+                .as_ref()
+                .unwrap()
+                .timer;
+            owner.inner.reaped(work.key); // Reducer reservation started no listener.
+            (owner, timer)
+        }
+        async fn close_fixture(owner: &SessionController, key: Key) {
+            owner.inner.reaped(key); // Only reducer fixtures call this helper.
+            tokio::time::timeout(Duration::from_secs(3), owner.shutdown())
+                .await
+                .unwrap()
+                .unwrap();
+        }
+
+        #[tokio::test]
+        async fn first_same_account_partial_replacement_and_failed_reconnect_keep_whole_owner() {
+            let (owner, first) = initial(&[ApprovedScope::AppData, ApprovedScope::File]).await;
+            assert_eq!(
+                owner.connection_snapshot().unwrap().status,
+                ConnectionStatus::ConnectedSessionOnly
+            );
+            assert!(owner.snapshot().unwrap().attempt_id.is_none());
+            let work = next(&owner).await;
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let value = proof(
+                &owner,
+                &work,
+                &peer,
+                SyntheticLabel::A,
+                &[ApprovedScope::File],
+                7200,
+            )
+            .await;
+            owner
+                .inner
+                .verification_completed(work.key, value, Instant::now());
+            let replacement = owner.connection_snapshot().unwrap();
+            assert_ne!(replacement.connection_id, Some(first.id));
+            assert_eq!(replacement.epoch, first.epoch + 1);
+            assert_eq!(replacement.granted_scopes, vec![ApprovedScope::File]);
+            owner.inner.reaped(work.key);
+            // Raw admission on an already-connected owner still uses C1 only.
+            let last_verification = owner.verification_snapshot().unwrap().last_terminal;
+            let mut legacy = owner.inner.reserve(raw(), Instant::now()).unwrap();
+            assert!(legacy.mode == AttemptMode::PendingOnly);
+            exchanging(&owner, legacy.key);
+            let marker = Pending::Marker {
+                key: legacy.key,
+                expires: Instant::now() + Duration::from_millis(20),
+                scopes: vec![ApprovedScope::File],
+            };
+            continue_pending(&owner.inner, legacy.key, marker, &mut legacy.stop)
+                .await
+                .unwrap();
+            assert_eq!(
+                owner.connection_snapshot().unwrap().connection_id,
+                replacement.connection_id
+            );
+            assert_eq!(
+                owner.verification_snapshot().unwrap().last_terminal,
+                last_verification
+            );
+            owner.inner.reaped(legacy.key);
+            let mut failed = next(&owner).await;
+            // Actual verifier rejects this invalid private loopback target; no
+            // successful-output stub or production endpoint is supplied.
+            let bad = input(
+                failed.key,
+                ([127, 0, 0, 1], 0).into(),
+                SyntheticLabel::A,
+                &[ApprovedScope::File],
+                Instant::now(),
+                60,
+            );
+            continue_configured(&owner.inner, failed.key, bad, &mut failed.stop)
+                .await
+                .unwrap();
+            assert_eq!(
+                terminal(&owner),
+                VerificationOutcome::Failed(AccountError::ClientSetup)
+            );
+            let kept = owner.connection_snapshot().unwrap();
+            assert_eq!(kept.connection_id, replacement.connection_id);
+            assert_eq!(kept.epoch, replacement.epoch);
+            assert_eq!(kept.granted_scopes, vec![ApprovedScope::File]);
+            assert_eq!(owner.inner.state.lock().unwrap().watcher_test.starts, 1);
+            close_fixture(&owner, failed.key).await;
+        }
+
+        #[tokio::test]
+        async fn different_identity_and_project_require_switch_even_after_expiry() {
+            let (owner, original) = initial(&[ApprovedScope::File]).await;
+            for expired in [false, true] {
+                if expired {
+                    expire_connection(&mut owner.inner.state.lock().unwrap(), original.deadline);
+                }
+                let work = next(&owner).await;
+                let peer = Peer::new(SyntheticLabel::B, false);
+                let value = proof(
+                    &owner,
+                    &work,
+                    &peer,
+                    SyntheticLabel::B,
+                    &[ApprovedScope::File],
+                    60,
+                )
+                .await;
+                owner
+                    .inner
+                    .verification_completed(work.key, value, Instant::now());
+                assert_eq!(terminal(&owner), VerificationOutcome::SwitchRequired);
+                let snapshot = owner.connection_snapshot().unwrap();
+                assert_eq!(snapshot.connection_id, Some(original.id));
+                assert_eq!(
+                    snapshot.status,
+                    if expired {
+                        ConnectionStatus::Expired
+                    } else {
+                        ConnectionStatus::ConnectedSessionOnly
+                    }
+                );
+                owner.inner.reaped(work.key);
+            }
+            let mut project = owner
+                .inner
+                .reserve_configured(
+                    RegistrationSelection::new("file-only", &[ApprovedScope::File]).unwrap(),
+                    Instant::now(),
+                )
+                .unwrap();
+            ensure_watcher(&owner.inner, &mut project).await.unwrap();
+            exchanging(&owner, project.key);
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let value = proof(
+                &owner,
+                &project,
+                &peer,
+                SyntheticLabel::A,
+                &[ApprovedScope::File],
+                60,
+            )
+            .await;
+            owner
+                .inner
+                .verification_completed(project.key, value, Instant::now());
+            assert_eq!(terminal(&owner), VerificationOutcome::SwitchRequired);
+            owner.inner.reaped(project.key);
+            owner.invalidate(DisconnectOrSwitch::SwitchAccount).unwrap();
+            assert_eq!(
+                owner.connection_snapshot().unwrap().status,
+                ConnectionStatus::Disconnected
+            );
+            assert!(owner.connection_snapshot().unwrap().account_key.is_none());
+            let work = next(&owner).await;
+            let peer = Peer::new(SyntheticLabel::B, false);
+            let value = proof(
+                &owner,
+                &work,
+                &peer,
+                SyntheticLabel::B,
+                &[ApprovedScope::File],
+                60,
+            )
+            .await;
+            owner
+                .inner
+                .verification_completed(work.key, value, Instant::now());
+            assert_eq!(terminal(&owner), VerificationOutcome::AdoptedSessionOnly);
+            close_fixture(&owner, work.key).await;
+        }
+
+        #[tokio::test]
+        async fn pure_clock_policy_separates_admission_cap_token_and_invalid_clock() {
+            const {
+                assert!(CONNECTION_RETENTION.as_secs() == 3600);
+            }
+            for mode in 0..3 {
+                let (owner, work) = reserved().await;
+                let peer = Peer::new(SyntheticLabel::A, false);
+                let seconds = if mode == 1 { 30 } else { 7200 };
+                let value = proof(
+                    &owner,
+                    &work,
+                    &peer,
+                    SyntheticLabel::A,
+                    &[ApprovedScope::File],
+                    seconds,
+                )
+                .await;
+                let token_end = value.credential_expires_at();
+                owner
+                    .inner
+                    .verification_completed(work.key, value, Instant::now());
+                {
+                    let mut state = owner.inner.state.lock().unwrap();
+                    let held = state.connected.as_ref().unwrap();
+                    let adopted = held.adopted;
+                    let end = held.timer.deadline;
+                    assert_eq!(end, token_end.min(adopted + Duration::from_secs(3600)));
+                    let auth = state.last;
+                    let verification = state.last_verification;
+                    if mode == 0 {
+                        expire_connection(&mut state, work.deadline + Duration::from_secs(1));
+                        assert!(state.connected.is_some()); // Admission is not post-adoption expiry.
+                        expire_connection(&mut state, end - Duration::from_nanos(1));
+                        assert!(state.connected.is_some());
+                    }
+                    expire_connection(
+                        &mut state,
+                        if mode == 2 {
+                            adopted - Duration::from_nanos(1)
+                        } else {
+                            end
+                        },
+                    );
+                    assert!(state.connected.is_none());
+                    assert!(state.identity.is_some());
+                    assert_eq!(state.last, auth);
+                    assert_eq!(state.last_verification, verification);
+                }
+                close_fixture(&owner, work.key).await;
+            }
+        }
+
+        #[tokio::test]
+        async fn scheduled_expiry_idle_reuse_and_old_timer_do_not_erase_replacement() {
+            let (owner, work) = reserved().await;
+            owner.inner.state.lock().unwrap().watcher_test.retention =
+                Some(Duration::from_millis(80));
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let value = proof(
+                &owner,
+                &work,
+                &peer,
+                SyntheticLabel::A,
+                &[ApprovedScope::File],
+                60,
+            )
+            .await;
+            owner
+                .inner
+                .verification_completed(work.key, value, Instant::now());
+            let old = owner
+                .inner
+                .state
+                .lock()
+                .unwrap()
+                .connected
+                .as_ref()
+                .unwrap()
+                .timer;
+            owner.inner.reaped(work.key);
+            let mut changed = owner.inner.changed.subscribe();
+            tokio::time::timeout(Duration::from_secs(2), async {
+                loop {
+                    if owner.inner.state.lock().unwrap().connected.is_none() {
+                        break;
+                    }
+                    changed.changed().await.unwrap();
+                }
+            })
+            .await
+            .unwrap(); // Real scheduled watcher, not manual expiry.
+            assert_eq!(
+                owner.connection_snapshot().unwrap().status,
+                ConnectionStatus::Expired
+            );
+            assert!(owner.inner.state.lock().unwrap().watcher == WatcherState::Running);
+            owner.inner.state.lock().unwrap().watcher_test.retention =
+                Some(Duration::from_secs(30));
+            let work = next(&owner).await;
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let value = proof(
+                &owner,
+                &work,
+                &peer,
+                SyntheticLabel::A,
+                &[ApprovedScope::File],
+                60,
+            )
+            .await;
+            owner
+                .inner
+                .verification_completed(work.key, value, Instant::now());
+            let new_id = owner.connection_snapshot().unwrap().connection_id;
+            expire_observed_connection(
+                &mut owner.inner.state.lock().unwrap(),
+                old,
+                old.deadline + Duration::from_secs(100),
+            );
+            assert_eq!(owner.connection_snapshot().unwrap().connection_id, new_id);
+            assert_eq!(
+                owner.connection_snapshot().unwrap().status,
+                ConnectionStatus::ConnectedSessionOnly
+            );
+            assert_eq!(owner.inner.state.lock().unwrap().watcher_test.starts, 1);
+            close_fixture(&owner, work.key).await;
+        }
+
+        #[tokio::test]
+        async fn reconnect_cancel_orders_and_epoch_mismatch_preserve_incumbent() {
+            for cancel_first in [false, true] {
+                let (owner, old) = initial(&[ApprovedScope::File]).await;
+                let work = next(&owner).await;
+                let peer = Peer::new(SyntheticLabel::A, false);
+                let value = proof(
+                    &owner,
+                    &work,
+                    &peer,
+                    SyntheticLabel::A,
+                    &[ApprovedScope::AppData],
+                    60,
+                )
+                .await;
+                if cancel_first {
+                    owner.cancel(work.key.id).unwrap();
+                }
+                owner
+                    .inner
+                    .verification_completed(work.key, value, Instant::now());
+                if !cancel_first {
+                    assert_eq!(
+                        owner.cancel(work.key.id),
+                        Ok(CancelDisposition::AlreadyTerminal)
+                    );
+                }
+                let snapshot = owner.connection_snapshot().unwrap();
+                if cancel_first {
+                    assert_eq!(snapshot.connection_id, Some(old.id));
+                    assert_eq!(snapshot.granted_scopes, vec![ApprovedScope::File]);
+                } else {
+                    assert_ne!(snapshot.connection_id, Some(old.id));
+                    assert_eq!(snapshot.granted_scopes, vec![ApprovedScope::AppData]);
+                }
+                close_fixture(&owner, work.key).await;
+            }
+            let (owner, old) = initial(&[ApprovedScope::File]).await;
+            let work = next(&owner).await;
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let value = proof(
+                &owner,
+                &work,
+                &peer,
+                SyntheticLabel::A,
+                &[ApprovedScope::AppData],
+                7200,
+            )
+            .await;
+            let barrier = Barrier::new(3);
+            let cancelled = thread::scope(|threads| {
+                let complete = threads.spawn(|| {
+                    barrier.wait();
+                    owner
+                        .inner
+                        .verification_completed(work.key, value, Instant::now());
+                });
+                let cancel = threads.spawn(|| {
+                    barrier.wait();
+                    owner.cancel(work.key.id).unwrap()
+                });
+                barrier.wait();
+                complete.join().unwrap();
+                cancel.join().unwrap()
+            });
+            let kept = owner.connection_snapshot().unwrap();
+            match cancelled {
+                CancelDisposition::Cancelled => {
+                    assert_eq!(kept.connection_id, Some(old.id));
+                    assert_eq!(kept.granted_scopes, vec![ApprovedScope::File]);
+                }
+                CancelDisposition::AlreadyTerminal => {
+                    assert_ne!(kept.connection_id, Some(old.id));
+                    assert_eq!(kept.granted_scopes, vec![ApprovedScope::AppData]);
+                }
+                CancelDisposition::NotCurrent => panic!("current reconnect race"),
+            }
+            close_fixture(&owner, work.key).await;
+
+            let (owner, old) = initial(&[ApprovedScope::File]).await;
+            let work = next(&owner).await;
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let value = proof(
+                &owner,
+                &work,
+                &peer,
+                SyntheticLabel::A,
+                &[ApprovedScope::File],
+                7200,
+            )
+            .await;
+            owner
+                .inner
+                .verification_completed(work.key, value, work.deadline);
+            assert_eq!(terminal(&owner), VerificationOutcome::TimedOut);
+            assert_eq!(
+                owner.connection_snapshot().unwrap().connection_id,
+                Some(old.id)
+            );
+            close_fixture(&owner, work.key).await;
+
+            let (owner, old) = initial(&[ApprovedScope::File]).await;
+            let work = next(&owner).await;
+            let peer = Peer::new(SyntheticLabel::A, false);
+            let value = proof(
+                &owner,
+                &work,
+                &peer,
+                SyntheticLabel::A,
+                &[ApprovedScope::File],
+                60,
+            )
+            .await;
+            owner.inner.state.lock().unwrap().connection_epoch += 1; // Negative binding corruption, not readiness.
+            owner
+                .inner
+                .verification_completed(work.key, value, Instant::now());
+            assert_eq!(terminal(&owner), VerificationOutcome::BindingMismatch);
+            assert_eq!(
+                owner.connection_snapshot().unwrap().connection_id,
+                Some(old.id)
+            );
+            close_fixture(&owner, work.key).await;
+        }
+
+        #[tokio::test]
+        async fn independent_epoch_generation_exhaustion_and_poison_clear_connection() {
+            for mode in 0..3 {
+                let (owner, _) = initial(&[ApprovedScope::File]).await;
+                let mut reaping = None;
+                if mode == 0 {
+                    owner.inner.state.lock().unwrap().connection_epoch = u64::MAX;
+                    let work = next(&owner).await;
+                    let peer = Peer::new(SyntheticLabel::A, false);
+                    let value = proof(
+                        &owner,
+                        &work,
+                        &peer,
+                        SyntheticLabel::A,
+                        &[ApprovedScope::File],
+                        60,
+                    )
+                    .await;
+                    owner
+                        .inner
+                        .verification_completed(work.key, value, Instant::now());
+                    reaping = Some(work.key);
+                } else if mode == 1 {
+                    owner.inner.state.lock().unwrap().generation = u64::MAX;
+                    assert_eq!(
+                        owner
+                            .inner
+                            .reserve_configured(selection(), Instant::now())
+                            .err(),
+                        Some(StartError::Controller(ControllerError::CounterExhausted))
+                    );
+                } else {
+                    let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
+                        let _held = owner.inner.state.lock().unwrap();
+                        panic!("synthetic connected poison");
+                    }));
+                    assert_eq!(
+                        owner.connection_snapshot().err(),
+                        Some(ControllerError::Poisoned)
+                    );
+                }
+                {
+                    let state = owner.inner.state.lock().unwrap_or_else(|p| p.into_inner());
+                    assert!(state.closed && state.connected.is_none() && state.identity.is_none());
+                }
+                if let Some(key) = reaping {
+                    owner.inner.reaped(key);
+                }
+                watch_state(&owner.inner, WatcherState::Stopped).await;
+                assert_eq!(
+                    owner.shutdown().await,
+                    Err(if mode == 2 {
+                        ControllerError::Poisoned
+                    } else {
+                        ControllerError::CounterExhausted
+                    })
+                );
+            }
+        }
+
+        #[tokio::test]
+        async fn real_startup_cancel_is_attempt_only_and_running_is_not_forged() {
+            let owner = SessionController::with_catalog(catalog());
+            assert!(owner.inner.state.lock().unwrap().watcher == WatcherState::Dormant);
+            let (startup, entered, release) = gate();
+            owner.inner.state.lock().unwrap().watcher_test.startup = Some(startup);
+            let mut begin = Box::pin(owner.begin_configured(selection()));
+            tokio::select! { biased; _ = &mut begin => panic!("ticket before watcher ready"), _ = entered => {} }
+            {
+                let state = owner.inner.state.lock().unwrap();
+                assert!(matches!(state.watcher, WatcherState::Starting(_)));
+                assert!(state.connected.is_none());
+                assert_eq!(state.slot.as_ref().unwrap().phase, Phase::Starting);
+            }
+            let id = owner.snapshot().unwrap().attempt_id.unwrap();
+            owner.cancel(id).unwrap();
+            drop(begin);
+            assert!(!owner.inner.state.lock().unwrap().closed);
+            release.send(()).unwrap();
+            watch_state(&owner.inner, WatcherState::Running).await;
+            vacant(&owner.inner).await;
+            let ticket =
+                tokio::time::timeout(Duration::from_secs(3), owner.begin_configured(selection()))
+                    .await
+                    .unwrap()
+                    .unwrap();
+            assert_eq!(owner.inner.state.lock().unwrap().watcher_test.starts, 1);
+            drop(ticket);
+            tokio::time::timeout(Duration::from_secs(3), owner.shutdown())
+                .await
+                .unwrap()
+                .unwrap();
+        }
+
+        #[tokio::test]
+        async fn real_startup_failure_and_never_polled_guard_fail_closed() {
+            let owner = SessionController::with_catalog(catalog());
+            owner.inner.state.lock().unwrap().watcher_test.fail_start = true;
+            assert!(owner.begin_configured(selection()).await.is_err());
+            watch_state(&owner.inner, WatcherState::Stopped).await;
+            vacant(&owner.inner).await;
+            assert_eq!(owner.shutdown().await, Err(ControllerError::WatcherFailure));
+            let owner = SessionController::with_catalog(catalog());
+            let work = owner
+                .inner
+                .reserve_configured(selection(), Instant::now())
+                .unwrap();
+            let guard = owner
+                .inner
+                .prepare_watcher(work.key, work.startup_deadline)
+                .unwrap()
+                .unwrap();
+            let never_polled = watcher_task(guard);
+            drop(never_polled); // Exact owned future destruction path, no fake Running.
+            let state = owner.inner.state.lock().unwrap();
+            assert!(state.watcher == WatcherState::Stopped);
+            assert!(state.closed && state.connected.is_none());
+            assert_eq!(state.fault, Some(ControllerError::WatcherFailure));
+            drop(state);
+            owner.inner.reaped(work.key);
+        }
+
+        #[tokio::test]
+        async fn startup_timeout_keeps_finalization_fence_until_actual_gate_ends() {
+            let owner = SessionController::with_catalog(catalog());
+            let (startup, entered, release) = gate();
+            owner.inner.state.lock().unwrap().watcher_test.startup = Some(startup);
+            let mut work = owner
+                .inner
+                .reserve_configured(selection(), Instant::now())
+                .unwrap();
+            work.startup_deadline = Instant::now() + Duration::from_millis(50);
+            let (tx, rx) = oneshot::channel();
+            let supervisor =
+                tauri::async_runtime::spawn(supervise(Arc::clone(&owner.inner), work, tx));
+            entered.await.unwrap();
+            assert!(
+                tokio::time::timeout(Duration::from_secs(1), rx)
+                    .await
+                    .unwrap()
+                    .is_err()
+            );
+            assert!(owner.inner.state.lock().unwrap().closed);
+            let mut shutdown = Box::pin(owner.shutdown());
+            tokio::select! { biased; _ = &mut shutdown => panic!("watcher gate not finalized"), _ = tokio::time::sleep(Duration::from_millis(20)) => {} }
+            release.send(()).unwrap();
+            supervisor.await.unwrap();
+            assert_eq!(
+                tokio::time::timeout(Duration::from_secs(3), shutdown)
+                    .await
+                    .unwrap(),
+                Err(ControllerError::WatcherFailure)
+            );
+        }
+
+        #[tokio::test]
+        async fn shutdown_waits_for_real_watcher_finalization_and_held_ticket() {
+            let owner = SessionController::with_catalog(catalog());
+            let ticket = owner.begin_configured(selection()).await.unwrap();
+            let (cleanup, entered, release) = gate();
+            owner.inner.state.lock().unwrap().watcher_test.cleanup = Some(cleanup);
+            let mut shutdown = Box::pin(owner.shutdown());
+            tokio::select! { biased; _ = &mut shutdown => panic!("both fences required"), _ = entered => {} }
+            assert!(owner.inner.state.lock().unwrap().watcher == WatcherState::Finishing);
+            assert_eq!(owner.snapshot().unwrap().phase, Phase::Draining);
+            drop(ticket);
+            vacant(&owner.inner).await;
+            tokio::select! { biased; _ = &mut shutdown => panic!("watcher cleanup gate still owned"), _ = tokio::time::sleep(Duration::from_millis(20)) => {} }
+            release.send(()).unwrap();
+            tokio::time::timeout(Duration::from_secs(3), shutdown)
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(owner.inner.state.lock().unwrap().watcher == WatcherState::Stopped);
+        }
+
+        #[tokio::test]
+        async fn watcher_unwind_clears_credentials_before_cleanup_and_owner_drop_has_no_cycle() {
+            let (owner, _) = initial(&[ApprovedScope::File]).await;
+            let (cleanup, entered, release) = gate();
+            {
+                let mut state = owner.inner.state.lock().unwrap();
+                state.watcher_test.cleanup = Some(cleanup);
+                state.watcher_test.panic_next = true;
+                state.lifecycle_changed.send_replace(());
+            }
+            tokio::time::timeout(Duration::from_secs(2), entered)
+                .await
+                .unwrap()
+                .unwrap();
+            {
+                let state = owner.inner.state.lock().unwrap();
+                assert!(state.watcher == WatcherState::Finishing);
+                assert!(state.connected.is_none() && state.identity.is_none() && state.closed);
+                assert_eq!(state.fault, Some(ControllerError::WatcherFailure));
+            }
+            release.send(()).unwrap();
+            watch_state(&owner.inner, WatcherState::Stopped).await;
+            assert_eq!(owner.shutdown().await, Err(ControllerError::WatcherFailure));
+
+            let (owner, _) = initial(&[ApprovedScope::File]).await;
+            let ticket = owner.begin_configured(selection()).await.unwrap();
+            let inner = Arc::clone(&owner.inner);
+            let weak = Arc::downgrade(&inner);
+            drop(owner);
+            assert!(inner.state.lock().unwrap().connected.is_none());
+            assert!(inner.state.lock().unwrap().identity.is_none());
+            drop(ticket);
+            vacant(&inner).await;
+            watch_state(&inner, WatcherState::Stopped).await;
+            drop(inner);
+            tokio::time::timeout(Duration::from_secs(1), async {
+                while weak.upgrade().is_some() {
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("no owner-reference cycle after finalization");
+        }
+    }
 }
 
 #[cfg(test)]
@@ -3148,3 +4361,7 @@ mod independent_tests;
 #[cfg(test)]
 #[path = "configured_verification_independent_tests.rs"]
 mod configured_verification_independent_tests;
+
+#[cfg(test)]
+#[path = "connected_lifecycle_independent_tests.rs"]
+mod connected_lifecycle_independent_tests;

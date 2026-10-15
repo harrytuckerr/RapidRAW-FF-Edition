@@ -1,4 +1,5 @@
-//! Independent fixed-outcome C2 probes. Synthetic localhost only.
+//! Independent fixed-outcome C2 probes, migrated to C3 connected ownership.
+//! Synthetic localhost only.
 //! No successful Code callback is acknowledged. Reducer fixtures start no
 //! listener/supervisor; every candidate comes from the real account transport.
 
@@ -48,12 +49,15 @@ fn raw_start() -> NativeStart {
     .unwrap()
 }
 
-fn reducer(scopes: &[ApprovedScope]) -> (SessionController, Work) {
+async fn reducer(scopes: &[ApprovedScope]) -> (SessionController, Work) {
     let owner = SessionController::with_catalog(native_catalog());
-    let work = owner
+    let mut work = owner
         .inner
         .reserve_configured(select(scopes), Instant::now())
         .unwrap();
+    ensure_watcher(&owner.inner, &mut work)
+        .await
+        .expect("actual production watcher readiness");
     owner.inner.offer(work.key, Instant::now()).unwrap();
     // No worker, callback or code exists in this reducer-only reservation.
     owner
@@ -250,7 +254,11 @@ fn check_request(peer: &AboutPeer, bearer: &str) {
     assert!(!wire.contains("synthetic-session-refresh"));
 }
 
-fn assert_nonretaining(owner: &SessionController, key: Key, expected: VerificationOutcome) {
+fn assert_verification_terminal(
+    owner: &SessionController,
+    key: Key,
+    expected: VerificationOutcome,
+) {
     let auth = owner.snapshot().unwrap();
     assert_eq!(
         auth.last_authorization,
@@ -277,6 +285,111 @@ fn assert_nonretaining(owner: &SessionController, key: Key, expected: Verificati
     assert!(slot.verification == VerificationState::Finished);
     assert!(slot.pending.is_none());
     assert!(*slot.stop.borrow());
+    assert_eq!(
+        state.connected.is_some(),
+        expected == VerificationOutcome::AdoptedSessionOnly
+    );
+}
+
+// Compare the complete exposed candidate/connection metadata across Slot reaping.
+// No credential extraction, fake proof, watcher state assignment or new test case.
+#[derive(PartialEq, Eq)]
+struct RetainedMetadata {
+    connection_id: Uuid,
+    epoch: u64,
+    retention_deadline: Instant,
+    adopted: Instant,
+    account_key: AccountKey,
+    granted: Vec<ApprovedScope>,
+    missing: Vec<ApprovedScope>,
+    credential_expiry: Instant,
+}
+
+fn retained_metadata(inner: &Inner) -> Option<RetainedMetadata> {
+    let state = inner.state.lock().unwrap();
+    let Some(connected) = state.connected.as_ref() else {
+        assert!(
+            state.identity.is_none(),
+            "fresh failed/cancelled fixture has no identity"
+        );
+        return None;
+    };
+    let stamp = state.identity.as_ref().expect("adopted identity stamp");
+    assert_eq!(&stamp.key, connected.candidate.account_key());
+    assert_eq!(stamp.id, connected.timer.id);
+    assert_eq!(state.connection_epoch, connected.timer.epoch);
+    // Both fixed response bodies contain only permissionId: do not invent display data.
+    let display = connected.candidate.display();
+    assert!(display.display_name().is_none());
+    assert!(display.email_address().is_none());
+    assert!(display.quota().is_none());
+    Some(RetainedMetadata {
+        connection_id: connected.timer.id,
+        epoch: connected.timer.epoch,
+        retention_deadline: connected.timer.deadline,
+        adopted: connected.adopted,
+        account_key: connected.candidate.account_key().clone(),
+        granted: connected.candidate.granted_scopes().to_vec(),
+        missing: connected.candidate.missing_requested_scopes().to_vec(),
+        credential_expiry: connected.candidate.credential_expires_at(),
+    })
+}
+
+fn assert_adopted_metadata(
+    owner: &SessionController,
+    permission_id: &str,
+    granted: &[ApprovedScope],
+    missing: &[ApprovedScope],
+) {
+    let metadata = retained_metadata(&owner.inner).expect("whole sealed candidate retained");
+    assert_eq!(metadata.account_key.project_number.value(), 987);
+    assert_eq!(
+        metadata.account_key.drive_permission_id.as_str(),
+        permission_id
+    );
+    assert_eq!(metadata.granted, granted);
+    assert_eq!(metadata.missing, missing);
+    assert_eq!(metadata.epoch, 1);
+    assert!(!metadata.connection_id.is_nil());
+    let snapshot = owner.connection_snapshot().unwrap();
+    assert_eq!(snapshot.status, ConnectionStatus::ConnectedSessionOnly);
+    assert_eq!(snapshot.connection_id, Some(metadata.connection_id));
+    assert_eq!(snapshot.epoch, metadata.epoch);
+    assert_eq!(snapshot.account_key.as_ref(), Some(&metadata.account_key));
+    assert_eq!(snapshot.granted_scopes, granted);
+}
+
+fn reap_reducer_preserving_connection(inner: &Inner, key: Key) {
+    let before = retained_metadata(inner);
+    // Only the synthetic Slot is reaped: reducer() started no listener/supervisor.
+    // The real watcher remains owned and is separately closed/awaited below.
+    inner.reaped(key);
+    assert!(
+        retained_metadata(inner) == before,
+        "Slot reaping preserves all owner metadata"
+    );
+}
+
+async fn finish_reducer(inner: &Arc<Inner>) {
+    let mut changed = inner.changed.subscribe();
+    inner.close();
+    tokio::time::timeout(Duration::from_secs(1), async {
+        loop {
+            {
+                let state = inner.state.lock().unwrap();
+                assert!(
+                    state.slot.is_none(),
+                    "synthetic Slot reaped after verifier ended"
+                );
+                if state.watcher == WatcherState::Stopped {
+                    return;
+                }
+            }
+            changed.changed().await.unwrap();
+        }
+    })
+    .await
+    .expect("bounded actual watcher finalization, including owner Drop");
 }
 
 async fn real_candidate(
@@ -493,7 +606,7 @@ async fn independent_actual_continuation_success_partial_grants_and_typed_failur
             ApprovedScope::File,
             200,
             A_BODY,
-            VerificationOutcome::VerifiedNotAdopted,
+            VerificationOutcome::AdoptedSessionOnly,
             "Bearer synthetic-session-A",
         ),
         (
@@ -501,7 +614,7 @@ async fn independent_actual_continuation_success_partial_grants_and_typed_failur
             ApprovedScope::AppData,
             200,
             B_BODY,
-            VerificationOutcome::VerifiedNotAdopted,
+            VerificationOutcome::AdoptedSessionOnly,
             "Bearer synthetic-session-B",
         ),
         (
@@ -522,7 +635,7 @@ async fn independent_actual_continuation_success_partial_grants_and_typed_failur
         ),
     ] {
         let peer = AboutPeer::new(status, body, false);
-        let (owner, mut work) = reducer(&[ApprovedScope::File, ApprovedScope::AppData]);
+        let (owner, mut work) = reducer(&[ApprovedScope::File, ApprovedScope::AppData]).await;
         let value = fixture(work.key, peer.address, label, &[scope], Instant::now(), 30);
         tokio::time::timeout(
             Duration::from_secs(3),
@@ -532,7 +645,17 @@ async fn independent_actual_continuation_success_partial_grants_and_typed_failur
         .unwrap()
         .unwrap();
         check_request(&peer, bearer);
-        assert_nonretaining(&owner, work.key, expected);
+        assert_verification_terminal(&owner, work.key, expected);
+        if expected == VerificationOutcome::AdoptedSessionOnly {
+            let (permission, missing) = if scope == ApprovedScope::File {
+                ("independent_A", ApprovedScope::AppData)
+            } else {
+                ("independent_B", ApprovedScope::File)
+            };
+            assert_adopted_metadata(&owner, permission, &[scope], &[missing]);
+        } else {
+            assert!(retained_metadata(&owner.inner).is_none());
+        }
         let recorded = owner.verification_snapshot().unwrap();
         owner.inner.verification_failed(
             work.key,
@@ -544,7 +667,7 @@ async fn independent_actual_continuation_success_partial_grants_and_typed_failur
             owner.cancel(work.key.id),
             Ok(CancelDisposition::AlreadyTerminal)
         );
-        owner.inner.reaped(work.key); // No listener/supervisor was started by reducer().
+        reap_reducer_preserving_connection(&owner.inner, work.key);
         assert_eq!(
             owner.verification_snapshot().unwrap().phase,
             VerificationPhase::Idle
@@ -553,14 +676,15 @@ async fn independent_actual_continuation_success_partial_grants_and_typed_failur
             owner.verification_snapshot().unwrap().last_terminal,
             recorded.last_terminal
         );
+        finish_reducer(&owner.inner).await;
     }
 }
 
-#[test]
-fn independent_preflight_rejects_identity_scope_and_configuration_without_terminal() {
+#[tokio::test]
+async fn independent_preflight_rejects_identity_scope_and_configuration_without_terminal() {
     for defect in 0..7 {
         let peer = AboutPeer::new(200, A_BODY, false);
-        let (owner, work) = reducer(&[ApprovedScope::File]);
+        let (owner, work) = reducer(&[ApprovedScope::File]).await;
         let mut value = fixture(
             work.key,
             peer.address,
@@ -619,6 +743,7 @@ fn independent_preflight_rejects_identity_scope_and_configuration_without_termin
                 .is_none()
         );
         owner.inner.reaped(work.key);
+        finish_reducer(&owner.inner).await;
     }
 }
 
@@ -626,7 +751,7 @@ fn independent_preflight_rejects_identity_scope_and_configuration_without_termin
 async fn independent_real_candidates_recheck_current_mapping_and_exact_attempt() {
     for defect in 0..4 {
         let peer = AboutPeer::new(200, A_BODY, false);
-        let (owner, work) = reducer(&[ApprovedScope::File, ApprovedScope::AppData]);
+        let (owner, work) = reducer(&[ApprovedScope::File, ApprovedScope::AppData]).await;
         let candidate = real_candidate(
             &owner,
             &work,
@@ -652,12 +777,13 @@ async fn independent_real_candidates_recheck_current_mapping_and_exact_attempt()
         owner
             .inner
             .verification_completed(work.key, candidate, Instant::now());
-        assert_nonretaining(&owner, work.key, VerificationOutcome::BindingMismatch);
+        assert_verification_terminal(&owner, work.key, VerificationOutcome::BindingMismatch);
         owner.inner.reaped(work.key);
+        finish_reducer(&owner.inner).await;
     }
     for wrong_generation in [false, true] {
         let peer = AboutPeer::new(200, B_BODY, false);
-        let (owner, work) = reducer(&[ApprovedScope::File]);
+        let (owner, work) = reducer(&[ApprovedScope::File]).await;
         let candidate = real_candidate(
             &owner,
             &work,
@@ -683,11 +809,12 @@ async fn independent_real_candidates_recheck_current_mapping_and_exact_attempt()
             .verification_completed(wrong, candidate, Instant::now());
         assert_eq!(owner.verification_snapshot().unwrap(), before);
         owner.cancel(work.key.id).unwrap();
-        assert_nonretaining(&owner, work.key, VerificationOutcome::Cancelled);
+        assert_verification_terminal(&owner, work.key, VerificationOutcome::Cancelled);
         owner.inner.reaped(work.key);
+        finish_reducer(&owner.inner).await;
     }
     let peer = AboutPeer::new(200, A_BODY, false);
-    let (left, left_work) = reducer(&[ApprovedScope::File]);
+    let (left, left_work) = reducer(&[ApprovedScope::File]).await;
     let foreign = real_candidate(
         &left,
         &left_work,
@@ -696,7 +823,7 @@ async fn independent_real_candidates_recheck_current_mapping_and_exact_attempt()
         &[ApprovedScope::File],
     )
     .await;
-    let (right, right_work) = reducer(&[ApprovedScope::File]);
+    let (right, right_work) = reducer(&[ApprovedScope::File]).await;
     let unconsumed = fixture(
         right_work.key,
         peer.address,
@@ -712,17 +839,19 @@ async fn independent_real_candidates_recheck_current_mapping_and_exact_attempt()
     right
         .inner
         .verification_completed(right_work.key, foreign, Instant::now());
-    assert_nonretaining(&right, right_work.key, VerificationOutcome::BindingMismatch);
+    assert_verification_terminal(&right, right_work.key, VerificationOutcome::BindingMismatch);
     left.cancel(left_work.key.id).unwrap();
     left.inner.reaped(left_work.key);
     right.inner.reaped(right_work.key);
+    finish_reducer(&left.inner).await;
+    finish_reducer(&right.inner).await;
 }
 
 #[tokio::test]
 async fn independent_real_completion_cancel_orders_race_and_replacement_are_once_only() {
     for cancel_first in [true, false] {
         let peer = AboutPeer::new(200, A_BODY, false);
-        let (owner, work) = reducer(&[ApprovedScope::File]);
+        let (owner, work) = reducer(&[ApprovedScope::File]).await;
         let candidate = real_candidate(
             &owner,
             &work,
@@ -744,20 +873,24 @@ async fn independent_real_completion_cancel_orders_race_and_replacement_are_once
                 Ok(CancelDisposition::AlreadyTerminal)
             );
         }
-        assert_nonretaining(
+        assert_verification_terminal(
             &owner,
             work.key,
             if cancel_first {
                 VerificationOutcome::Cancelled
             } else {
-                VerificationOutcome::VerifiedNotAdopted
+                VerificationOutcome::AdoptedSessionOnly
             },
         );
         assert_eq!(owner.snapshot().unwrap().last_authorization, authorization);
-        owner.inner.reaped(work.key);
+        if !cancel_first {
+            assert_adopted_metadata(&owner, "independent_A", &[ApprovedScope::File], &[]);
+        }
+        reap_reducer_preserving_connection(&owner.inner, work.key);
+        finish_reducer(&owner.inner).await;
     }
     let peer = AboutPeer::new(200, B_BODY, false);
-    let (owner, work) = reducer(&[ApprovedScope::File]);
+    let (owner, work) = reducer(&[ApprovedScope::File]).await;
     let candidate = real_candidate(
         &owner,
         &work,
@@ -782,18 +915,22 @@ async fn independent_real_completion_cancel_orders_race_and_replacement_are_once
         complete.join().unwrap();
         cancel.join().unwrap()
     });
-    assert_nonretaining(
+    assert_verification_terminal(
         &owner,
         work.key,
         match cancelled {
             CancelDisposition::Cancelled => VerificationOutcome::Cancelled,
-            CancelDisposition::AlreadyTerminal => VerificationOutcome::VerifiedNotAdopted,
+            CancelDisposition::AlreadyTerminal => VerificationOutcome::AdoptedSessionOnly,
             CancelDisposition::NotCurrent => panic!("race belongs to current reservation"),
         },
     );
-    owner.inner.reaped(work.key);
+    if cancelled == CancelDisposition::AlreadyTerminal {
+        assert_adopted_metadata(&owner, "independent_B", &[ApprovedScope::File], &[]);
+    }
+    reap_reducer_preserving_connection(&owner.inner, work.key);
+    finish_reducer(&owner.inner).await;
     let peer = AboutPeer::new(200, A_BODY, false);
-    let (owner, work) = reducer(&[ApprovedScope::File]);
+    let (owner, work) = reducer(&[ApprovedScope::File]).await;
     let late = real_candidate(
         &owner,
         &work,
@@ -826,13 +963,14 @@ async fn independent_real_completion_cancel_orders_race_and_replacement_are_once
         AuthorizationOutcome::Denied
     );
     owner.inner.reaped(replacement.key);
+    finish_reducer(&owner.inner).await;
 }
 
 #[tokio::test]
 async fn independent_original_token_and_snapshot_expiry_do_not_renew_or_rewrite() {
     for token_boundary in [false, true] {
         let peer = AboutPeer::new(200, A_BODY, false);
-        let (owner, work) = reducer(&[ApprovedScope::File]);
+        let (owner, work) = reducer(&[ApprovedScope::File]).await;
         let candidate = real_candidate(
             &owner,
             &work,
@@ -847,7 +985,7 @@ async fn independent_original_token_and_snapshot_expiry_do_not_renew_or_rewrite(
             work.deadline
         };
         owner.inner.verification_completed(work.key, candidate, at);
-        assert_nonretaining(
+        assert_verification_terminal(
             &owner,
             work.key,
             if token_boundary {
@@ -869,9 +1007,10 @@ async fn independent_original_token_and_snapshot_expiry_do_not_renew_or_rewrite(
             work.deadline
         );
         owner.inner.reaped(work.key);
+        finish_reducer(&owner.inner).await;
     }
     let peer = AboutPeer::new(200, A_BODY, false);
-    let (owner, work) = reducer(&[ApprovedScope::File]);
+    let (owner, work) = reducer(&[ApprovedScope::File]).await;
     let expired = fixture(
         work.key,
         peer.address,
@@ -925,16 +1064,17 @@ async fn independent_original_token_and_snapshot_expiry_do_not_renew_or_rewrite(
             .outcome,
         VerificationOutcome::TimedOut
     );
-    assert_nonretaining(&owner, work.key, VerificationOutcome::TimedOut);
+    assert_verification_terminal(&owner, work.key, VerificationOutcome::TimedOut);
     assert!(peer.captured.lock().unwrap().is_none());
     owner.inner.reaped(work.key);
+    finish_reducer(&owner.inner).await;
 }
 
 #[tokio::test]
 async fn independent_stalled_continuation_cancel_close_drop_and_absolute_deadline() {
     for action in 0..4 {
         let peer = AboutPeer::new(200, A_BODY, true);
-        let (owner, mut work) = reducer(&[ApprovedScope::File]);
+        let (owner, mut work) = reducer(&[ApprovedScope::File]).await;
         let inner = Arc::clone(&owner.inner);
         let mut owner = Some(owner);
         let original = if action == 3 {
@@ -967,27 +1107,29 @@ async fn independent_stalled_continuation_cancel_close_drop_and_absolute_deadlin
             .await
             .unwrap()
             .unwrap();
-        let state = inner.state.lock().unwrap();
-        assert_eq!(state.last, recorded);
-        assert_eq!(
-            state.last.unwrap().outcome,
-            AuthorizationOutcome::CompletedPendingVerification
-        );
-        let outcome = state.last_verification.unwrap().outcome;
-        match action {
-            0 => assert_eq!(outcome, VerificationOutcome::Cancelled),
-            1 | 2 => assert_eq!(outcome, VerificationOutcome::Closed),
-            _ => assert!(matches!(
-                outcome,
-                VerificationOutcome::TimedOut | VerificationOutcome::Failed(AccountError::Deadline)
-            )),
+        {
+            let state = inner.state.lock().unwrap();
+            assert_eq!(state.last, recorded);
+            assert_eq!(
+                state.last.unwrap().outcome,
+                AuthorizationOutcome::CompletedPendingVerification
+            );
+            let outcome = state.last_verification.unwrap().outcome;
+            match action {
+                0 => assert_eq!(outcome, VerificationOutcome::Cancelled),
+                1 | 2 => assert_eq!(outcome, VerificationOutcome::Closed),
+                _ => assert!(matches!(
+                    outcome,
+                    VerificationOutcome::TimedOut
+                        | VerificationOutcome::Failed(AccountError::Deadline)
+                )),
+            }
+            let slot = state.slot.as_ref().unwrap();
+            assert_eq!(slot.phase, Phase::Draining);
+            assert!(slot.pending.is_none());
+            assert_eq!(slot.deadline, original);
+            assert!(*slot.stop.borrow());
         }
-        let slot = state.slot.as_ref().unwrap();
-        assert_eq!(slot.phase, Phase::Draining);
-        assert!(slot.pending.is_none());
-        assert_eq!(slot.deadline, original);
-        assert!(*slot.stop.borrow());
-        drop(state);
         assert_eq!(
             inner.reserve(raw_start(), Instant::now()).err(),
             Some(if action == 1 || action == 2 {
@@ -997,6 +1139,7 @@ async fn independent_stalled_continuation_cancel_close_drop_and_absolute_deadlin
             })
         );
         inner.reaped(work.key); // No listener/supervisor; owned verifier future ended above.
+        finish_reducer(&inner).await;
     }
 }
 
@@ -1004,7 +1147,7 @@ async fn independent_stalled_continuation_cancel_close_drop_and_absolute_deadlin
 async fn independent_faults_after_authorization_drop_candidates_and_keep_cleanup_fence() {
     for action in 0..3 {
         let peer = AboutPeer::new(200, A_BODY, false);
-        let (owner, work) = reducer(&[ApprovedScope::File]);
+        let (owner, work) = reducer(&[ApprovedScope::File]).await;
         let candidate = real_candidate(
             &owner,
             &work,
