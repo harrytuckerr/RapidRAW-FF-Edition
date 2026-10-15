@@ -33,7 +33,9 @@ use crate::app_settings::*;
 use crate::as_shot::as_shot;
 use crate::baseline_exposure::BaselineOptions;
 use crate::exif_processing;
-use crate::formats::{is_raw_file, is_supported_image_file};
+use crate::formats::{
+    ImageContentIssue, is_raw_file, is_supported_image_file, validate_image_content,
+};
 use crate::gpu_processing;
 use crate::image_loader;
 use crate::image_processing::GpuContext;
@@ -3708,6 +3710,232 @@ pub fn get_cached_or_generate_thumbnail_image(
     }
 }
 
+/// Filesystem steps used to publish an imported file. Tests replace individual
+/// steps to inject failures; production uses `ImportStagingOps::default()`.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+struct ImportStagingOps<'a> {
+    write: &'a dyn Fn(&mut fs::File, &[u8]) -> std::io::Result<()>,
+    before_publish: &'a dyn Fn(&Path),
+    persist: &'a dyn Fn(&Path, &Path) -> std::io::Result<()>,
+    remove: &'a dyn Fn(&Path) -> std::io::Result<()>,
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn write_and_sync(file: &mut fs::File, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write;
+    file.write_all(bytes)?;
+    file.flush()?;
+    file.sync_all()
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn no_publish_hook(_: &Path) {}
+
+/// Never replaces an existing target. tempfile first tries an atomic
+/// no-replace rename; where unsupported it hard-links and then unlinks the
+/// temporary name, ignoring unlink errors (handled by the caller).
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn persist_without_replacing(temp: &Path, dest: &Path) -> std::io::Result<()> {
+    tempfile::TempPath::try_from_path(temp)?
+        .persist_noclobber(dest)
+        .map_err(|err| {
+            // The caller owns cleanup of the temporary file.
+            let _ = err.path.keep();
+            err.error
+        })
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn remove_path(path: &Path) -> std::io::Result<()> {
+    fs::remove_file(path)
+}
+
+impl Default for ImportStagingOps<'static> {
+    fn default() -> Self {
+        ImportStagingOps {
+            write: &write_and_sync,
+            before_publish: &no_publish_hook,
+            persist: &persist_without_replacing,
+            remove: &remove_path,
+        }
+    }
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn import_display_basename(name: &str) -> String {
+    Path::new(name)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| name.to_string())
+}
+
+/// Accepts bytes that were actually read only when they are nonempty and do not
+/// contradict the original display name. Other content is left to the decoders.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn validate_import_read(
+    display_name: &str,
+    read: Result<Vec<u8>, String>,
+    source_label: &str,
+) -> Result<Vec<u8>, String> {
+    let name = import_display_basename(display_name);
+    let bytes = read.map_err(|e| {
+        let detail = if source_label.is_empty() {
+            e
+        } else {
+            e.replace(source_label, "the selected item")
+        };
+        format!("Could not read “{}”: {}", name, detail)
+    })?;
+
+    match validate_image_content(display_name, &bytes) {
+        Ok(()) => Ok(bytes),
+        Err(ImageContentIssue::Empty) => Err(format!(
+            "No image data was read for “{}”. Select the original file and try again.",
+            name
+        )),
+        Err(issue) => Err(issue.open_error_message(display_name)),
+    }
+}
+
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+struct PublishedImport {
+    path: PathBuf,
+    cleanup_warning: Option<String>,
+}
+
+/// Writes `bytes` to a hidden temporary file in `dest_dir` and publishes it as
+/// `file_name` without replacing anything. On failure no final file is created,
+/// existing files are untouched and only the owned temporary file is removed.
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn publish_import_bytes(
+    dest_dir: &Path,
+    file_name: &str,
+    bytes: &[u8],
+    ops: &ImportStagingOps,
+) -> Result<PublishedImport, String> {
+    let dest = dest_dir.join(file_name);
+    let name = import_display_basename(file_name);
+
+    if fs::symlink_metadata(&dest).is_ok() {
+        return Err(format!(
+            "File already exists at destination: {}",
+            dest.display()
+        ));
+    }
+
+    let (mut file, temp_path) = tempfile::Builder::new()
+        .prefix(".rapidraw-import-")
+        .suffix(".tmp")
+        .tempfile_in(dest_dir)
+        .and_then(|temp| temp.keep().map_err(|e| e.error))
+        .map_err(|e| format!("Could not stage “{}”: {}", name, e))?;
+
+    let temp_name = import_display_basename(&temp_path.to_string_lossy());
+    // Removes the owned temporary file. Only success or NotFound proves it is
+    // gone; any other error (including an unreadable directory) is reported.
+    let remove_temp = || match (ops.remove)(&temp_path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Some(e),
+        _ => None,
+    };
+    let with_cleanup = |primary: String| -> String {
+        match remove_temp() {
+            None => primary,
+            Some(e) => format!(
+                "{} The temporary file “{}” could not be removed: {}",
+                primary, temp_name, e
+            ),
+        }
+    };
+
+    let written = (ops.write)(&mut file, bytes);
+    drop(file);
+    if let Err(e) = written {
+        return Err(with_cleanup(format!("Could not write “{}”: {}", name, e)));
+    }
+
+    (ops.before_publish)(&dest);
+
+    if let Err(e) = (ops.persist)(&temp_path, &dest) {
+        let primary = if e.kind() == std::io::ErrorKind::AlreadyExists {
+            format!("File already exists at destination: {}", dest.display())
+        } else {
+            format!("Could not publish “{}”: {}", name, e)
+        };
+        return Err(with_cleanup(primary));
+    }
+
+    // A rename leaves no temporary name (NotFound); the hard-link fallback can
+    // leave it behind. The published file is complete either way, so a cleanup
+    // failure is a warning, never a failed import.
+    let cleanup_warning = remove_temp().map(|e| {
+        format!(
+            "Imported “{}”, but the temporary file “{}” could not be removed: {}",
+            name, temp_name, e
+        )
+    });
+
+    Ok(PublishedImport {
+        path: dest,
+        cleanup_warning,
+    })
+}
+
+/// Android content-URI import of one item: validates the original display name
+/// against the bytes actually read, before any EXIF parsing (`creation_date`),
+/// naming or folder creation, then publishes those same bytes without replacing
+/// existing files.
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+fn import_content_bytes(
+    resolved_name: &str,
+    read: Result<Vec<u8>, String>,
+    source_label: &str,
+    creation_date: &dyn Fn(&str, &[u8]) -> DateTime<Utc>,
+    destination_folder: &str,
+    settings: &ImportSettings,
+    sequence: usize,
+    total: usize,
+    ops: &ImportStagingOps,
+) -> Result<PathBuf, String> {
+    let source_bytes = validate_import_read(resolved_name, read, source_label)?;
+    let source_name_path = Path::new(resolved_name);
+    let file_date = creation_date(resolved_name, &source_bytes);
+
+    let mut final_dest_folder = PathBuf::from(destination_folder);
+    if settings.organize_by_date {
+        let date_format_str = settings
+            .date_folder_format
+            .replace("YYYY", "%Y")
+            .replace("MM", "%m")
+            .replace("DD", "%d");
+        let subfolder = file_date.format(&date_format_str).to_string();
+        final_dest_folder.push(subfolder);
+    }
+
+    fs::create_dir_all(&final_dest_folder)
+        .map_err(|e| format!("Failed to create destination folder: {}", e))?;
+
+    let new_stem = generate_filename_from_template(
+        &settings.filename_template,
+        source_name_path,
+        sequence,
+        total,
+        &file_date,
+    );
+    let extension = source_name_path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    let new_filename = format!("{}.{}", new_stem, extension);
+
+    let published = publish_import_bytes(&final_dest_folder, &new_filename, &source_bytes, ops)?;
+    if let Some(warning) = &published.cleanup_warning {
+        log::warn!("{}", warning);
+    }
+
+    Ok(published.path)
+}
+
 #[tauri::command]
 pub async fn import_files(
     source_paths: Vec<String>,
@@ -3729,49 +3957,17 @@ pub async fn import_files(
                 #[cfg(target_os = "android")]
                 if is_android_content_uri(source_path_str) {
                     let resolved_name = resolve_android_content_uri_name(source_path_str)?;
-                    let source_bytes = read_android_content_uri(source_path_str)?;
-                    let source_name_path = Path::new(&resolved_name);
-                    let file_date = exif_processing::get_creation_date_from_bytes(
+                    import_content_bytes(
                         &resolved_name,
-                        &source_bytes,
-                    );
-
-                    let mut final_dest_folder = PathBuf::from(&destination_folder);
-                    if settings.organize_by_date {
-                        let date_format_str = settings
-                            .date_folder_format
-                            .replace("YYYY", "%Y")
-                            .replace("MM", "%m")
-                            .replace("DD", "%d");
-                        let subfolder = file_date.format(&date_format_str).to_string();
-                        final_dest_folder.push(subfolder);
-                    }
-
-                    fs::create_dir_all(&final_dest_folder)
-                        .map_err(|e| format!("Failed to create destination folder: {}", e))?;
-
-                    let new_stem = generate_filename_from_template(
-                        &settings.filename_template,
-                        source_name_path,
+                        read_android_content_uri(source_path_str),
+                        source_path_str,
+                        &exif_processing::get_creation_date_from_bytes,
+                        &destination_folder,
+                        &settings,
                         i + 1,
                         total_files,
-                        &file_date,
-                    );
-                    let extension = source_name_path
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("");
-                    let new_filename = format!("{}.{}", new_stem, extension);
-                    let dest_file_path = final_dest_folder.join(new_filename);
-
-                    if dest_file_path.exists() {
-                        return Err(format!(
-                            "File already exists at destination: {}",
-                            dest_file_path.display()
-                        ));
-                    }
-
-                    fs::write(&dest_file_path, source_bytes).map_err(|e| e.to_string())?;
+                        &ImportStagingOps::default(),
+                    )?;
 
                     if settings.delete_after_import {
                         log::info!(
@@ -4341,5 +4537,488 @@ pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create
         }
 
         let _ = fs::write(&xmp_file, content);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+
+    const RAF_JPEG_MESSAGE: &str = "has a JPEG signature, but its name identifies it as a RAF RAW file. Select the original RAW file and try again.";
+
+    /// A complete JPEG produced by the real encoder, not a marker literal.
+    fn encoded_jpeg() -> Vec<u8> {
+        let image = image::RgbImage::from_fn(32, 24, |x, y| {
+            image::Rgb([(x * 8) as u8, (y * 10) as u8, 128])
+        });
+        let mut bytes = Vec::new();
+        DynamicImage::ImageRgb8(image)
+            .write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Jpeg)
+            .unwrap();
+        bytes
+    }
+
+    fn import_settings(template: &str, organize_by_date: bool) -> ImportSettings {
+        ImportSettings {
+            filename_template: template.to_string(),
+            organize_by_date,
+            date_folder_format: "YYYY/MM-DD".to_string(),
+            delete_after_import: false,
+        }
+    }
+
+    thread_local! {
+        static DATE_CALLS: Cell<usize> = const { Cell::new(0) };
+    }
+
+    /// Fixed date standing in for Android-only EXIF parsing; counts calls so
+    /// tests can show rejected content never reaches it.
+    fn fixed_date(_: &str, _: &[u8]) -> DateTime<Utc> {
+        DATE_CALLS.with(|calls| calls.set(calls.get() + 1));
+        DateTime::parse_from_rfc3339("2026-10-15T12:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc)
+    }
+
+    fn date_calls() -> usize {
+        DATE_CALLS.with(Cell::get)
+    }
+
+    fn import(
+        library: &Path,
+        name: &str,
+        read: Result<Vec<u8>, String>,
+        settings: &ImportSettings,
+        ops: &ImportStagingOps,
+    ) -> Result<PathBuf, String> {
+        import_content_bytes(
+            name,
+            read,
+            "content://provider/item/1",
+            &fixed_date,
+            &library.to_string_lossy(),
+            settings,
+            1,
+            1,
+            ops,
+        )
+    }
+
+    /// Every file under `dir`, including hidden temporary files.
+    fn all_files(dir: &Path) -> Vec<PathBuf> {
+        WalkDir::new(dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .map(|e| e.into_path())
+            .collect()
+    }
+
+    fn failing_write(file: &mut fs::File, bytes: &[u8]) -> std::io::Result<()> {
+        use std::io::Write;
+        file.write_all(&bytes[..bytes.len() / 2])?;
+        Err(std::io::Error::other("disk full (injected)"))
+    }
+
+    fn failing_remove(_: &Path) -> std::io::Result<()> {
+        Err(std::io::Error::other("permission denied (injected)"))
+    }
+
+    #[test]
+    fn jpeg_named_raf_is_not_imported_in_any_case_or_template() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let jpeg = encoded_jpeg();
+        for name in ["DSCF5389.RAF", "dscf5389.raf", "DSCF5389.RaF"] {
+            for settings in [
+                import_settings("{original_filename}", false),
+                import_settings("renamed_{sequence}", true),
+            ] {
+                let err = import(
+                    &library,
+                    name,
+                    Ok(jpeg.clone()),
+                    &settings,
+                    &ImportStagingOps::default(),
+                )
+                .unwrap_err();
+                assert_eq!(err, format!("“{name}” {RAF_JPEG_MESSAGE}"));
+            }
+        }
+        // Rejected before EXIF parsing and folder creation: no final,
+        // temporary or date folder.
+        assert_eq!(date_calls(), 0);
+        assert!(!library.exists());
+        assert!(all_files(root.path()).is_empty());
+    }
+
+    #[test]
+    fn same_jpeg_named_jpg_is_imported_byte_identical() {
+        let root = tempfile::tempdir().unwrap();
+        let jpeg = encoded_jpeg();
+        for (organize, template) in [(false, "{original_filename}"), (true, "copy_{sequence}")] {
+            let library = root.path().join(format!("library-{organize}"));
+            let path = import(
+                &library,
+                "DSCF5389.jpg",
+                Ok(jpeg.clone()),
+                &import_settings(template, organize),
+                &ImportStagingOps::default(),
+            )
+            .unwrap();
+            assert_eq!(fs::read(&path).unwrap(), jpeg);
+            assert_eq!(all_files(&library), vec![path]);
+        }
+    }
+
+    #[test]
+    fn empty_read_and_read_failure_are_distinct_and_write_nothing() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let settings = import_settings("{original_filename}", false);
+        let ops = ImportStagingOps::default();
+
+        let empty = import(&library, "x.RAF", Ok(Vec::new()), &settings, &ops).unwrap_err();
+        assert_eq!(
+            empty,
+            "No image data was read for “x.RAF”. Select the original file and try again."
+        );
+
+        let failed = import(
+            &library,
+            "x.RAF",
+            Err(
+                "Failed to open InputStream for Android content URI: content://provider/item/1"
+                    .to_string(),
+            ),
+            &settings,
+            &ops,
+        )
+        .unwrap_err();
+        assert_eq!(
+            failed,
+            "Could not read “x.RAF”: Failed to open InputStream for Android content URI: the selected item"
+        );
+
+        assert_eq!(date_calls(), 0);
+        assert!(!library.exists());
+    }
+
+    #[test]
+    fn existing_target_is_never_replaced() {
+        let root = tempfile::tempdir().unwrap();
+        let existing = root.path().join("DSCF5389.jpg");
+        fs::write(&existing, b"original").unwrap();
+
+        let err = import(
+            root.path(),
+            "DSCF5389.jpg",
+            Ok(encoded_jpeg()),
+            &import_settings("{original_filename}", false),
+            &ImportStagingOps::default(),
+        )
+        .unwrap_err();
+        assert!(
+            err.starts_with("File already exists at destination:"),
+            "{err}"
+        );
+        assert_eq!(fs::read(&existing).unwrap(), b"original");
+        assert_eq!(all_files(root.path()), vec![existing]);
+    }
+
+    #[test]
+    fn collision_created_after_staging_is_not_replaced() {
+        let root = tempfile::tempdir().unwrap();
+        let raced = |dest: &Path| fs::write(dest, b"raced").unwrap();
+        let ops = ImportStagingOps {
+            before_publish: &raced,
+            ..ImportStagingOps::default()
+        };
+
+        let err = import(
+            root.path(),
+            "DSCF5389.jpg",
+            Ok(encoded_jpeg()),
+            &import_settings("{original_filename}", false),
+            &ops,
+        )
+        .unwrap_err();
+        let dest = root.path().join("DSCF5389.jpg");
+        assert_eq!(
+            err,
+            format!("File already exists at destination: {}", dest.display())
+        );
+        assert_eq!(fs::read(&dest).unwrap(), b"raced");
+        assert_eq!(all_files(root.path()), vec![dest]);
+    }
+
+    #[test]
+    fn write_failure_leaves_no_final_or_temporary_file() {
+        let root = tempfile::tempdir().unwrap();
+        let ops = ImportStagingOps {
+            write: &failing_write,
+            ..ImportStagingOps::default()
+        };
+        let err = import(
+            root.path(),
+            "DSCF5389.jpg",
+            Ok(encoded_jpeg()),
+            &import_settings("{original_filename}", false),
+            &ops,
+        )
+        .unwrap_err();
+        assert_eq!(err, "Could not write “DSCF5389.jpg”: disk full (injected)");
+        assert!(all_files(root.path()).is_empty());
+    }
+
+    #[test]
+    fn cleanup_failure_is_reported_after_the_primary_error() {
+        let root = tempfile::tempdir().unwrap();
+        let ops = ImportStagingOps {
+            write: &failing_write,
+            remove: &failing_remove,
+            ..ImportStagingOps::default()
+        };
+        let err = import(
+            root.path(),
+            "DSCF5389.jpg",
+            Ok(encoded_jpeg()),
+            &import_settings("{original_filename}", false),
+            &ops,
+        )
+        .unwrap_err();
+        assert!(
+            err.starts_with(
+                "Could not write “DSCF5389.jpg”: disk full (injected) The temporary file “.rapidraw-import-"
+            ),
+            "{err}"
+        );
+        assert!(err.ends_with(".tmp” could not be removed: permission denied (injected)"));
+
+        // The leftover is hidden and never listed as an image; no final file exists.
+        let leftovers = all_files(root.path());
+        assert_eq!(leftovers.len(), 1);
+        assert!(!is_supported_image_file(&leftovers[0]));
+        assert!(!root.path().join("DSCF5389.jpg").exists());
+    }
+
+    /// Simulates tempfile's hard-link fallback, which can leave the temporary name.
+    fn link_without_unlink(temp: &Path, dest: &Path) -> std::io::Result<()> {
+        fs::hard_link(temp, dest)
+    }
+
+    #[test]
+    fn hard_link_fallback_leftover_is_removed_or_reported() {
+        let jpeg = encoded_jpeg();
+
+        let root = tempfile::tempdir().unwrap();
+        let ops = ImportStagingOps {
+            persist: &link_without_unlink,
+            ..ImportStagingOps::default()
+        };
+        let published = publish_import_bytes(root.path(), "a.jpg", &jpeg, &ops).unwrap();
+        assert!(published.cleanup_warning.is_none());
+        assert_eq!(all_files(root.path()), vec![published.path.clone()]);
+        assert_eq!(fs::read(&published.path).unwrap(), jpeg);
+
+        let root = tempfile::tempdir().unwrap();
+        let ops = ImportStagingOps {
+            persist: &link_without_unlink,
+            remove: &failing_remove,
+            ..ImportStagingOps::default()
+        };
+        let published = publish_import_bytes(root.path(), "a.jpg", &jpeg, &ops).unwrap();
+        let warning = published.cleanup_warning.unwrap();
+        assert!(
+            warning.starts_with("Imported “a.jpg”, but the temporary file “.rapidraw-import-"),
+            "{warning}"
+        );
+        assert_eq!(fs::read(&published.path).unwrap(), jpeg);
+    }
+
+    /// Removes like production and records each result's error kind.
+    fn recording_remove(
+        calls: &std::cell::RefCell<Vec<Option<std::io::ErrorKind>>>,
+    ) -> impl Fn(&Path) -> std::io::Result<()> + '_ {
+        move |path| {
+            let result = fs::remove_file(path);
+            calls
+                .borrow_mut()
+                .push(result.as_ref().err().map(std::io::Error::kind));
+            result
+        }
+    }
+
+    #[test]
+    fn renamed_temporary_reports_not_found_as_clean() {
+        let root = tempfile::tempdir().unwrap();
+        let jpeg = encoded_jpeg();
+        let calls = std::cell::RefCell::new(Vec::new());
+        let remove = recording_remove(&calls);
+        let ops = ImportStagingOps {
+            remove: &remove,
+            ..ImportStagingOps::default()
+        };
+
+        let published = publish_import_bytes(root.path(), "a.jpg", &jpeg, &ops).unwrap();
+        // The real no-replace persist renamed the temporary file away, so the
+        // direct removal attempt saw NotFound and that is not a warning.
+        assert_eq!(*calls.borrow(), vec![Some(std::io::ErrorKind::NotFound)]);
+        assert!(published.cleanup_warning.is_none());
+        assert_eq!(all_files(root.path()), vec![published.path.clone()]);
+        assert_eq!(fs::read(&published.path).unwrap(), jpeg);
+    }
+
+    /// Restores a directory's permissions on drop, including on panic.
+    #[cfg(unix)]
+    struct RestorePermissions<'a>(&'a Path);
+
+    #[cfg(unix)]
+    impl Drop for RestorePermissions<'_> {
+        fn drop(&mut self) {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = fs::set_permissions(self.0, fs::Permissions::from_mode(0o755));
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unknown_temporary_status_after_hard_link_publication_is_a_warning() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        fs::create_dir(&library).unwrap();
+        let jpeg = encoded_jpeg();
+
+        // Publishes by hard link, then makes the directory unsearchable so the
+        // temporary file's status can no longer be read or changed.
+        let _restore = RestorePermissions(&library);
+        let lock_after_link = |temp: &Path, dest: &Path| {
+            fs::hard_link(temp, dest)?;
+            fs::set_permissions(dest.parent().unwrap(), fs::Permissions::from_mode(0o000))
+        };
+        let ops = ImportStagingOps {
+            persist: &lock_after_link,
+            ..ImportStagingOps::default()
+        };
+        let result = publish_import_bytes(&library, "a.jpg", &jpeg, &ops);
+        fs::set_permissions(&library, fs::Permissions::from_mode(0o755)).unwrap();
+
+        let published = result.expect("a complete published file is still a success");
+        let warning = published
+            .cleanup_warning
+            .expect("unverified cleanup must warn");
+        assert!(
+            warning.starts_with("Imported “a.jpg”, but the temporary file “.rapidraw-import-"),
+            "{warning}"
+        );
+        assert_eq!(fs::read(&published.path).unwrap(), jpeg);
+        let files = all_files(&library);
+        assert_eq!(files.len(), 2, "final file and the reported temporary file");
+        assert!(files.contains(&published.path));
+    }
+
+    #[test]
+    fn already_missing_temporary_is_not_a_cleanup_failure_after_an_error() {
+        let root = tempfile::tempdir().unwrap();
+        let remove_then_missing = |path: &Path| -> std::io::Result<()> {
+            fs::remove_file(path)?;
+            Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        };
+        let ops = ImportStagingOps {
+            write: &failing_write,
+            remove: &remove_then_missing,
+            ..ImportStagingOps::default()
+        };
+        let err = publish_import_bytes(root.path(), "a.jpg", &encoded_jpeg(), &ops)
+            .err()
+            .unwrap();
+        assert_eq!(err, "Could not write “a.jpg”: disk full (injected)");
+        assert!(all_files(root.path()).is_empty());
+    }
+
+    #[test]
+    fn unsupported_publication_fails_without_final_or_temporary_file() {
+        let root = tempfile::tempdir().unwrap();
+        let unsupported = |_: &Path, _: &Path| -> std::io::Result<()> {
+            Err(std::io::Error::from(std::io::ErrorKind::Unsupported))
+        };
+        let ops = ImportStagingOps {
+            persist: &unsupported,
+            ..ImportStagingOps::default()
+        };
+        let err = publish_import_bytes(root.path(), "a.jpg", &encoded_jpeg(), &ops)
+            .err()
+            .unwrap();
+        assert!(err.starts_with("Could not publish “a.jpg”: "), "{err}");
+        assert!(!err.contains("temporary file"), "{err}");
+        assert!(all_files(root.path()).is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unwritable_destination_fails_without_output() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        fs::set_permissions(root.path(), fs::Permissions::from_mode(0o555)).unwrap();
+        let attempted = Cell::new(false);
+        let write = |file: &mut fs::File, bytes: &[u8]| {
+            attempted.set(true);
+            write_and_sync(file, bytes)
+        };
+        let ops = ImportStagingOps {
+            write: &write,
+            ..ImportStagingOps::default()
+        };
+        let result = publish_import_bytes(root.path(), "a.jpg", &encoded_jpeg(), &ops);
+        fs::set_permissions(root.path(), fs::Permissions::from_mode(0o755)).unwrap();
+
+        let err = result.err().expect("read-only destination must fail");
+        assert!(err.starts_with("Could not stage “a.jpg”:"), "{err}");
+        assert!(!attempted.get());
+        assert!(all_files(root.path()).is_empty());
+    }
+
+    fn env_path(var: &str) -> PathBuf {
+        PathBuf::from(std::env::var(var).unwrap_or_else(|_| panic!("set {var}")))
+    }
+
+    fn assert_imported_byte_identical(source: &Path, names: &[&str]) {
+        use sha2::{Digest, Sha256};
+        let bytes = fs::read(source).unwrap();
+        let before = hex::encode(Sha256::digest(&bytes));
+        let root = tempfile::tempdir().unwrap();
+        for name in names {
+            let library = root.path().join(name.replace('.', "_"));
+            let path = import(
+                &library,
+                name,
+                Ok(bytes.clone()),
+                &import_settings("{original_filename}", false),
+                &ImportStagingOps::default(),
+            )
+            .unwrap();
+            let after = hex::encode(Sha256::digest(fs::read(&path).unwrap()));
+            assert_eq!(after, before, "{name}");
+            println!("{name}: imported sha256 {after}");
+        }
+        assert_eq!(
+            hex::encode(Sha256::digest(fs::read(source).unwrap())),
+            before
+        );
+    }
+
+    #[test]
+    #[ignore = "needs RAPIDRAW_R2A_FIXTURE_DIR from scripts/integration-fixtures.py"]
+    fn synthetic_dng_imports_byte_identical_including_raf_alias() {
+        let dng = env_path("RAPIDRAW_R2A_FIXTURE_DIR").join("synthetic-camera.dng");
+        assert_imported_byte_identical(&dng, &["synthetic-camera.dng", "synthetic-camera.RAF"]);
+    }
+
+    #[test]
+    #[ignore = "needs RAPIDRAW_R2A_NATIVE_RAF pointing at a genuine RAF"]
+    fn native_raf_imports_byte_identical() {
+        assert_imported_byte_identical(&env_path("RAPIDRAW_R2A_NATIVE_RAF"), &["DSCF1893.RAF"]);
     }
 }
