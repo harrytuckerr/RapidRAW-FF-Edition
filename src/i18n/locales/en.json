@@ -777,11 +777,11 @@
         "label": "Supports {{features}}",
         "masks": "Masks"
       },
-      "title": "Presets",
+      "title": "Adjustment presets",
       "tooltips": {
         "explore": "Explore Community Presets",
         "export": "Export all presets to .rrpreset file",
-        "import": "Import presets from .rrpreset file",
+        "import": "Import adjustment presets (.rrpreset, .xmp, .lrtemplate)",
         "saveNew": "Save as new preset"
       },
       "types": {
@@ -789,7 +789,12 @@
         "preset": "Preset",
         "style": "Style",
         "tool": "Tool"
-      }
+      },
+      "layeringDescription": "Exposure, colour and effects applied over your active Camera Profile.",
+      "importAction": "Import presets",
+      "activeCameraProfile": "Camera Profile active",
+      "activeLook": "Cobalt Look {{amount}}%",
+      "includesProfile": "Includes captured Camera Profile + optional Look"
     },
     "switcher": {
       "tooltips": {
@@ -1259,7 +1264,7 @@
       "typeStyleLabel": "Style",
       "typeToolDesc": "Only applies specific changes without touching your other settings.",
       "typeToolLabel": "Tool",
-      "includeProfile": "Include Profile"
+      "includeProfile": "Also capture Camera Profile + Cobalt Look (optional)"
     },
     "confirm": {
       "cancel": "Cancel",
@@ -2121,14 +2126,14 @@
     }
   },
   "profiles": {
-    "title": "Profile",
-    "placeholder": "None",
-    "amount": "Amount",
+    "title": "Camera Profile",
+    "placeholder": "Choose base profile or Cobalt Look",
+    "amount": "Cobalt Look amount",
     "searchPlaceholder": "Filter profiles…",
     "noResults": "No matching profiles.",
     "clearSelection": "Clear selection",
-    "cameraProfiles": "Camera Profiles",
-    "cameraProfilesFor": "Camera profiles for {{camera}}",
+    "cameraProfiles": "Base camera profiles (.dcp)",
+    "cameraProfilesFor": "Base profiles for {{camera}} (.dcp)",
     "importFilterName": "Profile Files (.dcp, .xmp)",
     "importTooltip": "Import profiles",
     "importSuccess_one": "Imported {{count}} profile.",
@@ -2136,6 +2141,22 @@
     "importFailed": "Some profiles failed to import:",
     "importNone": "No profile files were found.",
     "resetTooltip": "Clear profile selection",
-    "rescanComplete": "Profile rescan complete."
+    "rescanComplete": "Profile rescan complete.",
+    "lookGroup": "Cobalt Looks · {{group}}",
+    "layeringDescription": "Choose a base DCP for this camera, then an optional Cobalt Look. Looks belong to the profile; exposure, colour and effects presets go on top.",
+    "importBase": "Import base profile (.dcp)",
+    "importLook": "Import Look (.xmp)",
+    "baseFilterName": "Base camera profile (.dcp)",
+    "lookFilterName": "Cobalt image Look (.xmp)",
+    "baseLabel": "Base DCP",
+    "lookLabel": "Cobalt Look",
+    "noBase": "No base profile selected",
+    "noLook": "None (optional)",
+    "unavailableBase": "Selected base unavailable",
+    "unavailableLook": "Selected Look unavailable",
+    "lookSummary": "{{name}} · {{amount}}%",
+    "loading": "Loading camera profiles…",
+    "presetImportHint": "For exposure, colour or effects XMP presets, use Import presets in Adjustment presets.",
+    "goToPresets": "Go to adjustment presets"
   }
 }
