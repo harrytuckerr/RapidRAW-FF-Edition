@@ -38,6 +38,7 @@ mod culling;
 pub mod dcp;
 mod denoising;
 pub mod drive;
+pub mod drive_auth;
 mod effect_maps;
 mod exif_processing;
 mod export_processing;
