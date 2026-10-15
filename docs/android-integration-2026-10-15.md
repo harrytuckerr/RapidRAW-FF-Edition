@@ -1,5 +1,7 @@
 # Android integration and APK handoff — 2026-10-15
 
+> Final runtime disposition: **Fail — edited preview stalls during the first upstream blur pipeline creation on Vulkan SwiftShader. Do not merge.** The following packaging history predates the final attempt-8 diagnosis; use [the integration review](integration/STATUS-2026-10-15.md) and `docs/integration/android-attempt8-*-receipt-20261015.json` for current evidence.
+
 ## Final build and validation status
 
 **Pass — worker verified:** attempt6 ARM64 debug APK built, APK v2 signature
