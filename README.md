@@ -24,7 +24,7 @@ It was built for Fujifilm shooters who rely on purchased camera profiles and Loo
 
 ## Download
 
-Check [Fujifilm Edition releases](https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/releases) for development previews when available, and review [current status and limitations](#status-and-limitations) before use. If no build is listed for your platform, [build from source](#build-from-source).
+Check [Fujifilm Edition releases](https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/releases) for available builds, and review [current status and limitations](#status-and-limitations) before use. The published preview `fuji-preview-2026.10.15.1` predates the reviewed Camera Profile / Adjustment Presets import and preservation updates described below; no newer release containing those changes is published yet. If no build is listed for your platform, [build from source](#build-from-source).
 
 Installers published by upstream RapidRAW do not include anything described in the next sections.
 
@@ -57,10 +57,11 @@ Installers published by upstream RapidRAW do not include anything described in t
 
 1. **Install your profiles.**
    - **macOS and Windows:** RapidRAW looks in the usual Adobe Camera Raw settings folders.
-   - **Any platform:** use **Import** in the profile browser to add `.dcp` base profiles and `.xmp` Looks.
+   - In **Camera Profile**, use **Import base profile (.dcp)** for a camera base and **Import Look (.xmp)** for a compatible profile Look.
+   - In **Adjustment presets**, use **Import presets** for Lightroom develop-adjustment XMP (exposure, colour or effects) and supported preset files. An `.xmp` extension alone does not identify a profile Look versus a develop-settings preset. The current mapping is incomplete, so full Lightroom preset compatibility is not promised.
    - **Android:** import through the system file picker.
 
-   Imported files are copied into RapidRAW's own profile folder.
+   Imported base profiles and Looks are copied into RapidRAW's own profile folder.
 2. **Open a RAW** from the camera the base profile was made for.
 3. **Pick a base profile** in the **Profile** section at the top of the editing controls.
 4. **Optionally pick a Look** and set its **Amount**. 100% is the default, 0% bypasses the Look entirely and leaves the base profile in place, and values above 100% push it further.
@@ -71,8 +72,8 @@ See the [profile guide](docs/profiles.md) for install locations, error messages 
 
 ### Profiles and presets stay separate
 
-- Applying a preset leaves your current profile alone.
-- A preset carries a profile only if you tick **Include Profile** when saving it. That option is off by default.
+- Applying an ordinary adjustment preset, changing its intensity, or turning it off preserves the current Camera Profile selection. A preset carries a profile only when you explicitly enable **Also capture Camera Profile + Cobalt Look (optional)** while saving it; it is off by default.
+- Host-side tests of the native preset serializers confirm that explicit capture choices and their profile base, Look and Amount survive JSON save/reopen and preset-file import/export. Older presets whose capture flag was already absent remain unknown; their original opt-in intent cannot be recovered.
 - When you copy settings to a photo from a different camera, the profile is applied only if that photo has a compatible base installed. Otherwise the profile is skipped and the rest of the settings still apply.
 
 ### Base profiles and Looks must match
@@ -108,8 +109,10 @@ This is an active fork, and some important checks are still open. In brief:
 | Area | Where it stands |
 |---|---|
 | Profile workflow on desktop | Implemented. Automated checks pass with synthetic test files. Not yet confirmed with a real matched Cobalt base and Look pair. |
+| Camera Profile / Adjustment Presets UI | The separate `.dcp` base, `.xmp` Look and **Import presets** workflows have reviewed source/component checks. Those checks use mocked native boundaries; the actual OS chooser and full Tauri import flow remain **Not exercised**. The published preview `fuji-preview-2026.10.15.1` predates these UI updates. |
+| Preset profile-capture preservation | Host tests of the actual native preset serializers pass for explicit true/false and legacy-absent capture flags through JSON save/reopen and preset-file import/export, with saved profile fields preserved. Legacy intent cannot be inferred. Actual UI-to-native IPC and physical Android round-trips remain **Not exercised**. |
 | Colour match with Adobe Camera Raw | **Not yet verified.** No Adobe-backed comparison has been run, and colour comparison is not implemented yet (the developer tool's `compare` command reports itself as unavailable). |
-| Android | Builds from this repository. On a physical Samsung Fold-series phone, the app opens, the UI works and basic adjustments work (user-reported). Profile and Look use, save/reopen and export on the device have **not** yet been tested. The latest debug APK was installed in place on the Fold, and Android returned `Status: ok` for a cold launch. Its profile/import/export behavior has not been retested. |
+| Android | Builds from this repository. On a physical Samsung Fold-series phone, the app opens, the UI works and basic adjustments work (user-reported). Profile and Look use, the revised import workflows, save/reopen and export on the device have **not** yet been tested. A successful build, component check or cold launch does not establish those native/device/render results. |
 | Looks | Supported Look table types render in a bounded, non-HDR way: values are clamped before the Look is applied. Unsupported or "captured" Look variants show an error rather than falling back. |
 | GPU | The profile stage runs on the CPU, before RapidRAW's GPU editing pipeline. An optional GPU version is tested for parity separately but is not used for real editing. No performance target is claimed. |
 | Preview vs thumbnail vs export | They share one profile route. A full measured comparison across all routes hasn't been done. |
@@ -123,16 +126,18 @@ The full evidence lives in the [profile guide](docs/profiles.md), the [build gui
 
 ## Planned (approved, not yet built)
 
-These workflow additions are agreed and on the roadmap but **not built yet**. Some build on tools RapidRAW already has, such as the collage maker, JPEG editing and export, and extend them into complete workflows.
+These workflow additions are agreed and on the roadmap but **not built yet**. Source, component or build checks are not device, provider or rendered-output acceptance. Some work builds on tools RapidRAW already has, such as the collage maker, JPEG editing and export.
 
+- **Priority — Google Drive workspace:** sync settings, saved edits, named checkpoints, adjustment presets and selected, legitimately user-imported profile libraries between desktop and Android for the same account. Photos are fetched on demand; original uploads remain explicit. This sync is not working yet, provider/cross-client behavior and distribution-policy fit are unverified, and this is not full automatic photo backup.
 - **Save copy & Share** for single photos and 2–4-image collages, with Android's share sheet.
 - **Android JPEG "Lite" mode:** quick edit or collage from a JPEG without setting up a library.
 - **Fujifilm shooting settings** shown alongside a photo (film simulation, white balance, dynamic range where reliably available), and side-by-side comparison with the camera's own JPEG.
 - **Named checkpoints** with saved edit history.
 - **Saved searches** in the library.
-- **A limited Google Drive workspace:** a RapidRAW folder in your own Drive with explicit upload and download.
+- **Point Colour eyedropper:** a planned sampled hue/saturation/luminance (H/S/L) adjustment; this control set is a working assumption and its behavior is not finalized.
+- **Lens correction improvements:** build on the existing Lensfun Auto correction using camera and lens metadata; no new lens-correction engine is proposed.
 
-Out of scope: full Lightroom preset compatibility, exact reproduction of Fujifilm film simulations or recipes, cloud sync of edits, and automatic backup.
+Full Lightroom preset compatibility and exact reproduction of Fujifilm film simulations or recipes are not promised. Full automatic photo backup is not planned.
 
 ## Build from source
 

@@ -8,7 +8,10 @@ import ProfileBrowser from '../../ui/ProfileBrowser';
 import type { Adjustments, ProfileSelection } from '../../../utils/adjustments';
 import { useProfiles, ImportFailure } from '../../../hooks/useProfiles';
 import Text from '../../ui/Text';
-import { TextVariants, TextWeights } from '../../../types/typography';
+import Button from '../../ui/Button';
+import { useUIStore } from '../../../store/useUIStore';
+import { Panel } from '../../ui/AppProperties';
+import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 
 interface ProfilePanelProps {
   adjustments: Adjustments;
@@ -17,19 +20,20 @@ interface ProfilePanelProps {
   onDragStateChange?: (isDragging: boolean) => void;
 }
 
-export default function ProfilePanel({
-  adjustments,
-  setAdjustments,
-  imagePath,
-  onDragStateChange,
-}: ProfilePanelProps) {
+export default function ProfilePanel({ adjustments, setAdjustments, imagePath, onDragStateChange }: ProfilePanelProps) {
   const { t } = useTranslation();
-  const { browserModel, importProfiles } = useProfiles(imagePath);
+  const { browserModel, importProfiles, isLoading, error } = useProfiles(imagePath);
+  const setPanel = useUIStore((state) => state.setPanel);
   const [isImporting, setIsImporting] = useState(false);
+  const [showPresetGuidance, setShowPresetGuidance] = useState(false);
 
   const profile: ProfileSelection = adjustments.profile || { base: null, look: null, amount: 100 };
   const hasLook = !!profile.look;
   const hasAnyProfile = !!(profile.base || profile.look);
+  const baseName = browserModel?.cameraProfiles
+    .flatMap((group) => group.entries)
+    .find((entry) => entry.id === profile.base)?.profileName;
+  const lookName = browserModel?.looks.find((look) => look.uuid === profile.look)?.name;
 
   const handleSelectBase = useCallback(
     (id: string) => {
@@ -84,47 +88,46 @@ export default function ProfilePanel({
     [setAdjustments],
   );
 
-  const handleImport = useCallback(async () => {
-    try {
-      const selected = await open({
-        multiple: true,
-        filters: [
-          {
-            name: t('profiles.importFilterName'),
-            extensions: ['dcp', 'xmp'],
-          },
-        ],
-      });
-
-      if (!selected || (Array.isArray(selected) && selected.length === 0)) return;
-
-      const paths = Array.isArray(selected) ? selected : [selected];
+  const handleImport = useCallback(
+    async (kind: 'dcp' | 'xmp') => {
       setIsImporting(true);
-
+      setShowPresetGuidance(false);
       try {
+        const selected = await open({
+          multiple: true,
+          title: t(kind === 'dcp' ? 'profiles.importBase' : 'profiles.importLook'),
+          filters: [
+            {
+              name: t(kind === 'dcp' ? 'profiles.baseFilterName' : 'profiles.lookFilterName'),
+              extensions: [kind],
+            },
+          ],
+        });
+
+        if (!selected || (Array.isArray(selected) && selected.length === 0)) return;
+        const paths = Array.isArray(selected) ? selected : [selected];
         const result = await importProfiles(paths);
         if (result.imported > 0) {
-          toast.success(
-            t('profiles.importSuccess', { count: result.imported }),
-          );
+          toast.success(t('profiles.importSuccess', { count: result.imported }));
         }
         if (result.failed.length > 0) {
-          const failures = result.failed
-            .map((f: ImportFailure) => `${f.path}: ${f.reason}`)
-            .join('\n');
-          toast.error(`${t('profiles.importFailed')}\n${failures}`);
+          const failures = result.failed.map((f: ImportFailure) => `${f.path}: ${f.reason}`).join('\n');
+          const guidance = kind === 'xmp' ? `\n${t('profiles.presetImportHint')}` : '';
+          setShowPresetGuidance(kind === 'xmp');
+          toast.error(`${t('profiles.importFailed')}\n${failures}${guidance}`);
         }
         if (result.imported === 0 && result.failed.length === 0) {
           toast.info(t('profiles.importNone'));
         }
+      } catch (err) {
+        console.error('Import dialog error:', err);
+        toast.error(`${t('profiles.importFailed')}\n${String(err)}`);
       } finally {
         setIsImporting(false);
       }
-    } catch (err) {
-      console.error('Import dialog error:', err);
-      setIsImporting(false);
-    }
-  }, [importProfiles, t]);
+    },
+    [importProfiles, t],
+  );
 
   return (
     <div className="mb-2">
@@ -132,26 +135,75 @@ export default function ProfilePanel({
         <Text variant={TextVariants.title} weight={TextWeights.normal}>
           {t('profiles.title')}
         </Text>
-        <div className="flex items-center gap-1">
+        {hasAnyProfile && (
           <button
-            className="p-2.5 rounded-full hover:bg-surface transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-            onClick={handleImport}
-            disabled={isImporting}
-            data-tooltip={t('profiles.importTooltip')}
+            type="button"
+            className="p-2.5 rounded-full hover:bg-surface transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:outline-2 focus-visible:outline-accent"
+            onClick={handleClear}
+            aria-label={t('profiles.resetTooltip')}
+            data-tooltip={t('profiles.resetTooltip')}
           >
-            <Upload size={16} className={isImporting ? 'opacity-50' : ''} />
+            <RotateCcw size={16} />
           </button>
-          {hasAnyProfile && (
-            <button
-              className="p-2.5 rounded-full hover:bg-surface transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-              onClick={handleClear}
-              data-tooltip={t('profiles.resetTooltip')}
-            >
-              <RotateCcw size={16} />
-            </button>
-          )}
-        </div>
+        )}
       </div>
+      <Text variant={TextVariants.small} color={TextColors.secondary} className="mb-2">
+        {t('profiles.layeringDescription')}
+      </Text>
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <Button
+          type="button"
+          className="bg-surface text-text-primary text-sm px-2 min-h-[44px] focus-visible:outline-2 focus-visible:outline-accent hover:bg-card-active"
+          onClick={() => handleImport('dcp')}
+          disabled={isImporting}
+        >
+          <Upload size={16} className="shrink-0" />
+          <span>{t('profiles.importBase')}</span>
+        </Button>
+        <Button
+          type="button"
+          className="bg-surface text-text-primary text-sm px-2 min-h-[44px] focus-visible:outline-2 focus-visible:outline-accent hover:bg-card-active"
+          onClick={() => handleImport('xmp')}
+          disabled={isImporting}
+        >
+          <Upload size={16} className="shrink-0" />
+          <span>{t('profiles.importLook')}</span>
+        </Button>
+      </div>
+      {showPresetGuidance && (
+        <div className="mb-3 space-y-1" role="status">
+          <Text variant={TextVariants.small} color={TextColors.secondary}>
+            {t('profiles.presetImportHint')}
+          </Text>
+          <Button
+            type="button"
+            className="bg-surface text-text-primary text-sm min-h-[44px] focus-visible:outline-2 focus-visible:outline-accent hover:bg-card-active"
+            onClick={() => setPanel(Panel.Presets)}
+          >
+            {t('profiles.goToPresets')}
+          </Button>
+        </div>
+      )}
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1 mb-2 text-sm">
+        <dt className="text-text-secondary">{t('profiles.baseLabel')}</dt>
+        <dd className="text-text-primary break-words">
+          {profile.base ? baseName || t('profiles.unavailableBase') : t('profiles.noBase')}
+        </dd>
+        <dt className="text-text-secondary">{t('profiles.lookLabel')}</dt>
+        <dd className="text-text-primary break-words">
+          {profile.look
+            ? t('profiles.lookSummary', { name: lookName || t('profiles.unavailableLook'), amount: profile.amount })
+            : t('profiles.noLook')}
+        </dd>
+      </dl>
+      {isLoading && <Text variant={TextVariants.small}>{t('profiles.loading')}</Text>}
+      {error && (
+        <div role="alert">
+          <Text variant={TextVariants.small} color={TextColors.error}>
+            {error}
+          </Text>
+        </div>
+      )}
 
       <ProfileBrowser
         model={browserModel}

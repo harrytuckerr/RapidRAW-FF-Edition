@@ -327,6 +327,11 @@ function PresetItemDisplay({
               {isTool ? t('editor.presets.types.tool') : t('editor.presets.types.style')}
             </Text>
           </div>
+          {Object.prototype.hasOwnProperty.call(preset.adjustments || {}, 'profile') && (
+            <Text variant={TextVariants.small} color={TextColors.secondary}>
+              {t('editor.presets.includesProfile')}
+            </Text>
+          )}
         </div>
       </div>
 
@@ -926,7 +931,14 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
     if (activePresetId === preset.id) {
       setActivePresetId(null);
       if (baseAdjustments) {
-        setAdjustments(baseAdjustments);
+        setAdjustments((prev: Adjustments) => {
+          const restored = { ...baseAdjustments };
+          // Removing an ordinary preset must not undo a later Camera Profile edit.
+          if (!Object.prototype.hasOwnProperty.call(preset.adjustments, 'profile')) {
+            restored.profile = prev.profile;
+          }
+          return restored;
+        });
       }
       setBaseAdjustments(null);
       return;
@@ -1256,36 +1268,48 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
   return (
     <DndContext id="presets-panel-dnd" sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="flex flex-col h-full">
-        <div className="p-3 flex justify-between items-center shrink-0 border-b border-surface">
+        <div className="p-3 shrink-0 border-b border-surface">
           <Text variant={TextVariants.title}>{t('editor.presets.title')}</Text>
-          <div className="flex items-center gap-1">
+          <Text variant={TextVariants.small} color={TextColors.secondary} className="mt-1">
+            {t('editor.presets.layeringDescription')}
+          </Text>
+          <Text variant={TextVariants.small} color={TextColors.secondary} className="mt-1">
+            {adjustments.profile?.base ? t('editor.presets.activeCameraProfile') : t('profiles.noBase')}
+            {adjustments.profile?.look &&
+              ` · ${t('editor.presets.activeLook', { amount: adjustments.profile.amount })}`}
+          </Text>
+          <div className="flex items-center gap-1 mt-2">
+            <Button
+              type="button"
+              className="bg-surface text-text-primary text-sm px-3 grow min-h-[44px] focus-visible:outline-2 focus-visible:outline-accent hover:bg-card-active"
+              disabled={isLoading}
+              onClick={handleImportPresets}
+            >
+              <FileUp size={16} className="shrink-0" />
+              {t('editor.presets.importAction')}
+            </Button>
             <button
-              className="p-2 rounded-full hover:bg-surface transition-colors"
+              className="p-2 rounded-full hover:bg-surface transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:outline-2 focus-visible:outline-accent"
               onClick={onNavigateToCommunity}
+              aria-label={t('editor.presets.tooltips.explore')}
               data-tooltip={t('editor.presets.tooltips.explore')}
             >
               <Users size={18} />
             </button>
             <button
-              className="p-2 rounded-full hover:bg-surface transition-colors"
-              disabled={isLoading}
-              onClick={handleImportPresets}
-              data-tooltip={t('editor.presets.tooltips.import')}
-            >
-              <FileUp size={18} />
-            </button>
-            <button
-              className="p-2 rounded-full hover:bg-surface transition-colors"
+              className="p-2 rounded-full hover:bg-surface transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:outline-2 focus-visible:outline-accent"
               disabled={presets.length === 0 || isLoading}
               onClick={handleExportAllPresets}
+              aria-label={t('editor.presets.tooltips.export')}
               data-tooltip={t('editor.presets.tooltips.export')}
             >
               <FileDown size={18} />
             </button>
             <button
-              className="p-2 rounded-full hover:bg-surface transition-colors"
+              className="p-2 rounded-full hover:bg-surface transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:outline-2 focus-visible:outline-accent"
               disabled={isLoading}
               onClick={() => setConfigureModalState({ isOpen: true, preset: null })}
+              aria-label={t('editor.presets.tooltips.saveNew')}
               data-tooltip={t('editor.presets.tooltips.saveNew')}
             >
               <Plus size={18} />

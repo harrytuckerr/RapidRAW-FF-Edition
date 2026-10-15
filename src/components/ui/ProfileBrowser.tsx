@@ -71,9 +71,10 @@ function pairingMessage(entry: LookBrowserEntry): string | null {
   const st = entry.pairing;
   if (st.state === 'satisfied') return null;
   if (st.state === 'missing_base') {
-    const installed = st.installed_for_camera.length > 0
-      ? ` Installed profiles for ${st.camera}: ${st.installed_for_camera.join(', ')}.`
-      : ` No profiles are installed for ${st.camera}.`;
+    const installed =
+      st.installed_for_camera.length > 0
+        ? ` Installed profiles for ${st.camera}: ${st.installed_for_camera.join(', ')}.`
+        : ` No profiles are installed for ${st.camera}.`;
     return `'${entry.name}' requires the base profile '${st.required_name}' for ${st.camera}, which is not installed.${installed}`;
   }
   if (st.state === 'no_profiles_for_camera') {
@@ -282,11 +283,9 @@ export default function ProfileBrowser({
   const groupLabelText = useCallback(
     (item: BrowserItem): string => {
       if (item.kind === 'dcp') {
-        return model?.camera
-          ? t('profiles.cameraProfilesFor', { camera: model.camera })
-          : t('profiles.cameraProfiles');
+        return model?.camera ? t('profiles.cameraProfilesFor', { camera: model.camera }) : t('profiles.cameraProfiles');
       }
-      return item.group;
+      return t('profiles.lookGroup', { group: item.group });
     },
     [model, t],
   );
@@ -367,11 +366,12 @@ export default function ProfileBrowser({
                   const msg =
                     item.kind === 'look' && !isSatisfied(item.pairing)
                       ? pairingMessage(
-                          model?.looks.find((l) => l.uuid === item.uuid) || ({
-                            name: item.name,
-                            requiredBaseProfile: item.requiredBaseProfile,
-                            pairing: item.pairing,
-                          } as LookBrowserEntry),
+                          model?.looks.find((l) => l.uuid === item.uuid) ||
+                            ({
+                              name: item.name,
+                              requiredBaseProfile: item.requiredBaseProfile,
+                              pairing: item.pairing,
+                            } as LookBrowserEntry),
                         )
                       : null;
 
@@ -403,10 +403,7 @@ export default function ProfileBrowser({
                         aria-label={isDisabled && msg ? msg : undefined}
                         data-tooltip={isDisabled && msg ? msg : undefined}
                       >
-                        <Text
-                          color={TextColors.primary}
-                          weight={isActive ? TextWeights.semibold : TextWeights.normal}
-                        >
+                        <Text color={TextColors.primary} weight={isActive ? TextWeights.semibold : TextWeights.normal}>
                           {item.kind === 'dcp' ? item.profileName : item.name}
                         </Text>
                         {isActive && <Check size={16} className="text-accent shrink-0" />}
