@@ -2,6 +2,8 @@
 
 Design frozen 2026-10-15 by GPT-6 Astra (`gpt-6-astra`), source `5ca276ac1dab210f11ee4cecbf904038516164f8`. **Implementable design, not provider/security/product acceptance.** Worktree: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-contract`.
 
+**Desktop authorization clarification, 2026-10-16:** [Native OAuth scope addendum](NATIVE-OAUTH-SCOPE-ADDENDUM-2026-10-16.md) qualifies the separate-category consent wording below. Desktop requests the complete scope set needed for the selected capabilities; it must not rely on incremental authorization or assume earlier grants accumulate. The original frozen contract remains identifiable by SHA-256 `c2784483077379393c4ca4d913972ccc125e93897832568bed9e8882f5c7ca19`.
+
 ## 1. Decision and authority
 
 Prioritise Drive before the E additions. Deliver cross-device **settings, saved edits, named checkpoints, presets and legitimately user-imported profile libraries**, with photos downloaded only when needed. Desktop and Android use the same Google account; local/offline editing stays independent. The latest task/user scope supersedes the older research §7/§12 and handover §16 exclusions of edit sync/profile upload and their older sequencing. Their least-privilege, preservation and evidence rules still apply. Do not reinterpret profile transfer as export embedding or automatic vendor-directory collection.
