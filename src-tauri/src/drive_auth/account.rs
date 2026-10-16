@@ -218,6 +218,13 @@ pub struct VerifiedAccountCandidate {
     missing: Vec<ApprovedScope>,
 }
 impl VerifiedAccountCandidate {
+    /// Borrow immutable metadata without extracting credentials or establishing
+    /// current authorization. Expired candidates can still describe their
+    /// historical binding; usability/matching and controller checks still apply.
+    pub fn credential_binding(&self) -> CredentialBinding<'_> {
+        CredentialBinding { candidate: self }
+    }
+
     /// Immutable credential expiry metadata, not an admission/session deadline
     /// or proof of remote validity. Does not expose or extend the credentials.
     pub fn credential_expires_at(&self) -> Instant {
@@ -255,6 +262,58 @@ impl VerifiedAccountCandidate {
             && self.input.tokens().is_usable_at(now)
     }
 }
+/// Immutable native metadata borrowed from one sealed candidate. This view is
+/// neither transferable proof nor storage/current-controller authorization.
+/// Configured client/project provenance is not attested by the provider.
+/// No credentials, new owner, mutable access or serialization are exposed.
+pub struct CredentialBinding<'a> {
+    candidate: &'a VerifiedAccountCandidate,
+}
+impl CredentialBinding<'_> {
+    /// Project and permission ID are the retained account key, not new proof.
+    pub fn account_key(&self) -> &AccountKey {
+        self.candidate.account_key()
+    }
+    pub fn registration_id(&self) -> &str {
+        &self.candidate.context.registration_id
+    }
+    pub fn client_id(&self) -> &str {
+        &self.candidate.context.client_id
+    }
+    /// Exact retained request order; not evidence that access was granted.
+    pub fn requested_scopes(&self) -> &[ApprovedScope] {
+        &self.candidate.context.requested
+    }
+    /// Exact actual subset/order, never a union with requested or prior access.
+    pub fn granted_scopes(&self) -> &[ApprovedScope] {
+        self.candidate.granted_scopes()
+    }
+    pub fn attempt_id(&self) -> uuid::Uuid {
+        self.candidate.input.attempt().id
+    }
+    /// Original attempt generation, not a current controller/connection epoch.
+    pub fn generation(&self) -> u64 {
+        self.candidate.input.attempt().generation
+    }
+    /// Historical admission bound; not connected-session expiry or renewal.
+    pub fn admission_deadline(&self) -> Instant {
+        self.candidate.context.admission_deadline
+    }
+    /// Retained credential expiry; inspecting metadata never extends usability.
+    pub fn credential_expires_at(&self) -> Instant {
+        self.candidate.credential_expires_at()
+    }
+    /// Only whether optional refresh bytes were supplied. This does not imply
+    /// validity, persistence, availability, issuance guarantees or renewability.
+    pub fn refresh_token_present(&self) -> bool {
+        self.candidate
+            .input
+            .tokens()
+            .refresh_token_for_native_adapter()
+            .is_some()
+    }
+}
+
 enum OwnedInput {
     Exchange(ExchangeResult),
     #[cfg(test)]
@@ -1162,6 +1221,254 @@ mod tests {
         .await;
         drop(tx);
         result
+    }
+
+    // New metadata cases reuse the existing bounded, joined localhost Server.
+    // Only parser-made input is fabricated; every candidate requires verify_at.
+    fn binding_input(
+        refresh: bool,
+        actual: &[ApprovedScope],
+        issued: Instant,
+        id: u128,
+        generation: u64,
+    ) -> OwnedInput {
+        let mut body = serde_json::json!({
+            "access_token": "synthetic-binding-access",
+            "token_type": "Bearer", "expires_in": 60,
+            "scope": actual.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(" ")
+        });
+        if refresh {
+            body["refresh_token"] = serde_json::json!("synthetic-binding-refresh");
+        }
+        let bytes = serde_json::to_vec(&body).expect("fixed synthetic input");
+        OwnedInput::Fixture {
+            attempt: ExchangeAttempt {
+                id: uuid::Uuid::from_u128(id),
+                generation,
+            },
+            tokens: parse_google_token_response(200, &bytes, actual, issued, issued)
+                .expect("real pure token parser"),
+        }
+    }
+    async fn binding_verify(
+        input: OwnedInput,
+        context: VerificationContext,
+        body: &[u8],
+    ) -> VerifiedAccountCandidate {
+        let server = Server::reply(response(200, "", body));
+        let (tx, rx) = oneshot::channel();
+        let result = verify_at(
+            input,
+            context,
+            rx,
+            Target::Loopback(server.address),
+            limits(),
+        )
+        .await;
+        drop(tx);
+        let candidate = result.expect("actual synthetic account HTTP verification");
+        assert_eq!(server.count.load(Ordering::Acquire), 1);
+        let requests = server.requests.lock().expect("bounded capture");
+        assert_eq!(requests.len(), 1);
+        let wire = std::str::from_utf8(&requests[0]).expect("synthetic request");
+        assert!(wire.starts_with("GET /drive/v3/about?fields="));
+        assert!(!wire.contains("synthetic-binding-refresh"));
+        candidate
+    }
+
+    #[tokio::test]
+    async fn credential_binding_exact_tuple_and_distinct_scope_orders() {
+        let issued = Instant::now();
+        let admission = issued + Duration::from_secs(30);
+        let input = binding_input(
+            true,
+            &[ApprovedScope::AppData, ApprovedScope::File],
+            issued,
+            77,
+            71,
+        );
+        let context = VerificationContext::from_native_attempt(
+            "binding.desktop",
+            CLIENT,
+            "123",
+            &[ApprovedScope::File, ApprovedScope::AppData],
+            input.attempt(),
+            admission,
+        )
+        .expect("fixed native context");
+        let candidate = binding_verify(input, context, BODY_A).await;
+        let view = candidate.credential_binding();
+        assert_eq!(view.account_key().project_number.value(), 123);
+        assert_eq!(
+            view.account_key().drive_permission_id.as_str(),
+            "permission_A"
+        );
+        assert_eq!(view.registration_id(), "binding.desktop");
+        assert_eq!(view.client_id(), CLIENT);
+        assert_eq!(
+            view.requested_scopes(),
+            &[ApprovedScope::File, ApprovedScope::AppData]
+        );
+        assert_eq!(
+            view.granted_scopes(),
+            &[ApprovedScope::AppData, ApprovedScope::File]
+        );
+        assert_eq!(view.attempt_id(), uuid::Uuid::from_u128(77));
+        assert_eq!(view.generation(), 71);
+        assert_eq!(view.admission_deadline(), admission);
+        assert_eq!(
+            view.credential_expires_at(),
+            issued + Duration::from_secs(60)
+        );
+        assert!(view.refresh_token_present());
+        assert!(std::ptr::eq(view.account_key(), candidate.account_key()));
+        assert!(std::ptr::eq(
+            view.granted_scopes(),
+            candidate.granted_scopes()
+        ));
+    }
+
+    #[tokio::test]
+    async fn credential_binding_refresh_presence_is_only_optional_input_metadata() {
+        for present in [false, true] {
+            let issued = Instant::now();
+            let input = binding_input(present, &[ApprovedScope::File], issued, 88, 9);
+            let context = context(
+                &input,
+                "123",
+                issued + Duration::from_secs(30),
+                &[ApprovedScope::File],
+            );
+            let candidate = binding_verify(input, context, BODY_A).await;
+            let view = candidate.credential_binding();
+            assert_eq!(view.refresh_token_present(), present);
+            assert_eq!(view.granted_scopes(), &[ApprovedScope::File]);
+            assert_eq!(
+                view.account_key().drive_permission_id.as_str(),
+                "permission_A"
+            );
+            assert_eq!(
+                view.credential_expires_at(),
+                issued + Duration::from_secs(60)
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn credential_binding_keeps_identity_registration_attempt_and_partial_grants_separate() {
+        for (body, permission, project, number, registration, client, id, generation, actual) in [
+            (
+                BODY_A,
+                "permission_A",
+                "123",
+                123,
+                "desktop-a",
+                CLIENT,
+                101,
+                1,
+                ApprovedScope::File,
+            ),
+            (
+                BODY_B,
+                "permission_B",
+                "456",
+                456,
+                "desktop-b",
+                "other.apps.googleusercontent.com",
+                202,
+                2,
+                ApprovedScope::AppData,
+            ),
+            (
+                BODY_A,
+                "permission_A",
+                "123",
+                123,
+                "desktop-b",
+                CLIENT,
+                303,
+                3,
+                ApprovedScope::AppData,
+            ),
+            (
+                BODY_A,
+                "permission_A",
+                "123",
+                123,
+                "desktop-a",
+                "other.apps.googleusercontent.com",
+                404,
+                4,
+                ApprovedScope::File,
+            ),
+        ] {
+            let issued = Instant::now();
+            let admission = issued + Duration::from_secs(30);
+            let input = binding_input(false, &[actual], issued, id, generation);
+            let context = VerificationContext::from_native_attempt(
+                registration,
+                client,
+                project,
+                &[ApprovedScope::File, ApprovedScope::AppData],
+                input.attempt(),
+                admission,
+            )
+            .expect("fixed distinct binding");
+            let candidate = binding_verify(input, context, body).await;
+            let view = candidate.credential_binding();
+            assert_eq!(view.account_key().project_number.value(), number);
+            assert_eq!(view.account_key().drive_permission_id.as_str(), permission);
+            assert_eq!(view.registration_id(), registration);
+            assert_eq!(view.client_id(), client);
+            assert_eq!(view.attempt_id(), uuid::Uuid::from_u128(id));
+            assert_eq!(view.generation(), generation);
+            assert_eq!(
+                view.requested_scopes(),
+                &[ApprovedScope::File, ApprovedScope::AppData]
+            );
+            assert_eq!(view.granted_scopes(), &[actual]);
+            assert_eq!(view.admission_deadline(), admission);
+            assert!(!view.refresh_token_present());
+        }
+    }
+
+    #[tokio::test]
+    async fn credential_binding_repeated_views_never_renew_historical_clock_bounds() {
+        let issued = Instant::now();
+        let admission = issued + Duration::from_secs(30);
+        let expiry = issued + Duration::from_secs(60);
+        let input = binding_input(true, &[ApprovedScope::File], issued, 505, 5);
+        let expected = context(&input, "123", admission, &[ApprovedScope::File]);
+        let context = context(&input, "123", admission, &[ApprovedScope::File]);
+        let candidate = binding_verify(input, context, BODY_A).await;
+        assert!(candidate.matches_native_attempt(&expected, Instant::now()));
+        let first = candidate.credential_binding();
+        for (clock, usable, matching) in [
+            (issued - Duration::from_nanos(1), false, false),
+            (admission - Duration::from_nanos(1), true, true),
+            (admission, true, false),
+            (expiry - Duration::from_nanos(1), true, false),
+            (expiry, false, false),
+            (expiry + Duration::from_secs(1), false, false),
+        ] {
+            assert_eq!(candidate.credentials_usable_at(clock), usable);
+            assert_eq!(candidate.matches_native_attempt(&expected, clock), matching);
+            let again = candidate.credential_binding();
+            assert!(std::ptr::eq(first.account_key(), again.account_key()));
+            assert!(std::ptr::eq(
+                first.requested_scopes(),
+                again.requested_scopes()
+            ));
+            assert!(std::ptr::eq(first.granted_scopes(), again.granted_scopes()));
+            assert_eq!(again.registration_id(), first.registration_id());
+            assert_eq!(again.client_id(), first.client_id());
+            assert_eq!(again.attempt_id(), uuid::Uuid::from_u128(505));
+            assert_eq!(again.generation(), 5);
+            assert_eq!(again.admission_deadline(), admission);
+            assert_eq!(again.credential_expires_at(), expiry);
+            assert!(again.refresh_token_present());
+        }
+        assert_eq!(candidate.credential_expires_at(), expiry);
     }
 
     #[test]
@@ -2420,3 +2727,7 @@ mod lifetime_tests {
 #[cfg(test)]
 #[path = "account_independent_tests.rs"]
 mod independent_tests;
+
+#[cfg(test)]
+#[path = "account_credential_binding_independent_tests.rs"]
+mod credential_binding_independent_tests;
