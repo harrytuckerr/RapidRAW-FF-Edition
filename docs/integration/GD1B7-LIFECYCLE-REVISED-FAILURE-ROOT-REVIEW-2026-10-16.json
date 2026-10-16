@@ -1,0 +1,67 @@
+{
+  "utc": "2026-10-16T03:59:53.747004+00:00",
+  "acceptance": "Accepted failed-run evidence/custody disclosure/release only; B validation NOT accepted",
+  "model": "gpt-6.1-sol",
+  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-revised-review",
+  "native_actual": {
+    "exit": 101,
+    "selected": 25,
+    "passed": 24,
+    "failed": 1,
+    "ignored": 0,
+    "filtered": 512,
+    "seconds": 178.916076875,
+    "failed_case": "drive_auth::lifecycle::lifecycle_independent_tests::independent_guard_and_cleanup_failures_never_authorize_retry",
+    "author17_passed": true,
+    "own7_passed1_failed": true
+  },
+  "later_gates": "Not exercised",
+  "source733_exact": true,
+  "product_inventory": 736,
+  "ignored_outputs": 5,
+  "index_raw_byte_equality": "Fail retained; no restore",
+  "index_comparison": "All713 captured path/blob identities exact. Before raw index/stat/extensions/mode/flags were NOT retained, so stat-only drift/full semantic invariance and actor/cause cannot be proven. Current after-index checksum valid; no attribution to worker/build/UI.",
+  "GIT_OPTIONAL_LOCKS_0_was_already_set": true,
+  "root_checker_diagnostic": "First checker compared entire before/after entry dicts, which have different field coverage (before working_sha1/equal; aftermode/flags). It failed before writing acceptance. Corrected only checker to compare actually captured path/blob pairs, with missing-before metadata explicitly unproven. No source/oracle/native action.",
+  "seal": {
+    "bytes": 9578,
+    "sha256": "b095429aeee05e382901a9fc7246bfc2bda1db52b29d92d77298d15ea60efe07"
+  },
+  "records_verified": 42,
+  "history_records_verified": [
+    42,
+    16,
+    19,
+    28
+  ],
+  "report": {
+    "bytes": 6932,
+    "sha256": "5e1170013017d5903fdfcc42d250ab6e03ba894aafced504334f5ad6f3674e35"
+  },
+  "receipt": {
+    "bytes": 785734,
+    "sha256": "7e7dcc7938986dc68d37f84e14f789bb14051574bd4f9c965e32e25fd01e3e0e"
+  },
+  "kept_binary": [
+    {
+      "executed_path": "/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-c8f324ca959c2d5c",
+      "preserved_path": "/private/tmp/rapidraw-gd1b7-lifecycle-revised-validation-20261016/executed-rapidraw_lib-c8f324ca959c2d5c",
+      "bytes": 42579760,
+      "sha256": "f2517d3a0012fe198985165460db003e82e197de49cf0e3e8213b86b35b2263a"
+    }
+  ],
+  "cache_release": {
+    "released": true,
+    "utc": "2026-10-16T03:55:24.925263+00:00",
+    "owner": "01a13e03-d91b-7810-a557-ca8e5fd5cd16",
+    "target": "/private/tmp/rapidraw-integration-20261015/target",
+    "free_bytes": 14529740800,
+    "proof": {
+      "bytes": 6859,
+      "sha256": "6159e733c2e106f5d1dc617f7c3d93d3843a64d1540dd9e93f2e8b39fcdcbecc"
+    },
+    "no_native_command_after_release": true
+  },
+  "canonical713_unchanged": true,
+  "next": "New isolated probe-only amendment, fresh root-owned index baseline after deliberate pre-freeze stat refresh (no staging changes), raw pre-index copy/semantic baseline captured. Preserve original source/oracles/result/index and unknownactor. Later full corrected validation gets new lease."
+}

@@ -1898,6 +1898,14 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default();
 
+    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+    {
+        builder = builder.manage(
+            drive_auth::lifecycle::DesktopState::empty()
+                .expect("empty native application configuration"),
+        );
+    }
+
     #[cfg(target_os = "linux")]
     {
         if !is_headless {
@@ -2502,6 +2510,30 @@ pub fn run() {
             camera_tethering::tether_get_preview,
             camera_tethering::tether_autofocus,
             guided_perspective::calculate_guided_perspective,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::drive_auth_options,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::drive_auth_begin,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::drive_auth_status,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::drive_auth_verification_status,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::drive_auth_connection,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::drive_auth_proposal,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::drive_auth_cancel,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::drive_auth_decide,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::drive_auth_disconnect,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::app_exit,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::app_restart,
+            #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+            drive_auth::commands::app_lifecycle_status,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -2542,6 +2574,17 @@ pub fn run() {
 				        }
 				    }
 				}
+                #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+                tauri::RunEvent::ExitRequested { code, api, .. } => {
+                    let state = app_handle.state::<drive_auth::lifecycle::DesktopState>();
+                    drive_auth::lifecycle::on_exit_requested(&state, app_handle, code, &api);
+                }
+                #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+                tauri::RunEvent::Exit => {
+                    let state = app_handle.state::<drive_auth::lifecycle::DesktopState>();
+                    drive_auth::lifecycle::on_exit(&state);
+                }
+                #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
                 tauri::RunEvent::ExitRequested { api, .. } => {
                     api.prevent_exit();
 
@@ -2551,6 +2594,7 @@ pub fn run() {
                     #[cfg(not(target_os = "macos"))]
                     std::process::exit(0);
                 }
+                #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
                 tauri::RunEvent::Exit => {
                     #[cfg(target_os = "macos")]
                     unsafe { libc::_exit(0); }

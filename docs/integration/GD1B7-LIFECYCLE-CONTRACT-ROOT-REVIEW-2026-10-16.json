@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-16T02:49:53.234913+00:00",
+  "head": "abf1ed796246cb952691d287451b843c61985c43",
+  "review": "Pass source-contract review, source implementation not yet present",
+  "contract": {
+    "bytes": 8094,
+    "sha256": "ffbbacc7cc1ddff2f269ba2c82e6855ced3335ba4cc6d951689a049829099d0d"
+  },
+  "receipt": {
+    "bytes": 4595,
+    "sha256": "eaa97eb60cff937a9ef1ee577af64b931dbee2988613c587249e6776394f2088"
+  },
+  "source_records_verified": 35,
+  "all713inputs_and_metadata_exact": true,
+  "root_independent_traces": [
+    "sentinel prevent_exit bypass (prior finding)",
+    "remote custom command origin ACL gate",
+    "generate_handler cfg attribute preservation",
+    "RequestExit callback before ExitWithCode",
+    "Tao macOS run_return then process::exit"
+  ],
+  "decisions": [
+    "Renderer app_exit code only 0 or 1",
+    "Native first normal code preserved, None maps0",
+    "Normal quit can override restart until finalizer mutex seal",
+    "Only CleanupComplete allows one main-thread final action",
+    "Unknown completion/start/schedule/poison stays blocked",
+    "Remove both desktop process grants; mobile scoped default remains",
+    "One coherent source package, empty native config, no A/helper/Cargo edits"
+  ],
+  "limits": [
+    "Static pinned desktop source evidence, not OS/event-loop execution",
+    "Pinned Android source reviewed by designer; root rehashed, compilation not exercised",
+    "Unexpected foreign sentinel/forced exit/runtime failure cannot be guaranteed graceful"
+  ]
+}

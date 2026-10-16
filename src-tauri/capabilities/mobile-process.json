@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "mobile-process",
+  "description": "Existing mobile process exit and restart permissions",
+  "windows": ["main"],
+  "platforms": ["android", "iOS"],
+  "permissions": ["process:default"]
+}

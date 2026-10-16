@@ -1,4 +1,4 @@
-//! Native authorization primitives; no registered application commands.
+//! Native authorization primitives and desktop commands with empty configuration.
 
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 pub mod account;
@@ -7,7 +7,11 @@ pub mod application;
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 pub mod browser;
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+pub(crate) mod commands;
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
 pub mod exchange;
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+pub(crate) mod lifecycle;
 pub mod loopback;
 pub mod pkce;
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]

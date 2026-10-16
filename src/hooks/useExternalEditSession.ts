@@ -7,6 +7,7 @@ import { useEditorStore } from '../store/useEditorStore';
 import { Invokes } from '../components/ui/AppProperties';
 import { ExportSettings, Status } from '../components/ui/ExportImportProperties';
 import { debouncedSave } from './useEditorActions';
+import { useOsPlatform } from './useOsPlatform';
 
 /**
  * Handles files handed to the app from outside (OS "open with" and the
@@ -15,6 +16,7 @@ import { debouncedSave } from './useEditorActions';
  * the result to the caller-provided output path and exits the app.
  */
 export function useExternalEditSession(handleImageSelect: (path: string) => void) {
+  const osPlatform = useOsPlatform();
   const initialFileToOpen = useProcessStore((state) => state.initialFileToOpen);
   const externalEditSession = useProcessStore((state) => state.externalEditSession);
   const exportStatus = useProcessStore((state) => state.exportState.status);
@@ -40,11 +42,24 @@ export function useExternalEditSession(handleImageSelect: (path: string) => void
   useEffect(() => {
     if (!isFinishing) return;
     if (exportStatus === Status.Success) {
-      exit(0);
+      const requestExit = async () => {
+        try {
+          if (['macos', 'windows', 'linux'].includes(osPlatform)) {
+            await invoke('app_exit', { request: JSON.stringify({ schemaVersion: 1, code: 0 }) });
+          } else if (osPlatform === 'android' || osPlatform === 'ios') {
+            await exit(0);
+          } else {
+            setIsFinishing(false);
+          }
+        } catch {
+          setIsFinishing(false);
+        }
+      };
+      void requestExit();
     } else if (exportStatus === Status.Error || exportStatus === Status.Cancelled) {
       setIsFinishing(false);
     }
-  }, [isFinishing, exportStatus]);
+  }, [isFinishing, exportStatus, osPlatform]);
 
   const finishExternalEdit = useCallback(async () => {
     const session = useProcessStore.getState().externalEditSession;

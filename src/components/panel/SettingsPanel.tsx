@@ -756,11 +756,20 @@ export default function SettingsPanel({
   };
 
   const handleSaveAndRelaunch = async () => {
-    await onSettingsChange({
-      ...appSettings,
-      ...processingSettings,
-    });
-    await relaunch();
+    try {
+      await onSettingsChange({
+        ...appSettings,
+        ...processingSettings,
+      });
+      if (['macos', 'windows', 'linux'].includes(osPlatform)) {
+        await invoke('app_restart', { request: JSON.stringify({ schemaVersion: 1 }) });
+      } else if (osPlatform === 'android' || osPlatform === 'ios') {
+        await relaunch();
+      }
+      // Unknown platforms fail closed; never fall back to the process plugin.
+    } catch {
+      // No raw lifecycle errors or fallback restart; settings behavior is retained.
+    }
   };
 
   const handleProviderChange = (provider: string) => {

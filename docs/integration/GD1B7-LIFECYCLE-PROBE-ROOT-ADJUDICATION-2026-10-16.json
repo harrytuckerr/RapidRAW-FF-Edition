@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-16T03:52:34.722086+00:00",
+  "decision": "Probe-fidelity error, not a demonstrated product fault. Preserve current gate result, no production repair for this fixture.",
+  "current_gate": "Worker reports sole Cargo started2026-10-16T03:50:45.658036Z PID12282; let finish unchanged, no signals/restarts/reruns/downstream checks. Actual result not yet asserted.",
+  "static_trace_record": {
+    "bytes": 2704,
+    "sha256": "607a7bf6edcba84380750e65fd75624059b3167faa479d9b7daf804d2fccb0cb"
+  },
+  "current_child": {
+    "bytes": 15497,
+    "sha256": "cfc414ee52a2f53afb23026980dbc7b70366154fef47c9d1a28b873188424530"
+  },
+  "root_source_observation": "Linked healthy A stores None through mark_closing; coordinator-only Some(ControllerFault) injection does not create an A fault. Fatal owner snapshot legitimately rereads authoritative stored None.",
+  "smallest_later_probe_correction": [
+    "Within ONLY independent_guard_and_cleanup_failures_never_authorize_retry, remove manual coordinator-only ControllerFault injection from the linked healthy-owner CleanupUnproven fixture; expect exact None for that owner closureFault.",
+    "Preserve static coordinator fault-record retention coverage in a separately labelled PURE Coordinator fixture inside the SAME group: inject Some ControllerFault there, apply CleanupUnproven Closed, require pure coordinator snapshot keeps Some and cannot seal. No linked A fault/poison proof claimed.",
+    "Other7own groups/helpers, all17authored native cases/4frontend and production/config/footer/input bytes unchanged;8 own definitions remain8.",
+    "Source-only amendment in NEW exact snapshot after current gate/report/cache release; no source/oracle adjustment in running snapshot; new full validation separately granted."
+  ],
+  "qualification": "This preserves exact real-owner authority semantics and pure record coverage; no weakened production error path or tests adapted silently to a runtime output. Root trace was established before any test outcome was read.",
+  "all733protected_source_bytes_unchanged": true
+}

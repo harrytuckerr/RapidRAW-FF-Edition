@@ -1,0 +1,184 @@
+{
+  "utc": "2026-10-16T05:08:58.672098+00:00",
+  "root_model": "gpt-6.1-sol",
+  "production_author": "gpt-6-astra",
+  "formatter_author": "claude-haiku-5-5",
+  "independent_validator": "gpt-6.1-sol",
+  "scope": "Accepted scoped source/native/callback/build/format/strict evidence for exact integration, NOT fullcanonical/app/provider/release acceptance",
+  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format",
+  "inputs751_and_meta_raw_full713_exact": true,
+  "source_report_makes752": true,
+  "final_manifest": {
+    "path": "/private/tmp/rapidraw-gd1b7-lifecycle-formatted-validation-20261016/artifact-manifest.json",
+    "bytes": 13761,
+    "sha256": "c0345a5b4f9b65ff5641f56e298510160bae6887b8f0a25811bd19efb732fd0e",
+    "verified_records": 60
+  },
+  "final_receipt": {
+    "path": "/private/tmp/rapidraw-gd1b7-lifecycle-formatted-validation-20261016/receipt.json",
+    "bytes": 2931204,
+    "sha256": "0df4e9b709c55d86f0fdbbee4197ce98c4ba3a07f81763b7cb086be58c4778a4"
+  },
+  "four_gate_results": {
+    "node": {
+      "argv": [
+        "node",
+        "--test",
+        "src/__tests__/applicationLifecycle.test.mjs"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format",
+      "exit": 0,
+      "duration_seconds": 0.37762575000000004,
+      "stdout": {
+        "bytes": 1057,
+        "sha256": "6dcab2f57bae8ff22003835bc7657ab853eb00ce71812d89e13c98b7d944f5f6"
+      },
+      "stderr": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "prettier": {
+      "argv": [
+        "node",
+        "node_modules/prettier/bin/prettier.cjs",
+        "--check",
+        "src/components/panel/SettingsPanel.tsx",
+        "src/hooks/useExternalEditSession.ts",
+        "src/__tests__/applicationLifecycle.test.mjs",
+        "src-tauri/capabilities/default.json",
+        "src-tauri/capabilities/mobile-process.json",
+        "src-tauri/tauri.conf.json"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format",
+      "exit": 0,
+      "duration_seconds": 0.839817125,
+      "stdout": {
+        "bytes": 66,
+        "sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+      },
+      "stderr": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "fmt": {
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format/src-tauri",
+      "exit": 0,
+      "duration_seconds": 1.607492875,
+      "stdout": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "clippy": {
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--offline",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format/src-tauri",
+      "exit": 0,
+      "duration_seconds": 45.479727791,
+      "stdout": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "bytes": 769,
+        "sha256": "3fd9662b956c81fd75e58c45d07f981f98f6fc1e31edc8494851baa7a11b4ce8"
+      }
+    }
+  },
+  "four_callback_names": [
+    "real Settings callback saves then routes all five supported platforms",
+    "real Settings callback fails closed on unknown platforms or rejected work",
+    "real external-edit callback routes exit0 without changing finishing state on success",
+    "real external-edit callback handles unknown/rejected routes without fallback or unhandled rejection"
+  ],
+  "earlier_scope": [
+    "25nativePass original17author+8independent exact under correctedfixture",
+    "VitebuildPass eightprivateartifacts from sameproductionTS/source; formatting touchedonlymjs"
+  ],
+  "absolute_quality_debt": {
+    "wholeprojectTypeScript": "Fail70 A/B unchanged; completefullmessage no-new comparisonPass separately",
+    "targeted_ESLint": "Fail49=36errors13warnings A/B unchanged; rawheader+42sourceprovenlineprefix transformbyteexact, observed no-new comparisonPass separately"
+  },
+  "history_qualifications": [
+    "OriginalstaticF1 and falsefixture24-1/rawindexFail andformatterFail histories preserved",
+    "Haiku oldprohibitedGitstatuspossibleunprovenindexcause, no actorproof/restoration",
+    "Sourceformatterprior35manifest-onlycheck completedrecord-by-recordbyroot",
+    "Finalprivateignoreallowlist linux-schema vs actualmacOS-schema diagnostic reconciledREADONLY; all751protectedbytes/rawmeta and4gates unchanged, no gate/source/oracle rerun"
+  ],
+  "root_prior_reviews": [
+    {
+      "path": "/private/tmp/rapidraw-gd1b7-application-root-20261016/APPLICATION-B-CORRECTED-PARTIAL-ROOT-REVIEW.json",
+      "bytes": 3272,
+      "sha256": "f3de6a06fac0214e9bf8479868a394c3321123678bd2dbeffa6ea240d8fbff90"
+    },
+    {
+      "path": "/private/tmp/rapidraw-gd1b7-application-root-20261016/APPLICATION-B-TYPES-BASELINE-ROOT-REVIEW.json",
+      "bytes": 6305,
+      "sha256": "36469491b35e5af3ce3c57d43f9fc469bcc82a2be924629399158a3c9153e9ef"
+    },
+    {
+      "path": "/private/tmp/rapidraw-gd1b7-application-root-20261016/APPLICATION-B-HAIKU-TYPE-LEDGER-ROOT-ACCEPTANCE.json",
+      "bytes": 4572,
+      "sha256": "0820da4386deca1225bc3dc553e0d5a1e9e9f66d61a4f2f24b59735d6ee212aa"
+    },
+    {
+      "path": "/private/tmp/rapidraw-gd1b7-application-root-20261016/APPLICATION-B-CHECKS-PARTIAL-ROOT-REVIEW.json",
+      "bytes": 3251,
+      "sha256": "e882b29e38c5f606a2fad52e3e5ac1b41092db03fb114939a4e175ede86d9bae"
+    },
+    {
+      "path": "/private/tmp/rapidraw-gd1b7-application-root-20261016/APPLICATION-B-ESLINT-BASELINE-ROOT-REVIEW.json",
+      "bytes": 11701,
+      "sha256": "67722804c15323bf499db25c5e9a124a597099b5fe897f60f0be3f926afc51dc"
+    },
+    {
+      "path": "/private/tmp/rapidraw-gd1b7-application-root-20261016/APPLICATION-B-FORMAT-FAILURE-ROOT-REVIEW.json",
+      "bytes": 1215,
+      "sha256": "d0e9bb7ed22324ab1fafedf74a6e37aaf8777d08532f95bd63fe334d219d1ece"
+    },
+    {
+      "path": "/private/tmp/rapidraw-gd1b7-application-root-20261016/APPLICATION-B-FRONTEND-FORMAT-ROOT-REVIEW.json",
+      "bytes": 3768,
+      "sha256": "e5d4722f42354920bff9cebe4b160c516620d0c2adb0bb20fba7e9020ca7a32d"
+    }
+  ],
+  "cache_release": {
+    "released": true,
+    "utc": "2026-10-16T05:04:57.459111+00:00",
+    "owner": "01a13e03-d91b-7810-a557-ca8e5fd5cd16",
+    "target": "/private/tmp/rapidraw-integration-20261015/target",
+    "free_bytes": 14131417088,
+    "proof": {
+      "bytes": 6399,
+      "sha256": "5744339f6c3c337edf66aa207fcbf754628e5429d39568a6086179a3619f5a35"
+    },
+    "no_native_command_after_release": true
+  },
+  "decision": "Proceed exact6changed+39newcandidate import then freshcanonical fullpermanent native/Node4/Prettier6/fmt/strict gate beforelocalcommit",
+  "not_exercised": [
+    "actualmountedapp/remoteIPC/eventloop/OSexit-restart",
+    "defaultbrowser/realprovider/positiveapplicationOAuth",
+    "mobilecompile/device/config/credentials/storage/sync",
+    "mainmerge/push/deploy/release"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-16T03:16:57.038328+00:00",
+  "status": "Pass exact source amendment review; no runtime acceptance",
+  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-name-review",
+  "base": "abf1ed796246cb952691d287451b843c61985c43",
+  "input_count": 723,
+  "other_inputs_unchanged": 722,
+  "final_inventory": 724,
+  "amendment_manifest": {
+    "bytes": 3542,
+    "sha256": "9154617d84b0cbab23cd29312dd2fce0a4151700a8d8891c3b7e85fc87bd12dc"
+  },
+  "sealed_records_verified": 16,
+  "original_author42_records_unchanged": true,
+  "commands_new": {
+    "bytes": 15659,
+    "sha256": "b95541014726b9bc6c98ca12eb81453888177733acc191faadd3f897b56acd2e"
+  },
+  "edit": "Exactly one uppercase A to lowercase a in test identifier; reversal restores15659 original bytes",
+  "production_assertions_test_bodies_unchanged": true,
+  "metadata_unchanged": true,
+  "native_frontend_tests_executed": 0
+}

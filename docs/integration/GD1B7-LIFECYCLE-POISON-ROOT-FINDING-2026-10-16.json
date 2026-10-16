@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-16T03:23:47.175579+00:00",
+  "status": "Confirmed static fault-injection invariant blocker; no runtime reproduction",
+  "all726protected_inputs_and_metadata_exact": true,
+  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-wiring-review",
+  "files": {
+    "src-tauri/src/drive_auth/lifecycle.rs": {
+      "bytes": 24447,
+      "sha256": "6f361a47acfe4fbf1d31af13547b3b0e302dca581cee4902df7396f30fbbbcab"
+    },
+    "src-tauri/src/drive_auth/commands.rs": {
+      "bytes": 15747,
+      "sha256": "b103ae5914cafe0aec42dacffafa2c39c5537e336e75d8446fad6dc83e68e4d0"
+    },
+    "src-tauri/src/drive_auth/application.rs": {
+      "bytes": 68963,
+      "sha256": "e856635c01db3c8bdc1f364e02b3a46313dc291dca2ce84e5dc160d04f2639f5"
+    }
+  },
+  "trace": [
+    "Coordinator::lock lifecycle102-110 changes poisoned state to Blocked without touching application closing mutex",
+    "lifecycle::request lifecycle255 propagates request Unavailable with ? before mark_closing261",
+    "DesktopState::snapshot lifecycle23-24 delegates directly to coordinator.snapshot; poison observation blocks coordinator only",
+    "on_exit_requested lifecycle319-321 can Prevent on blocked coordinator without closing application",
+    "A check_open application203-211 reads separate closing mutex; rejected begin/decide depend on it",
+    "A mark_closing application215-239 is existing idempotent synchronous authority; no helper edit required"
+  ],
+  "consequence": "Fault observed by request/status/native exit hook can report blocked/unavailable while A admission remains Open. Empty catalog is still NotConfigured; no provider/authentication leak or ordinary panic claimed. Violates agreed fail-closed ownership invariant.",
+  "reachability_limit": "Explicit coordinator-poison fault-injection precondition; no ordinary production panic identified in small critical sections",
+  "smallest_correction": "Reconcile faulted owner-facing lifecycle paths to existing A.mark_closing before returning, outside coordinator mutex; retain static closure fault; preserve invalid request nonmutation and no start/action/fence on fatal fault. Author chooses narrow production-used structure in lifecycle.rs only.",
+  "preservation": "Original review and source remain frozen; no native/Node command/probe executed. Independent reviewer still sealing report/cache release."
+}
