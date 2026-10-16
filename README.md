@@ -8,7 +8,7 @@
 
 [![AGPL-3.0](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=for-the-badge)](LICENSE)
 [![RapidRAW HT Edition](https://img.shields.io/badge/fork-RapidRAW%20HT%20Edition-555?style=for-the-badge&logo=github)](https://github.com/harrytuckerr/RapidRAW-HT-Edition)
-[![Development preview](https://img.shields.io/github/v/release/harrytuckerr/RapidRAW-HT-Edition?include_prereleases&label=preview&style=for-the-badge)](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/tag/fuji-preview-2026.10.16.1)
+[![Development preview](https://img.shields.io/github/v/release/harrytuckerr/RapidRAW-HT-Edition?include_prereleases&label=preview&style=for-the-badge)](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/tag/ht-preview-2026.10.16.2)
 
 </div>
 
@@ -26,7 +26,11 @@ This fork now lives at [harrytuckerr/RapidRAW-HT-Edition](https://github.com/har
 
 ## Download
 
-> **Security status:** dependency and workflow security fixes on `main` postdate this preview. The APK, DMG and source archive linked below retain their original bytes and are **not rebuilt security releases**. See the [security notes](docs/security/README.md) for validation and historical-metadata limits.
+**Current Android test build: [1.6.6 ARM64 APK](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/download/ht-preview-2026.10.16.2/RapidRAW-HT-1.6.6-c7b8b07c-android-arm64-debug.apk).** It includes the reviewed security fixes, compact profile import menu, WB presets/Auto and adjustment-preset URI handling. Package, signing identity, native ARM64 bytes, resources and fresh frontend assets were verified. It is a development/debug build. [Release notes, corresponding source, provenance and checksums](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/tag/ht-preview-2026.10.16.2) describe the checks and limits. Automatic Modular selection and profile-switch caching are not included.
+
+> **Older package security status:** the original `fuji-preview-2026.10.16.1` APK, Mac DMG and source archive below retain their original bytes and are **not rebuilt security releases**. The new Android 1.6.6 test APK is a separate build. There is no new Mac package in this checkpoint. See the [security notes](docs/security/README.md) for validation and historical-metadata limits.
+
+### Original 1.6.5 preview
 
 [fuji-preview-2026.10.16.1](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/tag/fuji-preview-2026.10.16.1) is a published development preview built from source commit `b75d096b4ef2001377cfc628835a6bd160601c28`. The embedded app version remains **1.6.5**; the dated tag identifies this fork revision. This README refresh follows publication and is not part of the packaged source. The packages also contain the reviewed attribution resources and Android dependency-declaration overlay supplied with the release; those exact inputs are now retained on `main`.
 
@@ -40,7 +44,7 @@ Installers published by upstream RapidRAW do not include anything described in t
 
 ## Source updates after this preview
 
-Current `main` adds a compact Camera Profile import menu, ordered profile groups, a White Balance preset/Auto menu and Android adjustment-preset URI handling. Host regression and build checks are recorded in the [workflow validation](docs/integration/WORKFLOW-POLISH-VALIDATION-2026-10-16.md), including inherited type/lint failures and physical-device limits. The linked preview packages predate these updates.
+The Android 1.6.6 test APK includes a compact Camera Profile import menu, ordered profile groups, a White Balance preset/Auto menu and Android adjustment-preset URI handling. Host regression and build checks are recorded in the [workflow validation](docs/integration/WORKFLOW-POLISH-VALIDATION-2026-10-16.md), including inherited type/lint failures and physical-device limits. The older 1.6.5 preview packages predate these updates.
 
 ## Why use it
 
