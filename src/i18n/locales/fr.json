@@ -64,7 +64,17 @@
       "vibrance": "Vibrance",
       "wbPickerTooltip": "Pipette de balance des blancs",
       "wbPickerWgpuDisabled": "Pipette BB : Désactivez WGPU dans les paramètres.",
-      "whiteBalance": "Balance des blancs"
+      "whiteBalance": "Balance des blancs",
+      "wbPresetAsShot": "Prise de vue",
+      "wbPresetAuto": "Auto",
+      "wbPresetDaylight": "Lumière du jour · 5500 K",
+      "wbPresetShade": "Ombre · 7500 K",
+      "wbPresetCloudy": "Nuageux · 6500 K",
+      "wbPresetTungsten": "Tungstène · 3200 K",
+      "wbPresetFluorescent": "Fluorescent · 4000 K",
+      "wbPresetFlash": "Flash · 5500 K",
+      "wbPresetCustom": "Personnalisé",
+      "wbPresetAutoFailure": "La balance des blancs automatique n’a pas pu être calculée."
     },
     "curves": {
       "channelTitle": "Canal {{channel}}",
@@ -810,7 +820,13 @@
         "preset": "Paramètre prédéfini",
         "style": "Style",
         "tool": "Outil"
-      }
+      },
+      "importOutcomeCancelled": "Importation des préréglages annulée.",
+      "importOutcomeSuccess": "Importés : {{count}}.",
+      "importOutcomePartial": "Importés : {{count}}. Fichiers en échec : {{failed}}.",
+      "importOutcomeFailed": "Aucun préréglage importé. Fichiers en échec : {{failed}}.",
+      "importOutcomeEmpty": "Les fichiers sélectionnés ne contenaient aucun préréglage.",
+      "importOutcomeError": "Impossible d’importer les préréglages. Réessayez."
     },
     "switcher": {
       "tooltips": {
@@ -2172,6 +2188,8 @@
     "importFailed": "Some profiles failed to import:",
     "importNone": "No profile files were found.",
     "resetTooltip": "Clear profile selection",
-    "rescanComplete": "Profile rescan complete."
+    "rescanComplete": "Profile rescan complete.",
+    "importMenu": "Importer",
+    "importMenuHint": "DCP de base + Look facultatif ; les préréglages de réglage s’appliquent ensuite."
   }
 }

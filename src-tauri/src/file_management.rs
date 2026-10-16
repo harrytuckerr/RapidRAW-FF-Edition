@@ -266,6 +266,8 @@ pub struct PresetImportFailure {
 #[derive(Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PresetImportResult {
+    /// Number of imported top-level presets or folders, excluding the existing library.
+    pub imported: usize,
     pub presets: Vec<PresetItem>,
     pub failures: Vec<PresetImportFailure>,
 }
@@ -3145,13 +3147,6 @@ pub fn get_or_create_internal_library_root(app_handle: AppHandle) -> Result<Stri
     Ok(library_root.to_string_lossy().to_string())
 }
 
-fn preset_file_display_name(file_path: &str) -> String {
-    Path::new(file_path)
-        .file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_else(|| file_path.to_string())
-}
-
 fn collect_top_level_preset_names(items: &[PresetItem]) -> HashSet<String> {
     items
         .iter()
@@ -3162,22 +3157,77 @@ fn collect_top_level_preset_names(items: &[PresetItem]) -> HashSet<String> {
         .collect()
 }
 
+/// Keep document transport separate from parsing: SAF identifiers are not paths,
+/// and the provider's display name, not the URI suffix, determines the format.
+fn parse_preset_source_with(
+    source: &str,
+    resolved_name: &mut Option<String>,
+    resolve_name: impl FnOnce(&str) -> Result<String, String>,
+    read_bytes: impl FnOnce(&str) -> Result<Vec<u8>, String>,
+) -> Result<Vec<PresetItem>, String> {
+    let name = resolve_name(source)?;
+    *resolved_name = Some(name.clone());
+    if name.trim().is_empty() {
+        return Err(
+            "The selected document has no file name. Choose a .rrpreset, .xmp or .lrtemplate file."
+                .into(),
+        );
+    }
+    let bytes = read_bytes(source)?;
+    parse_preset_bytes(&name, &bytes)
+}
+
+fn read_preset_source(
+    source: &str,
+    resolved_name: &mut Option<String>,
+) -> Result<Vec<PresetItem>, String> {
+    #[cfg(target_os = "android")]
+    if crate::android_integration::is_android_content_uri(source) {
+        return parse_preset_source_with(
+            source,
+            resolved_name,
+            crate::android_integration::resolve_android_content_uri_name,
+            crate::android_integration::read_android_content_uri,
+        );
+    }
+
+    parse_preset_source_with(
+        source,
+        resolved_name,
+        |path| {
+            Ok(Path::new(path)
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.to_string()))
+        },
+        |path| fs::read(path).map_err(|e| format!("Failed to read preset file: {e}")),
+    )
+}
+
 fn parse_preset_file(file_path: &str) -> Result<Vec<PresetItem>, String> {
-    let lower_path = file_path.to_lowercase();
-    let is_legacy = lower_path.ends_with(".xmp") || lower_path.ends_with(".lrtemplate");
+    let mut name = None;
+    read_preset_source(file_path, &mut name).map_err(|error| {
+        let label = import_item_label(file_path, name.as_deref(), 0);
+        import_failure_detail(&label, file_path, &error, name.as_deref())
+    })
+}
+
+fn parse_preset_bytes(file_name: &str, bytes: &[u8]) -> Result<Vec<PresetItem>, String> {
+    let content = String::from_utf8(bytes.to_vec())
+        .map_err(|e| format!("Preset file is not valid UTF-8: {e}"))?;
+    let lower_name = file_name.to_lowercase();
+    let is_legacy = lower_name.ends_with(".xmp") || lower_name.ends_with(".lrtemplate");
 
     if !is_legacy {
-        let content = fs::read_to_string(file_path)
-            .map_err(|e| format!("Failed to read preset file: {}", e))?;
-        let preset_file: PresetFile = serde_json::from_str(&content)
-            .map_err(|e| format!("Failed to parse preset file: {}", e))?;
+        let preset_file: PresetFile = serde_json::from_str(&content).map_err(|e| {
+            format!(
+                "Failed to parse preset file: {e}. Choose a .rrpreset, .xmp or .lrtemplate file."
+            )
+        })?;
         return Ok(preset_file.presets);
     }
 
-    let content = fs::read_to_string(file_path)
-        .map_err(|e| format!("Failed to read legacy preset file: {}", e))?;
-
-    let xmp_content = if lower_path.ends_with(".lrtemplate") {
+    let xmp_content = if lower_name.ends_with(".lrtemplate") {
         if let Some(caps) = regex!(r#"(?s)s.xmp = "(.*)""#).captures(&content) {
             caps.get(1)
                 .map(|m| m.as_str().replace(r#"\""#, r#"""#))
@@ -3189,8 +3239,49 @@ fn parse_preset_file(file_path: &str) -> Result<Vec<PresetItem>, String> {
         content
     };
 
+    reject_profile_look_as_preset(&xmp_content)?;
     let converted_preset = preset_converter::convert_xmp_to_preset(&xmp_content)?;
+    if converted_preset
+        .adjustments
+        .as_object()
+        .is_some_and(|adjustments| adjustments.is_empty())
+    {
+        return Err("This XMP contains no supported adjustment settings. For a profile Look, use Camera Profile > Import Look (.xmp); otherwise choose an adjustment preset with supported settings.".into());
+    }
     Ok(vec![PresetItem::Preset(converted_preset)])
+}
+
+/// Profile Looks contain rendering tables, not exposure/colour adjustment presets.
+/// Inspect XML attributes without decoding tables or changing the converter.
+fn reject_profile_look_as_preset(content: &str) -> Result<(), String> {
+    use quick_xml::events::Event;
+    let mut reader = quick_xml::Reader::from_str(content);
+    let mut buffer = Vec::new();
+    loop {
+        match reader.read_event_into(&mut buffer) {
+            Ok(Event::Start(element) | Event::Empty(element)) => {
+                for attribute in element.attributes() {
+                    let attribute = attribute.map_err(|e| format!("Invalid preset XML: {e}"))?;
+                    if attribute.key.as_ref() == b"crs:RGBTable"
+                        || (attribute.key.as_ref() == b"crs:PresetType"
+                            && attribute
+                                .decoded_and_normalized_value(
+                                    quick_xml::XmlVersion::Implicit1_0,
+                                    reader.decoder(),
+                                )
+                                .map_err(|e| format!("Invalid preset XML: {e}"))?
+                                == "Look")
+                    {
+                        return Err("This XMP is a profile Look, not an adjustment preset. Use Camera Profile > Import Look (.xmp) with its required base DCP.".into());
+                    }
+                }
+            }
+            Ok(Event::Eof) => return Ok(()),
+            Err(error) => return Err(format!("Invalid preset XML: {error}")),
+            _ => {}
+        }
+        buffer.clear();
+    }
 }
 
 fn merge_imported_items(
@@ -3260,39 +3351,53 @@ pub fn handle_import_legacy_presets_from_file(
     import_preset_file_into_library(&file_path, app_handle)
 }
 
+fn import_preset_files_with(
+    file_paths: &[String],
+    mut current_presets: Vec<PresetItem>,
+    mut parse: impl FnMut(&str, &mut Option<String>) -> Result<Vec<PresetItem>, String>,
+) -> PresetImportResult {
+    let mut taken_names = collect_top_level_preset_names(&current_presets);
+    let mut failures = Vec::new();
+    let mut imported_count = 0;
+    for (index, source) in file_paths.iter().enumerate() {
+        let mut name = None;
+        match parse(source, &mut name) {
+            Ok(imported) => {
+                imported_count += imported.len();
+                merge_imported_items(&mut current_presets, &mut taken_names, imported);
+            }
+            Err(error) => {
+                let label = import_item_label(source, name.as_deref(), index);
+                failures.push(PresetImportFailure {
+                    file_name: label.clone(),
+                    error: import_failure_detail(&label, source, &error, name.as_deref()),
+                });
+            }
+        }
+    }
+    PresetImportResult {
+        imported: imported_count,
+        presets: current_presets,
+        failures,
+    }
+}
+
 #[tauri::command]
 pub fn handle_import_presets_from_files(
     file_paths: Vec<String>,
     app_handle: AppHandle,
 ) -> Result<PresetImportResult, String> {
-    let mut current_presets = load_presets(app_handle.clone())?;
-    let mut taken_names = collect_top_level_preset_names(&current_presets);
-
-    let mut failures: Vec<PresetImportFailure> = Vec::new();
-    let mut library_changed = false;
-
-    for file_path in &file_paths {
-        match parse_preset_file(file_path) {
-            Ok(imported) => {
-                library_changed |= !imported.is_empty();
-                merge_imported_items(&mut current_presets, &mut taken_names, imported);
-            }
-            Err(error) => failures.push(PresetImportFailure {
-                file_name: preset_file_display_name(file_path),
-                error,
-            }),
-        }
+    let current_presets = load_presets(app_handle.clone())?;
+    let result = import_preset_files_with(&file_paths, current_presets, read_preset_source);
+    if result.imported > 0 {
+        save_presets(result.presets.clone(), app_handle)?;
     }
-
-    if library_changed {
-        save_presets(current_presets.clone(), app_handle)?;
-    }
-
-    Ok(PresetImportResult {
-        presets: current_presets,
-        failures,
-    })
+    Ok(result)
 }
+
+#[cfg(test)]
+#[path = "preset_import_tests.rs"]
+mod preset_import_tests;
 
 #[tauri::command]
 pub fn handle_export_presets_to_file(

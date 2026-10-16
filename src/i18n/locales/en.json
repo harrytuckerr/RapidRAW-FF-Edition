@@ -64,7 +64,17 @@
       "vibrance": "Vibrance",
       "wbPickerTooltip": "White Balance Picker",
       "wbPickerWgpuDisabled": "WB Picker: Disable WGPU in Settings.",
-      "whiteBalance": "White Balance"
+      "whiteBalance": "White Balance",
+      "wbPresetAsShot": "As Shot",
+      "wbPresetAuto": "Auto",
+      "wbPresetDaylight": "Daylight · 5500 K",
+      "wbPresetShade": "Shade · 7500 K",
+      "wbPresetCloudy": "Cloudy · 6500 K",
+      "wbPresetTungsten": "Tungsten · 3200 K",
+      "wbPresetFluorescent": "Fluorescent · 4000 K",
+      "wbPresetFlash": "Flash · 5500 K",
+      "wbPresetCustom": "Custom",
+      "wbPresetAutoFailure": "Auto white balance could not be calculated."
     },
     "curves": {
       "channelTitle": "{{channel}} Channel",
@@ -794,7 +804,13 @@
       "importAction": "Import presets",
       "activeCameraProfile": "Camera Profile active",
       "activeLook": "Cobalt Look {{amount}}%",
-      "includesProfile": "Includes captured Camera Profile + optional Look"
+      "includesProfile": "Includes captured Camera Profile + optional Look",
+      "importOutcomeCancelled": "Preset import cancelled.",
+      "importOutcomeSuccess": "Imported: {{count}}.",
+      "importOutcomePartial": "Imported: {{count}}. Failed files: {{failed}}.",
+      "importOutcomeFailed": "No presets were imported. Failed files: {{failed}}.",
+      "importOutcomeEmpty": "The selected files contained no presets.",
+      "importOutcomeError": "Could not import presets. Please try again."
     },
     "switcher": {
       "tooltips": {
@@ -2157,6 +2173,8 @@
     "lookSummary": "{{name}} · {{amount}}%",
     "loading": "Loading camera profiles…",
     "presetImportHint": "For exposure, colour or effects XMP presets, use Import presets in Adjustment presets.",
-    "goToPresets": "Go to adjustment presets"
+    "goToPresets": "Go to adjustment presets",
+    "importMenu": "Import",
+    "importMenuHint": "Base DCP + optional Look; adjustment presets go on top."
   }
 }

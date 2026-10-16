@@ -11,7 +11,8 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { useTranslation } from 'react-i18next';
-import { PresetImportFailure, PresetListType, usePresets, UserPreset } from '../../../hooks/usePresets';
+import { toast } from 'react-toastify';
+import { PresetListType, usePresets, UserPreset } from '../../../hooks/usePresets';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import {
   CopyPlus,
@@ -1097,26 +1098,36 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
         multiple: true,
         title: t('editor.presets.dialog.importPresetsTitle'),
       });
-
-      if (!selectedPaths) {
-        return;
-      }
-
-      const paths = Array.isArray(selectedPaths) ? selectedPaths : [selectedPaths];
+      const paths = selectedPaths ? (Array.isArray(selectedPaths) ? selectedPaths : [selectedPaths]) : [];
       if (paths.length === 0) {
+        toast.info(t('editor.presets.importOutcomeCancelled'));
         return;
       }
 
-      const { failures } = await importPresetsFromFiles(paths);
-
+      const { imported, failures } = await importPresetsFromFiles(paths);
       setFolderPreviewsGenerated(new Set<string>());
       setPreviews({});
 
-      failures.forEach((failure: PresetImportFailure) =>
-        console.error(`Failed to import ${failure.fileName}: ${failure.error}`),
-      );
-    } catch (error) {
-      console.error('Failed to import presets:', error);
+      // Native failures already contain bounded, URI-redacted names and causes.
+      const details = failures
+        .slice(0, 3)
+        .map((failure) => failure.error)
+        .join('\n');
+      if (failures.length > 0) {
+        const message = t(imported > 0 ? 'editor.presets.importOutcomePartial' : 'editor.presets.importOutcomeFailed', {
+          count: imported,
+          failed: failures.length,
+        });
+        const show = imported > 0 ? toast.warn : toast.error;
+        show(`${message}\n${details}`);
+      } else if (imported > 0) {
+        toast.success(t('editor.presets.importOutcomeSuccess', { count: imported }));
+      } else {
+        toast.info(t('editor.presets.importOutcomeEmpty'));
+      }
+    } catch {
+      // Dialog and IPC errors can contain private grant URIs. Show no raw error.
+      toast.error(t('editor.presets.importOutcomeError'));
     }
   };
 

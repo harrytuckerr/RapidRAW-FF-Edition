@@ -63,7 +63,17 @@
       "vibrance": "Živost",
       "wbPickerTooltip": "Výběr vyvážení bílé",
       "wbPickerWgpuDisabled": "Výběr vyvážení bílé: zakažte WGPU v nastavení.",
-      "whiteBalance": "Vyvážení bílé"
+      "whiteBalance": "Vyvážení bílé",
+      "wbPresetAsShot": "Jak bylo pořízeno",
+      "wbPresetAuto": "Automaticky",
+      "wbPresetDaylight": "Denní světlo · 5500 K",
+      "wbPresetShade": "Stín · 7500 K",
+      "wbPresetCloudy": "Zataženo · 6500 K",
+      "wbPresetTungsten": "Žárovka · 3200 K",
+      "wbPresetFluorescent": "Zářivka · 4000 K",
+      "wbPresetFlash": "Blesk · 5500 K",
+      "wbPresetCustom": "Vlastní",
+      "wbPresetAutoFailure": "Automatické vyvážení bílé se nepodařilo vypočítat."
     },
     "curves": {
       "channelTitle": "{{channel}} kanál",
@@ -788,7 +798,13 @@
         "preset": "Preset",
         "style": "Styl",
         "tool": "Nástroj"
-      }
+      },
+      "importOutcomeCancelled": "Import předvoleb byl zrušen.",
+      "importOutcomeSuccess": "Importováno: {{count}}.",
+      "importOutcomePartial": "Importováno: {{count}}. Soubory s chybou: {{failed}}.",
+      "importOutcomeFailed": "Nebyly importovány žádné předvolby. Soubory s chybou: {{failed}}.",
+      "importOutcomeEmpty": "Vybrané soubory neobsahovaly žádné předvolby.",
+      "importOutcomeError": "Předvolby se nepodařilo importovat. Zkuste to znovu."
     },
     "switcher": {
       "tooltips": {
@@ -2117,5 +2133,9 @@
         "vectorscope": "Vektoroskop"
       }
     }
+  },
+  "profiles": {
+    "importMenu": "Importovat",
+    "importMenuHint": "Základní DCP + volitelný Look; předvolby úprav se aplikují navrch."
   }
 }

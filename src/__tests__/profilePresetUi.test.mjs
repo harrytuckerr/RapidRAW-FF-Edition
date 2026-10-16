@@ -16,8 +16,9 @@ function translate(key, values = {}) {
 }
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.document = { addEventListener() {}, removeEventListener() {} };
+let coarsePointer = false;
 globalThis.window = {
-  matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+  matchMedia: () => ({ matches: coarsePointer, addEventListener() {}, removeEventListener() {} }),
   addEventListener() {},
   removeEventListener() {},
   clearTimeout,
@@ -29,7 +30,10 @@ globalThis.__ui1Translate = translate;
 let dialogResult = null,
   dialogError = null,
   imported = { imported: 1, failed: [] },
-  listError = null;
+  listError = null,
+  dialogPending = null,
+  modelOverride = null,
+  onDialogOpen = null;
 let presets = [],
   calls = [],
   dialogs = [],
@@ -44,7 +48,9 @@ const browserModel = {
 };
 globalThis.__ui1Open = async (options) => {
   dialogs.push(options);
+  onDialogOpen?.();
   if (dialogError) throw dialogError;
+  if (dialogPending) return dialogPending;
   return dialogResult;
 };
 globalThis.__ui1Toast = Object.fromEntries(
@@ -54,7 +60,7 @@ globalThis.__ui1Invoke = async (name, args) => {
   calls.push({ name, args });
   if (name === 'list_profiles_for_image') {
     if (listError) throw listError;
-    return browserModel;
+    return modelOverride || browserModel;
   }
   if (name === 'import_profiles') return imported;
   if (name === 'load_presets') return presets;
@@ -130,9 +136,13 @@ const {
 } = mod.exports;
 let mounted;
 function reset(items = []) {
+  coarsePointer = false;
   dialogResult = null;
   dialogError = null;
   listError = null;
+  dialogPending = null;
+  modelOverride = null;
+  onDialogOpen = null;
   imported = { imported: 1, failed: [] };
   presets = items;
   calls = [];
@@ -143,7 +153,7 @@ function reset(items = []) {
     adjustments: { ...INITIAL_ADJUSTMENTS, profile: { ...profile } },
   });
 }
-async function mount(kind = 'profile') {
+async function mount(kind = 'profile', createNodeMock) {
   function ActualPanel() {
     const adjustments = useEditorStore((s) => s.adjustments);
     const { setAdjustments } = useEditorActions();
@@ -152,7 +162,7 @@ async function mount(kind = 'profile') {
       : React.createElement(PresetsPanel, { onNavigateToCommunity() {} });
   }
   await act(async () => {
-    mounted = create(React.createElement(ActualPanel));
+    mounted = create(React.createElement(ActualPanel), { createNodeMock });
   });
   return mounted;
 }
@@ -163,6 +173,13 @@ const click = async (node) => {
   assert.ok(node, 'actual button exists');
   await act(async () => node.props.onClick());
 };
+const importSurface = (root) => root.root.findByProps({ 'data-profile-import-menu': true });
+async function importControl(root, key) {
+  if (!button(root, translate(`profiles.${key}`))) {
+    await click(button(root, translate('profiles.importMenu')));
+  }
+  return button(root, translate(`profiles.${key}`));
+}
 const item = (root, id) =>
   root.root.find(
     (n) => typeof n.type === 'function' && n.type.name === 'DraggablePresetItem' && n.props.preset.id === id,
@@ -195,13 +212,13 @@ test('separate visible base/Look actions pass exact dialog filters and cancel wi
     ['importBase', 'dcp'],
     ['importLook', 'xmp'],
   ]) {
-    const control = button(root, translate(`profiles.${key}`));
-    assert.match(control.props.className, /min-h-\[44px\]/);
-    assert.match(control.props.className, /focus-visible/);
+    const control = await importControl(root, key);
+    assert.match(importSurface(root).props.className, /min-h-\[44px\]/);
+    assert.match(importSurface(root).props.className, /focus-visible/);
     dialogResult = ext === 'dcp' ? null : [];
     await click(control);
     assert.deepEqual(dialogs.at(-1).filters[0].extensions, [ext]);
-    assert.equal(control.props.disabled, false);
+    assert.equal((await importControl(root, key)).props.disabled, false);
   }
   assert.equal(calls.filter((x) => x.name === 'import_profiles').length, 0);
   assert.deepEqual(useEditorStore.getState().adjustments.profile, profile);
@@ -211,7 +228,7 @@ test('base import calls real profile hook and refreshes the active image without
   reset();
   dialogResult = ['/synthetic/base.dcp'];
   const root = await mount();
-  await click(button(root, translate('profiles.importBase')));
+  await click(await importControl(root, 'importBase'));
   assert.deepEqual(calls.find((x) => x.name === 'import_profiles').args, { sourcePaths: dialogResult });
   assert.equal(calls.filter((x) => x.name === 'list_profiles_for_image').length, 2);
   assert.deepEqual(useEditorStore.getState().adjustments.profile, profile);
@@ -224,7 +241,7 @@ test('ordinary XMP in Look destination retains original rejection and guides to 
   const diagnostic = "invalid Look 'Exposure.xmp': missing crs:CameraProfile";
   imported = { imported: 0, failed: [{ path: dialogResult[0], reason: diagnostic }] };
   const root = await mount();
-  await click(button(root, translate('profiles.importLook')));
+  await click(await importControl(root, 'importLook'));
   assert.ok(
     toasts.some(
       (x) =>
@@ -245,10 +262,10 @@ test('dialog rejection remains an error, re-enables both actions and never subst
   reset();
   dialogError = new Error('Synthetic access denied');
   const root = await mount();
-  await click(button(root, translate('profiles.importLook')));
+  await click(await importControl(root, 'importLook'));
   assert.ok(toasts.some((x) => x.kind === 'error' && x.text.includes('Synthetic access denied')));
-  assert.equal(button(root, translate('profiles.importBase')).props.disabled, false);
-  assert.equal(button(root, translate('profiles.importLook')).props.disabled, false);
+  assert.equal((await importControl(root, 'importBase')).props.disabled, false);
+  assert.equal((await importControl(root, 'importLook')).props.disabled, false);
   assert.deepEqual(useEditorStore.getState().adjustments.profile, profile);
 });
 
@@ -374,7 +391,7 @@ test('base DCP rejection retains diagnostics without suggesting the adjustment p
   const diagnostic = "invalid DCP 'base.dcp': synthetic parser failure";
   imported = { imported: 0, failed: [{ path: dialogResult[0], reason: diagnostic }] };
   const root = await mount();
-  await click(button(root, translate('profiles.importBase')));
+  await click(await importControl(root, 'importBase'));
   assert.deepEqual(dialogs.at(-1).filters[0].extensions, ['dcp']);
   assert.ok(toasts.some((x) => x.kind === 'error' && x.text.includes(diagnostic)));
   assert.equal(
@@ -388,4 +405,190 @@ test('base DCP rejection retains diagnostics without suggesting the adjustment p
     false,
   );
   assert.deepEqual(useEditorStore.getState().adjustments.profile, profile);
+});
+
+test('compact import menu exposes exactly two actions only after opening, without selecting a profile', async () => {
+  for (const mobile of [false, true]) {
+    reset();
+    coarsePointer = mobile;
+    const root = await mount();
+    assert.ok(button(root, translate('profiles.importMenu')));
+    assert.equal(button(root, translate('profiles.importBase')), undefined);
+    assert.equal(button(root, translate('profiles.importLook')), undefined);
+    assert.equal(root.root.findAllByProps({ role: 'option' }).length, 0);
+    await click(button(root, translate('profiles.importMenu')));
+    assert.deepEqual(root.root.findAllByProps({ role: 'option' }).map(text), [
+      translate('profiles.importBase'),
+      translate('profiles.importLook'),
+    ]);
+    assert.deepEqual(useEditorStore.getState().adjustments.profile, profile);
+    assert.equal(dialogs.length, 0);
+    await act(async () => root.unmount());
+    mounted = null;
+  }
+});
+
+test('same-frame repeated import callbacks start one picker, close popup before dispatch and stay disabled until completion', async () => {
+  reset();
+  let finish;
+  dialogPending = new Promise((resolve) => {
+    finish = resolve;
+  });
+  const root = await mount();
+  const control = await importControl(root, 'importBase');
+  onDialogOpen = () => {
+    assert.equal(button(root, translate('profiles.importMenu')).props.disabled, true);
+    assert.equal(root.root.findAllByProps({ role: 'option' }).length, 0);
+  };
+  await act(async () => {
+    control.props.onClick();
+    control.props.onClick();
+  });
+  assert.equal(dialogs.length, 1);
+  assert.equal(importSurface(root).props['aria-busy'], true);
+  assert.equal(button(root, translate('profiles.importMenu')).props.disabled, true);
+  assert.equal(button(root, translate('profiles.importMenu')).props['aria-expanded'], false);
+  assert.equal(root.root.findAllByProps({ role: 'option' }).length, 0);
+  let prevented = 0,
+    stopped = 0;
+  importSurface(root).props.onKeyDownCapture({
+    key: 'd',
+    preventDefault() {
+      prevented++;
+    },
+    stopPropagation() {
+      stopped++;
+    },
+  });
+  assert.equal(prevented, 1);
+  assert.equal(stopped, 1);
+  let tabPrevented = false;
+  importSurface(root).props.onKeyDownCapture({
+    key: 'Tab',
+    preventDefault() {
+      tabPrevented = true;
+    },
+    stopPropagation() {},
+  });
+  assert.equal(tabPrevented, false);
+  await act(async () => {
+    finish(null);
+    await dialogPending;
+  });
+  assert.equal(button(root, translate('profiles.importMenu')).props.disabled, false);
+  assert.equal(calls.filter((x) => x.name === 'import_profiles').length, 0);
+  assert.deepEqual(useEditorStore.getState().adjustments.profile, profile);
+});
+
+test('partial base and Look imports preserve original diagnostics, exact filters and one refresh per request', async () => {
+  for (const [kind, ext] of [
+    ['importBase', 'dcp'],
+    ['importLook', 'xmp'],
+  ]) {
+    reset();
+    dialogResult = [`/synthetic/good.${ext}`, `/synthetic/bad.${ext}`];
+    imported = { imported: 1, failed: [{ path: dialogResult[1], reason: 'Synthetic original parser diagnostic' }] };
+    const root = await mount();
+    await click(await importControl(root, kind));
+    assert.deepEqual(dialogs[0].filters[0].extensions, [ext]);
+    assert.equal(calls.filter((x) => x.name === 'import_profiles').length, 1);
+    assert.equal(calls.filter((x) => x.name === 'list_profiles_for_image').length, 2);
+    assert.ok(toasts.some((x) => x.kind === 'success'));
+    const failure = toasts.find((x) => x.kind === 'error');
+    assert.ok(failure.text.includes('Synthetic original parser diagnostic'));
+    assert.equal(failure.text.includes(translate('profiles.presetImportHint')), ext === 'xmp');
+    assert.deepEqual(useEditorStore.getState().adjustments.profile, profile);
+    await act(async () => root.unmount());
+    mounted = null;
+  }
+});
+
+test('import menu capture and real Dropdown handlers support arrows, Space, Escape and restored focus', async () => {
+  reset();
+  let root;
+  const focus = [];
+  const optionNodes = [0, 1].map((index) => ({
+    focus() {
+      document.activeElement = this;
+      focus.push(index);
+    },
+  }));
+  const trigger = {
+    getAttribute: (key) => String(button(root, translate('profiles.importMenu')).props[key]),
+    click: () => button(root, translate('profiles.importMenu')).props.onClick(),
+    focus() {
+      document.activeElement = this;
+      focus.push('trigger');
+    },
+  };
+  const surface = {
+    querySelector: () => trigger,
+    querySelectorAll: () => root.root.findAllByProps({ role: 'option' }).map((_, index) => optionNodes[index]),
+  };
+  root = await mount('profile', (element) => (element.props['data-profile-import-menu'] ? surface : null));
+  const key = (value) => ({ key: value, currentTarget: surface, preventDefault() {}, stopPropagation() {} });
+  await act(async () => importSurface(root).props.onKeyDownCapture(key('ArrowDown')));
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  });
+  assert.equal(focus.at(-1), 0);
+  importSurface(root).props.onKeyDownCapture(key('ArrowDown'));
+  assert.equal(focus.at(-1), 1);
+  let stopped = false,
+    prevented = false;
+  importSurface(root).props.onKeyDownCapture({
+    ...key(' '),
+    stopPropagation() {
+      stopped = true;
+    },
+    preventDefault() {
+      prevented = true;
+    },
+  });
+  assert.equal(stopped, true);
+  assert.equal(prevented, false); // native button Space activation remains available
+  const dropdown = root.root.find((node) => typeof node.type === 'function' && node.type.name === 'Dropdown');
+  await act(async () => {
+    importSurface(root).props.onKeyDownCapture(key('Escape'));
+    dropdown
+      .findAllByType('div')
+      .find((node) => node.props.onKeyDown)
+      .props.onKeyDown(key('Escape'));
+  });
+  assert.equal(focus.at(-1), 'trigger');
+  assert.equal(button(root, translate('profiles.importMenu')).props['aria-expanded'], false);
+  await click(await importControl(root, 'importLook'));
+  assert.equal(focus.at(-1), 'trigger');
+  assert.equal(button(root, translate('profiles.importMenu')).props.disabled, false);
+});
+
+test('profile browser preserves native ranked sequence across mixed groups and search without changing pairing', async () => {
+  reset();
+  const ranked = [
+    { uuid: 'ccd', name: 'CCD example', group: 'Shared' },
+    { uuid: 'fuji', name: 'Fuji example', group: 'Film' },
+    { uuid: 'generic', name: 'Generic example', group: 'Shared' },
+  ].map((entry) => ({ ...entry, requiredBaseProfile: 'Cobalt Modular', pairing: { state: 'satisfied', base } }));
+  modelOverride = { ...browserModel, looks: ranked };
+  const root = await mount();
+  const profileTrigger = root.root
+    .findAllByType('button')
+    .find((node) => node.props['aria-haspopup'] === 'listbox' && text(node) !== translate('profiles.importMenu'));
+  await click(profileTrigger);
+  const names = () =>
+    root.root
+      .findAllByProps({ role: 'option' })
+      .map(text)
+      .filter((name) => ranked.some((entry) => entry.name === name));
+  assert.deepEqual(names(), ['CCD example', 'Fuji example', 'Generic example']);
+  const search = root.root
+    .findAllByType('input')
+    .find((node) => node.props.placeholder === translate('profiles.searchPlaceholder'));
+  assert.ok(search);
+  await act(async () => search.props.onChange({ target: { value: 'example' } }));
+  assert.deepEqual(names(), ['CCD example', 'Fuji example', 'Generic example']);
+  await act(async () => search.props.onChange({ target: { value: 'Shared' } }));
+  assert.deepEqual(names(), ['CCD example', 'Generic example']);
+  await click(root.root.findAllByProps({ role: 'option' }).find((node) => text(node) === 'Generic example'));
+  assert.deepEqual(useEditorStore.getState().adjustments.profile, { ...profile, look: 'generic' });
 });

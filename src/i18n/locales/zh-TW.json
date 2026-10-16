@@ -64,7 +64,17 @@
       "vibrance": "鮮豔度",
       "wbPickerTooltip": "白平衡選取器",
       "wbPickerWgpuDisabled": "白平衡選取器：請在設定中停用 WGPU。",
-      "whiteBalance": "白平衡"
+      "whiteBalance": "白平衡",
+      "wbPresetAsShot": "拍攝時設定",
+      "wbPresetAuto": "自動",
+      "wbPresetDaylight": "日光 · 5500 K",
+      "wbPresetShade": "陰影 · 7500 K",
+      "wbPresetCloudy": "陰天 · 6500 K",
+      "wbPresetTungsten": "鎢絲燈 · 3200 K",
+      "wbPresetFluorescent": "螢光燈 · 4000 K",
+      "wbPresetFlash": "閃光燈 · 5500 K",
+      "wbPresetCustom": "自訂",
+      "wbPresetAutoFailure": "無法計算自動白平衡。"
     },
     "curves": {
       "channelTitle": "{{channel}} 通道",
@@ -787,7 +797,13 @@
         "preset": "預設",
         "style": "風格",
         "tool": "工具"
-      }
+      },
+      "importOutcomeCancelled": "已取消匯入預設。",
+      "importOutcomeSuccess": "已匯入：{{count}}。",
+      "importOutcomePartial": "已匯入：{{count}}。失敗檔案：{{failed}}。",
+      "importOutcomeFailed": "未匯入任何預設。失敗檔案：{{failed}}。",
+      "importOutcomeEmpty": "所選檔案不包含預設。",
+      "importOutcomeError": "無法匯入預設，請重試。"
     },
     "switcher": {
       "tooltips": {
@@ -2134,6 +2150,8 @@
     "importFailed": "Some profiles failed to import:",
     "importNone": "No profile files were found.",
     "resetTooltip": "Clear profile selection",
-    "rescanComplete": "Profile rescan complete."
+    "rescanComplete": "Profile rescan complete.",
+    "importMenu": "匯入",
+    "importMenuHint": "基礎 DCP + 可選 Look，之後再疊加調整預設。"
   }
 }

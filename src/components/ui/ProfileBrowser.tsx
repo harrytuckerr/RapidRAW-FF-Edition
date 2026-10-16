@@ -166,30 +166,27 @@ export default function ProfileBrowser({
       }
     }
 
-    // Looks grouped by their `group` field
-    const lookGroups = new Map<string, LookBrowserEntry[]>();
+    // Keep the native display order. Re-grouping here would pull lower-ranked
+    // rows ahead of higher-ranked rows from another group.
+    let groupIdx = 0;
+    let previousGroup: string | null = null;
     for (const look of model.looks) {
-      const g = look.group || 'Looks';
-      if (!lookGroups.has(g)) lookGroups.set(g, []);
-      lookGroups.get(g)!.push(look);
-    }
-
-    let groupIdx = 1;
-    for (const [groupName, looks] of lookGroups) {
-      for (const look of looks) {
-        if (!term || look.name.toLowerCase().includes(term) || groupName.toLowerCase().includes(term)) {
-          items.push({
-            kind: 'look',
-            uuid: look.uuid,
-            name: look.name,
-            group: groupName,
-            pairing: look.pairing,
-            requiredBaseProfile: look.requiredBaseProfile,
-            groupIndex: groupIdx,
-          });
-        }
+      const groupName = look.group || 'Looks';
+      if (groupName !== previousGroup) {
+        groupIdx++;
+        previousGroup = groupName;
       }
-      groupIdx++;
+      if (!term || look.name.toLowerCase().includes(term) || groupName.toLowerCase().includes(term)) {
+        items.push({
+          kind: 'look',
+          uuid: look.uuid,
+          name: look.name,
+          group: groupName,
+          pairing: look.pairing,
+          requiredBaseProfile: look.requiredBaseProfile,
+          groupIndex: groupIdx,
+        });
+      }
     }
 
     return items;

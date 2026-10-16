@@ -36,7 +36,8 @@ export default function Controls() {
   const { showContextMenu } = useContextMenu();
   const { isResizingWaveform, onToggleWaveform, setActiveWaveformChannel, handleWaveformResize } =
     useWaveformControls();
-  const { setAdjustments, handleAutoAdjustments, handleLutSelect, setLutPreviewOverride } = useEditorActions();
+  const { setAdjustments, handleAutoAdjustments, handleAutoWhiteBalance, handleLutSelect, setLutPreviewOverride } =
+    useEditorActions();
 
   const { appSettings, theme } = useSettingsStore(
     useShallow((state) => ({
@@ -332,6 +333,7 @@ export default function Controls() {
                     asShotWhiteBalance={selectedImage.asShotWhiteBalance}
                     isWbPickerActive={isWbPickerActive}
                     toggleWbPicker={toggleWbPicker}
+                    onAutoWhiteBalance={handleAutoWhiteBalance}
                     onDragStateChange={onDragStateChange}
                   />
                 </CollapsibleSection>

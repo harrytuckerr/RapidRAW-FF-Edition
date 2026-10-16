@@ -910,21 +910,45 @@ pub fn is_image_cached(path: String, state: tauri::State<'_, AppState>) -> bool 
         .is_some()
 }
 
+// Generation admission and original-image publication share the image mutex.
+// A late decode must not publish after a newer load has already committed.
+fn begin_original_image_load<T>(
+    generation: &AtomicUsize,
+    original: &std::sync::Mutex<Option<T>>,
+) -> usize {
+    let mut slot = original.lock().unwrap_or_else(|error| error.into_inner());
+    let next = generation.fetch_add(1, Ordering::SeqCst) + 1;
+    *slot = None;
+    next
+}
+
+fn publish_current_original_image<T>(
+    generation: &AtomicUsize,
+    original: &std::sync::Mutex<Option<T>>,
+    expected_generation: usize,
+    image: T,
+) -> Result<(), String> {
+    let mut slot = original.lock().unwrap();
+    if generation.load(Ordering::SeqCst) != expected_generation {
+        drop(slot);
+        return Err("Load cancelled".into());
+    }
+    *slot = Some(image);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn load_image(
     path: String,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<LoadImageResult, String> {
-    let my_generation = state.load_image_generation.fetch_add(1, Ordering::SeqCst) + 1;
+    let my_generation =
+        begin_original_image_load(&state.load_image_generation, &state.original_image);
     let generation_tracker = state.load_image_generation.clone();
     let cancel_token = Some((generation_tracker.clone(), my_generation));
 
     {
-        *state
-            .original_image
-            .lock()
-            .unwrap_or_else(|e| e.into_inner()) = None;
         *state
             .cached_preview
             .lock()
@@ -1084,16 +1108,21 @@ pub async fn load_image(
         );
     }
 
-    *state.original_image.lock().unwrap() = Some(LoadedImage {
-        path,
-        image: pristine_arc,
-        is_raw,
-        raw_meta: None,
-        raw_bytes: None,
-        as_shot,
-        raw_linear_mode,
-        raw_highlight_compression,
-    });
+    publish_current_original_image(
+        &state.load_image_generation,
+        &state.original_image,
+        my_generation,
+        LoadedImage {
+            path,
+            image: pristine_arc,
+            is_raw,
+            raw_meta: None,
+            raw_bytes: None,
+            as_shot,
+            raw_linear_mode,
+            raw_highlight_compression,
+        },
+    )?;
 
     Ok(LoadImageResult {
         width: orig_width,
@@ -1352,5 +1381,65 @@ mod tests {
         assert_eq!(err, format!("“DSCF5389.RAF” {RAF_JPEG_MESSAGE}"));
         let image = open(&payload, &path_in(&dir, "DSCF5389.jpg"), false).unwrap();
         println!("reported payload as .jpg opened {:?}", image.dimensions());
+    }
+}
+
+#[cfg(test)]
+mod source_fence_tests {
+    use super::*;
+    use std::sync::{Arc, Mutex, mpsc};
+
+    #[test]
+    fn beginning_a_load_advances_generation_and_clears_only_its_image_slot() {
+        let generation = AtomicUsize::new(0);
+        let original = Mutex::new(Some("previous"));
+        let first = begin_original_image_load(&generation, &original);
+        assert_eq!(first, 1);
+        assert!(original.lock().unwrap().is_none());
+        publish_current_original_image(&generation, &original, first, "first").unwrap();
+        assert_eq!(*original.lock().unwrap(), Some("first"));
+        let second = begin_original_image_load(&generation, &original);
+        assert_eq!(second, 2);
+        assert!(original.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn a_prechecked_old_load_cannot_overwrite_a_newer_published_frame() {
+        let generation = Arc::new(AtomicUsize::new(0));
+        let original = Arc::new(Mutex::new(None));
+        let first = begin_original_image_load(&generation, &original);
+        let (ready_tx, ready_rx) = mpsc::channel();
+        let (resume_tx, resume_rx) = mpsc::channel();
+        let old_generation = generation.clone();
+        let old_original = original.clone();
+        let worker = std::thread::spawn(move || {
+            // Match the old loader's final check, then force the exact gap before publication.
+            assert_eq!(old_generation.load(Ordering::SeqCst), first);
+            ready_tx.send(()).unwrap();
+            resume_rx.recv().unwrap();
+            publish_current_original_image(&old_generation, &old_original, first, "old A")
+        });
+        ready_rx.recv().unwrap();
+        let second = begin_original_image_load(&generation, &original);
+        publish_current_original_image(&generation, &original, second, "current B").unwrap();
+        resume_tx.send(()).unwrap();
+        assert_eq!(worker.join().unwrap(), Err("Load cancelled".into()));
+        assert_eq!(*original.lock().unwrap(), Some("current B"));
+        assert_eq!(generation.load(Ordering::SeqCst), second);
+    }
+
+    #[test]
+    fn returning_to_the_same_path_does_not_revive_an_earlier_load_generation() {
+        let generation = AtomicUsize::new(0);
+        let original = Mutex::new(None);
+        let first_a = begin_original_image_load(&generation, &original);
+        let b = begin_original_image_load(&generation, &original);
+        let current_a = begin_original_image_load(&generation, &original);
+        publish_current_original_image(&generation, &original, current_a, ("same A", 3)).unwrap();
+        assert!(
+            publish_current_original_image(&generation, &original, first_a, ("same A", 1)).is_err()
+        );
+        assert!(publish_current_original_image(&generation, &original, b, ("B", 2)).is_err());
+        assert_eq!(*original.lock().unwrap(), Some(("same A", 3)));
     }
 }

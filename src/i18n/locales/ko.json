@@ -64,7 +64,17 @@
       "vibrance": "생동감",
       "wbPickerTooltip": "화이트 밸런스 피커",
       "wbPickerWgpuDisabled": "WB 피커: 설정에서 WGPU를 비활성화하세요.",
-      "whiteBalance": "화이트 밸런스"
+      "whiteBalance": "화이트 밸런스",
+      "wbPresetAsShot": "촬영 시 설정",
+      "wbPresetAuto": "자동",
+      "wbPresetDaylight": "주광 · 5500 K",
+      "wbPresetShade": "그늘 · 7500 K",
+      "wbPresetCloudy": "흐림 · 6500 K",
+      "wbPresetTungsten": "백열등 · 3200 K",
+      "wbPresetFluorescent": "형광등 · 4000 K",
+      "wbPresetFlash": "플래시 · 5500 K",
+      "wbPresetCustom": "사용자 지정",
+      "wbPresetAutoFailure": "자동 화이트 밸런스를 계산할 수 없습니다."
     },
     "curves": {
       "channelTitle": "{{channel}} 채널",
@@ -787,7 +797,13 @@
         "preset": "프리셋",
         "style": "스타일",
         "tool": "도구"
-      }
+      },
+      "importOutcomeCancelled": "프리셋 가져오기가 취소되었습니다.",
+      "importOutcomeSuccess": "가져온 항목: {{count}}.",
+      "importOutcomePartial": "가져온 항목: {{count}}. 실패한 파일: {{failed}}.",
+      "importOutcomeFailed": "프리셋을 가져오지 못했습니다. 실패한 파일: {{failed}}.",
+      "importOutcomeEmpty": "선택한 파일에 프리셋이 없습니다.",
+      "importOutcomeError": "프리셋을 가져올 수 없습니다. 다시 시도해 주세요."
     },
     "switcher": {
       "tooltips": {
@@ -2134,6 +2150,8 @@
     "importFailed": "Some profiles failed to import:",
     "importNone": "No profile files were found.",
     "resetTooltip": "Clear profile selection",
-    "rescanComplete": "Profile rescan complete."
+    "rescanComplete": "Profile rescan complete.",
+    "importMenu": "가져오기",
+    "importMenuHint": "기본 DCP + 선택적 Look 위에 조정 프리셋을 적용합니다."
   }
 }

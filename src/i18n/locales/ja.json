@@ -64,7 +64,17 @@
       "vibrance": "自然な彩度",
       "wbPickerTooltip": "ホワイトバランススポイト",
       "wbPickerWgpuDisabled": "WBスポイト: 設定でWGPUを無効にしてください。",
-      "whiteBalance": "ホワイトバランス"
+      "whiteBalance": "ホワイトバランス",
+      "wbPresetAsShot": "撮影時の設定",
+      "wbPresetAuto": "自動",
+      "wbPresetDaylight": "太陽光 · 5500 K",
+      "wbPresetShade": "日陰 · 7500 K",
+      "wbPresetCloudy": "曇天 · 6500 K",
+      "wbPresetTungsten": "白熱灯 · 3200 K",
+      "wbPresetFluorescent": "蛍光灯 · 4000 K",
+      "wbPresetFlash": "フラッシュ · 5500 K",
+      "wbPresetCustom": "カスタム",
+      "wbPresetAutoFailure": "オートホワイトバランスを計算できませんでした。"
     },
     "curves": {
       "channelTitle": "{{channel}} チャンネル",
@@ -787,7 +797,13 @@
         "preset": "プリセット",
         "style": "スタイル",
         "tool": "ツール"
-      }
+      },
+      "importOutcomeCancelled": "プリセットの読み込みをキャンセルしました。",
+      "importOutcomeSuccess": "読み込み済み: {{count}}。",
+      "importOutcomePartial": "読み込み済み: {{count}}。失敗したファイル: {{failed}}。",
+      "importOutcomeFailed": "プリセットは読み込まれませんでした。失敗したファイル: {{failed}}。",
+      "importOutcomeEmpty": "選択したファイルにプリセットがありませんでした。",
+      "importOutcomeError": "プリセットを読み込めませんでした。もう一度お試しください。"
     },
     "switcher": {
       "tooltips": {
@@ -2134,6 +2150,8 @@
     "importFailed": "Some profiles failed to import:",
     "importNone": "No profile files were found.",
     "resetTooltip": "Clear profile selection",
-    "rescanComplete": "Profile rescan complete."
+    "rescanComplete": "Profile rescan complete.",
+    "importMenu": "読み込む",
+    "importMenuHint": "ベースDCP＋任意のLook。その上に調整プリセットを適用します。"
   }
 }

@@ -122,11 +122,39 @@ fn camera_for_path(path: &Path) -> Option<String> {
     compose_camera(make, model)
 }
 
+// Display-only family labels, never camera identity, pairing or render eligibility.
+// Whole alphanumeric-delimited tokens avoid classifying "Fujitsu" as "Fuji".
+fn look_display_rank(group: &str, name: &str) -> u8 {
+    group
+        .split(|c: char| !c.is_alphanumeric())
+        .chain(name.split(|c: char| !c.is_alphanumeric()))
+        .fold(3, |rank, token| {
+            let token_rank = if token.eq_ignore_ascii_case("ccd") {
+                0
+            } else if token.eq_ignore_ascii_case("fuji") || token.eq_ignore_ascii_case("fujifilm") {
+                1
+            } else if token.eq_ignore_ascii_case("cobalt") {
+                2
+            } else {
+                3
+            };
+            rank.min(token_rank)
+        })
+}
+
+fn display_label_key(label: &str) -> String {
+    label
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_lowercase()
+}
+
 fn build_browser_model(registry: &ProfileRegistry, camera: Option<&str>) -> ProfileBrowserModel {
     let mut camera_profiles: Vec<CameraProfileGroup> = Vec::new();
     if let Some(cam) = camera {
         let entries = registry.profiles_for_camera(cam);
-        // Group by profile name, preserving order; same-name entries kept.
+        // Group by exact profile name; display sorting never changes registry pairing.
         let mut groups: Vec<(String, Vec<ProfileEntryView>)> = Vec::new();
         for entry in entries {
             let view = ProfileEntryView::from(&entry);
@@ -136,7 +164,16 @@ fn build_browser_model(registry: &ProfileRegistry, camera: Option<&str>) -> Prof
                 groups.push((view.profile_name.clone(), vec![view]));
             }
         }
-        groups.sort_by_key(|(name, _)| name.to_lowercase());
+        for (_, entries) in &mut groups {
+            entries.sort_by(|a, b| a.id.cmp(&b.id));
+        }
+        groups.sort_by_key(|(name, _)| {
+            (
+                name != "Cobalt Modular",
+                display_label_key(name),
+                name.clone(),
+            )
+        });
         camera_profiles = groups
             .into_iter()
             .map(|(profile_name, entries)| CameraProfileGroup {
@@ -146,7 +183,7 @@ fn build_browser_model(registry: &ProfileRegistry, camera: Option<&str>) -> Prof
             .collect();
     }
 
-    let looks = registry
+    let mut looks: Vec<LookBrowserEntry> = registry
         .looks()
         .into_iter()
         .map(|l: LookMetadata| LookBrowserEntry {
@@ -158,6 +195,14 @@ fn build_browser_model(registry: &ProfileRegistry, camera: Option<&str>) -> Prof
             pairing: registry.resolve_look(&l, camera.unwrap_or("")),
         })
         .collect();
+    looks.sort_by_key(|look| {
+        (
+            look_display_rank(&look.group, &look.name),
+            display_label_key(&look.group),
+            display_label_key(&look.name),
+            look.uuid.clone(),
+        )
+    });
 
     ProfileBrowserModel {
         camera: camera.map(|s| s.to_string()),
@@ -596,5 +641,203 @@ pub fn log_discovery_roots() {
         for root in roots {
             log::debug!("profile discovery root: {}", root.display());
         }
+    }
+}
+
+#[cfg(test)]
+mod display_order_tests {
+    use super::*;
+    use crate::dcp::model::ProfileId;
+
+    fn base(name: &str, byte: u8) -> ProfileEntry {
+        ProfileEntry {
+            id: ProfileId([byte; 32]),
+            file_path: PathBuf::from(format!("/synthetic/{byte}.dcp")),
+            profile_name: name.into(),
+            unique_camera_model: "Synthetic Camera".into(),
+            source: ProfileSource::Managed,
+            size: 1,
+            mtime_ms: 1,
+        }
+    }
+    fn look(uuid: &str, group: &str, name: &str) -> LookMetadata {
+        LookMetadata {
+            uuid: uuid.into(),
+            name: name.into(),
+            group: group.into(),
+            required_base_profile: "Cobalt Modular".into(),
+            camera_model_restriction: None,
+            file_path: PathBuf::from(format!("/synthetic/{uuid}.xmp")),
+        }
+    }
+
+    #[test]
+    fn display_family_tokens_are_whole_case_insensitive_and_ccd_wins() {
+        for (group, name, expected) in [
+            ("Cobalt CCD fever v3.0", "Fuji example", 0),
+            ("Other", "ccd-example", 0),
+            ("FuJi variants", "Example", 1),
+            ("Other", "FUJIFILM / example", 1),
+            ("Cobalt", "Generic", 2),
+            ("Other", "FujiFilmish", 3),
+            ("Fujitsu", "CCDlike", 3),
+            ("", "", 3),
+        ] {
+            assert_eq!(look_display_rank(group, name), expected);
+        }
+    }
+
+    #[test]
+    fn browser_display_is_identical_for_registration_permutations() {
+        let entries = [
+            look("generic", "Cobalt", "Generic"),
+            look("fuji", "Variants", "Fuji example"),
+            look("ccd", "Variants", "CCD example"),
+            look("other", "Alpha", "Unclassified"),
+        ];
+        for a in 0..4 {
+            for b in 0..4 {
+                for c in 0..4 {
+                    for d in 0..4 {
+                        let order = [a, b, c, d];
+                        if order
+                            .iter()
+                            .copied()
+                            .collect::<std::collections::BTreeSet<_>>()
+                            .len()
+                            != 4
+                        {
+                            continue;
+                        }
+                        for reverse_bases in [false, true] {
+                            let registry = ProfileRegistry::new();
+                            let mut bases =
+                                vec![base("Adobe Standard", 1), base("Cobalt Modular", 2)];
+                            if reverse_bases {
+                                bases.reverse();
+                            }
+                            for entry in bases {
+                                registry.insert_dcp(entry);
+                            }
+                            for index in order {
+                                registry.register_look(entries[index].clone());
+                            }
+                            let model = build_browser_model(&registry, Some("Synthetic Camera"));
+                            assert_eq!(model.camera.as_deref(), Some("Synthetic Camera"));
+                            assert_eq!(
+                                model
+                                    .camera_profiles
+                                    .iter()
+                                    .map(|g| g.profile_name.as_str())
+                                    .collect::<Vec<_>>(),
+                                ["Cobalt Modular", "Adobe Standard"]
+                            );
+                            assert_eq!(
+                                model
+                                    .looks
+                                    .iter()
+                                    .map(|l| l.uuid.as_str())
+                                    .collect::<Vec<_>>(),
+                                ["ccd", "fuji", "generic", "other"]
+                            );
+                            for entry in &model.looks {
+                                match entry.pairing {
+                                    PairingState::Satisfied { base } => {
+                                        assert_eq!(base, ProfileId([2; 32]))
+                                    }
+                                    _ => panic!("pairing changed"),
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn stable_ids_break_display_ties_without_mutating_duplicate_base_resolution() {
+        for reversed in [false, true] {
+            let registry = ProfileRegistry::new();
+            let mut bases = vec![base("Cobalt Modular", 2), base("Cobalt Modular", 1)];
+            if reversed {
+                bases.reverse();
+            }
+            for entry in bases {
+                registry.insert_dcp(entry);
+            }
+            let expected_pair = registry
+                .lookup_base("Synthetic Camera", "Cobalt Modular")
+                .unwrap()
+                .id;
+            let mut looks = vec![
+                look("b", "  COBALT  ", " Same "),
+                look("a", "cobalt", "same"),
+            ];
+            if reversed {
+                looks.reverse();
+            }
+            for entry in looks {
+                registry.register_look(entry);
+            }
+            let model = build_browser_model(&registry, Some("Synthetic Camera"));
+            assert_eq!(
+                model.camera_profiles[0]
+                    .entries
+                    .iter()
+                    .map(|e| e.id.as_str())
+                    .collect::<Vec<_>>(),
+                [ProfileId([1; 32]).to_hex(), ProfileId([2; 32]).to_hex()]
+            );
+            assert_eq!(
+                model
+                    .looks
+                    .iter()
+                    .map(|l| l.uuid.as_str())
+                    .collect::<Vec<_>>(),
+                ["a", "b"]
+            );
+            for entry in model.looks {
+                match entry.pairing {
+                    PairingState::Satisfied { base } => assert_eq!(base, expected_pair),
+                    _ => panic!("pairing changed"),
+                }
+            }
+            assert_eq!(
+                registry
+                    .lookup_base("Synthetic Camera", "Cobalt Modular")
+                    .unwrap()
+                    .id,
+                expected_pair
+            );
+        }
+    }
+
+    #[test]
+    fn display_rank_never_uses_filename_camera_or_missing_base_as_authority() {
+        let registry = ProfileRegistry::new();
+        let mut entry = look("unknown", "Other", "Unclassified");
+        entry.file_path = PathBuf::from("/synthetic/CCD/Fuji/Cobalt.xmp");
+        entry.camera_model_restriction = Some("Fuji source restriction".into());
+        registry.register_look(entry.clone());
+        registry.register_look(look("labelled", "Cobalt CCD", "Example"));
+        let model = build_browser_model(&registry, Some("Synthetic Camera"));
+        assert!(model.camera_profiles.is_empty());
+        assert_eq!(
+            model
+                .looks
+                .iter()
+                .map(|l| l.uuid.as_str())
+                .collect::<Vec<_>>(),
+            ["labelled", "unknown"]
+        );
+        assert!(
+            model
+                .looks
+                .iter()
+                .all(|l| matches!(l.pairing, PairingState::NoProfilesForCamera { .. }))
+        );
+        assert_eq!(look_display_rank(&entry.group, &entry.name), 3);
+        assert!(build_browser_model(&registry, None).camera.is_none());
     }
 }

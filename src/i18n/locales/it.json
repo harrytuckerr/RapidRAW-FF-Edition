@@ -64,7 +64,17 @@
       "vibrance": "Vividezza",
       "wbPickerTooltip": "Selettore Bilanciamento del Bianco",
       "wbPickerWgpuDisabled": "Selettore BB: Disabilita WGPU nelle Impostazioni.",
-      "whiteBalance": "Bilanciamento del Bianco"
+      "whiteBalance": "Bilanciamento del Bianco",
+      "wbPresetAsShot": "Come scattata",
+      "wbPresetAuto": "Auto",
+      "wbPresetDaylight": "Luce diurna · 5500 K",
+      "wbPresetShade": "Ombra · 7500 K",
+      "wbPresetCloudy": "Nuvoloso · 6500 K",
+      "wbPresetTungsten": "Tungsteno · 3200 K",
+      "wbPresetFluorescent": "Fluorescente · 4000 K",
+      "wbPresetFlash": "Flash · 5500 K",
+      "wbPresetCustom": "Personalizzato",
+      "wbPresetAutoFailure": "Impossibile calcolare il bilanciamento del bianco automatico."
     },
     "curves": {
       "channelTitle": "Canale {{channel}}",
@@ -812,7 +822,13 @@
         "preset": "Predefinito",
         "style": "Stile",
         "tool": "Strumento"
-      }
+      },
+      "importOutcomeCancelled": "Importazione dei predefiniti annullata.",
+      "importOutcomeSuccess": "Importati: {{count}}.",
+      "importOutcomePartial": "Importati: {{count}}. File non riusciti: {{failed}}.",
+      "importOutcomeFailed": "Nessun predefinito importato. File non riusciti: {{failed}}.",
+      "importOutcomeEmpty": "I file selezionati non contenevano predefiniti.",
+      "importOutcomeError": "Impossibile importare i predefiniti. Riprova."
     },
     "switcher": {
       "tooltips": {
@@ -2175,6 +2191,8 @@
     "importFailed": "Some profiles failed to import:",
     "importNone": "No profile files were found.",
     "resetTooltip": "Clear profile selection",
-    "rescanComplete": "Profile rescan complete."
+    "rescanComplete": "Profile rescan complete.",
+    "importMenu": "Importa",
+    "importMenuHint": "DCP di base + Look facoltativo; i predefiniti di regolazione si applicano sopra."
   }
 }

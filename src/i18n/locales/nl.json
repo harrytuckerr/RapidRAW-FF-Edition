@@ -63,7 +63,17 @@
       "vibrance": "Levendigheid",
       "wbPickerTooltip": "Witbalans pipet",
       "wbPickerWgpuDisabled": "WB-pipet: Schakel WGPU uit in instellingen.",
-      "whiteBalance": "Witbalans"
+      "whiteBalance": "Witbalans",
+      "wbPresetAsShot": "Zoals opgenomen",
+      "wbPresetAuto": "Auto",
+      "wbPresetDaylight": "Daglicht · 5500 K",
+      "wbPresetShade": "Schaduw · 7500 K",
+      "wbPresetCloudy": "Bewolkt · 6500 K",
+      "wbPresetTungsten": "Gloeilamp · 3200 K",
+      "wbPresetFluorescent": "Fluorescent · 4000 K",
+      "wbPresetFlash": "Flits · 5500 K",
+      "wbPresetCustom": "Aangepast",
+      "wbPresetAutoFailure": "Automatische witbalans kon niet worden berekend."
     },
     "curves": {
       "channelTitle": "{{channel}} kanaal",
@@ -783,7 +793,13 @@
         "preset": "Voorinstelling",
         "style": "Stijl",
         "tool": "Gereedschap"
-      }
+      },
+      "importOutcomeCancelled": "Importeren van voorinstellingen geannuleerd.",
+      "importOutcomeSuccess": "Geïmporteerd: {{count}}.",
+      "importOutcomePartial": "Geïmporteerd: {{count}}. Mislukte bestanden: {{failed}}.",
+      "importOutcomeFailed": "Er zijn geen voorinstellingen geïmporteerd. Mislukte bestanden: {{failed}}.",
+      "importOutcomeEmpty": "De geselecteerde bestanden bevatten geen voorinstellingen.",
+      "importOutcomeError": "Voorinstellingen konden niet worden geïmporteerd. Probeer het opnieuw."
     },
     "switcher": {
       "tooltips": {
@@ -2087,5 +2103,9 @@
         "vectorscope": "Vectoroscoop"
       }
     }
+  },
+  "profiles": {
+    "importMenu": "Importeren",
+    "importMenuHint": "Basis-DCP + optionele Look; aanpassingsvoorinstellingen komen daarbovenop."
   }
 }

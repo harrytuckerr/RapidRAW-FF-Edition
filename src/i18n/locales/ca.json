@@ -64,7 +64,17 @@
       "vibrance": "Intensitat",
       "wbPickerTooltip": "Comptagotes de balanç de blancs",
       "wbPickerWgpuDisabled": "Comptagotes BB: Desactiva WGPU a Configuració.",
-      "whiteBalance": "Balanç de blancs"
+      "whiteBalance": "Balanç de blancs",
+      "wbPresetAsShot": "Com s’ha capturat",
+      "wbPresetAuto": "Automàtic",
+      "wbPresetDaylight": "Llum de dia · 5500 K",
+      "wbPresetShade": "Ombra · 7500 K",
+      "wbPresetCloudy": "Ennuvolat · 6500 K",
+      "wbPresetTungsten": "Tungstè · 3200 K",
+      "wbPresetFluorescent": "Fluorescent · 4000 K",
+      "wbPresetFlash": "Flash · 5500 K",
+      "wbPresetCustom": "Personalitzat",
+      "wbPresetAutoFailure": "No s’ha pogut calcular el balanç de blancs automàtic."
     },
     "curves": {
       "channelTitle": "Canal {{channel}}",
@@ -789,7 +799,13 @@
         "preset": "Ajust preestablert",
         "style": "Estil",
         "tool": "Eina"
-      }
+      },
+      "importOutcomeCancelled": "S’ha cancel·lat la importació de predefinicions.",
+      "importOutcomeSuccess": "Importats: {{count}}.",
+      "importOutcomePartial": "Importats: {{count}}. Fitxers que han fallat: {{failed}}.",
+      "importOutcomeFailed": "No s’ha importat cap predefinició. Fitxers que han fallat: {{failed}}.",
+      "importOutcomeEmpty": "Els fitxers seleccionats no contenien predefinicions.",
+      "importOutcomeError": "No s’han pogut importar les predefinicions. Torna-ho a provar."
     },
     "switcher": {
       "tooltips": {
@@ -2138,6 +2154,8 @@
     "importFailed": "Some profiles failed to import:",
     "importNone": "No profile files were found.",
     "resetTooltip": "Clear profile selection",
-    "rescanComplete": "Profile rescan complete."
+    "rescanComplete": "Profile rescan complete.",
+    "importMenu": "Importa",
+    "importMenuHint": "DCP base + Look opcional; els predefinits d’ajust s’apliquen al damunt."
   }
 }

@@ -28,6 +28,7 @@ export interface PresetImportFailure {
 }
 
 export interface PresetImportResult {
+  imported: number;
   presets: Array<UserPreset>;
   failures: Array<PresetImportFailure>;
 }
@@ -659,9 +660,6 @@ export function usePresets(currentAdjustments: Adjustments) {
         const normalized = { ...result, presets: normalizePresetProfiles(result.presets) };
         setPresets(normalized.presets);
         return normalized;
-      } catch (error) {
-        console.error('Failed to import presets from files:', error);
-        throw error;
       } finally {
         setIsLoading(false);
       }

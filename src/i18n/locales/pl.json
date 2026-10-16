@@ -64,7 +64,17 @@
       "vibrance": "Jaskrawość",
       "wbPickerTooltip": "Próbnik balansu bieli",
       "wbPickerWgpuDisabled": "Próbnik BB: Wyłącz WGPU w Ustawieniach.",
-      "whiteBalance": "Balans bieli"
+      "whiteBalance": "Balans bieli",
+      "wbPresetAsShot": "Jak na zdjęciu",
+      "wbPresetAuto": "Auto",
+      "wbPresetDaylight": "Światło dzienne · 5500 K",
+      "wbPresetShade": "Cień · 7500 K",
+      "wbPresetCloudy": "Pochmurno · 6500 K",
+      "wbPresetTungsten": "Żarówka · 3200 K",
+      "wbPresetFluorescent": "Świetlówka · 4000 K",
+      "wbPresetFlash": "Lampa błyskowa · 5500 K",
+      "wbPresetCustom": "Własne",
+      "wbPresetAutoFailure": "Nie udało się obliczyć automatycznego balansu bieli."
     },
     "curves": {
       "channelTitle": "Kanał {{channel}}",
@@ -831,7 +841,13 @@
         "preset": "Preset",
         "style": "Styl",
         "tool": "Narzędzie"
-      }
+      },
+      "importOutcomeCancelled": "Anulowano import ustawień wstępnych.",
+      "importOutcomeSuccess": "Zaimportowano: {{count}}.",
+      "importOutcomePartial": "Zaimportowano: {{count}}. Pliki z błędem: {{failed}}.",
+      "importOutcomeFailed": "Nie zaimportowano ustawień wstępnych. Pliki z błędem: {{failed}}.",
+      "importOutcomeEmpty": "Wybrane pliki nie zawierały ustawień wstępnych.",
+      "importOutcomeError": "Nie można zaimportować ustawień wstępnych. Spróbuj ponownie."
     },
     "switcher": {
       "tooltips": {
@@ -2210,6 +2226,8 @@
     "importFailed": "Some profiles failed to import:",
     "importNone": "No profile files were found.",
     "resetTooltip": "Clear profile selection",
-    "rescanComplete": "Profile rescan complete."
+    "rescanComplete": "Profile rescan complete.",
+    "importMenu": "Importuj",
+    "importMenuHint": "Bazowy DCP + opcjonalny Look; presety korekt są nakładane na wierzch."
   }
 }

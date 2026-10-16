@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { Upload, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'react-toastify';
 import Slider from '../../ui/Slider';
@@ -9,6 +9,7 @@ import type { Adjustments, ProfileSelection } from '../../../utils/adjustments';
 import { useProfiles, ImportFailure } from '../../../hooks/useProfiles';
 import Text from '../../ui/Text';
 import Button from '../../ui/Button';
+import Dropdown from '../../ui/Dropdown';
 import { useUIStore } from '../../../store/useUIStore';
 import { Panel } from '../../ui/AppProperties';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
@@ -25,6 +26,9 @@ export default function ProfilePanel({ adjustments, setAdjustments, imagePath, o
   const { browserModel, importProfiles, isLoading, error } = useProfiles(imagePath);
   const setPanel = useUIStore((state) => state.setPanel);
   const [isImporting, setIsImporting] = useState(false);
+  const importMenuRef = useRef<HTMLDivElement>(null);
+  const importRequestRef = useRef<{ kind: 'dcp' | 'xmp'; started: boolean } | null>(null);
+  const restoreImportFocusRef = useRef(false);
   const [showPresetGuidance, setShowPresetGuidance] = useState(false);
 
   const profile: ProfileSelection = adjustments.profile || { base: null, look: null, amount: 100 };
@@ -123,11 +127,69 @@ export default function ProfilePanel({ adjustments, setAdjustments, imagePath, o
         console.error('Import dialog error:', err);
         toast.error(`${t('profiles.importFailed')}\n${String(err)}`);
       } finally {
+        importRequestRef.current = null;
         setIsImporting(false);
       }
     },
     [importProfiles, t],
   );
+
+  const requestImport = useCallback((kind: 'dcp' | 'xmp') => {
+    // Guard immediately: two callbacks before React commits still open one picker.
+    if (importRequestRef.current) return;
+    importRequestRef.current = { kind, started: false };
+    restoreImportFocusRef.current = true;
+    setIsImporting(true);
+  }, []);
+
+  useEffect(() => {
+    const request = importRequestRef.current;
+    if (isImporting && request && !request.started) {
+      // The busy-keyed Dropdown has committed closed before invoking the picker.
+      // A repeated effect cannot launch this same request twice.
+      request.started = true;
+      void handleImport(request.kind);
+    } else if (!isImporting && restoreImportFocusRef.current) {
+      restoreImportFocusRef.current = false;
+      importMenuRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    }
+  }, [isImporting, handleImport]);
+
+  const handleImportKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (isImporting) {
+      if (event.key !== 'Tab') event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    const surface = event.currentTarget;
+    const trigger = surface.querySelector<HTMLButtonElement>('button');
+    if (event.key === 'Escape') {
+      trigger?.focus(); // Dropdown's own Escape handler closes the popup.
+    } else if (event.key === ' ') {
+      // Preserve native button activation instead of Dropdown's type-to-search.
+      event.stopPropagation();
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      const focusOption = () => {
+        const options = Array.from(surface.querySelectorAll<HTMLButtonElement>('button[role="option"]:not(:disabled)'));
+        if (!options.length) return;
+        const index = options.indexOf(document.activeElement as HTMLButtonElement);
+        const next =
+          index < 0 ? (direction > 0 ? 0 : options.length - 1) : (index + direction + options.length) % options.length;
+        options[next].focus();
+      };
+      if (trigger?.getAttribute('aria-expanded') === 'false') {
+        trigger.click();
+        requestAnimationFrame(() => {
+          if (importMenuRef.current === surface && !importRequestRef.current) focusOption();
+        });
+      } else {
+        focusOption();
+      }
+    }
+  };
 
   return (
     <div className="mb-2">
@@ -148,27 +210,27 @@ export default function ProfilePanel({ adjustments, setAdjustments, imagePath, o
         )}
       </div>
       <Text variant={TextVariants.small} color={TextColors.secondary} className="mb-2">
-        {t('profiles.layeringDescription')}
+        {t('profiles.importMenuHint')}
       </Text>
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        <Button
-          type="button"
-          className="bg-surface text-text-primary text-sm px-2 min-h-[44px] focus-visible:outline-2 focus-visible:outline-accent hover:bg-card-active"
-          onClick={() => handleImport('dcp')}
+      <div
+        ref={importMenuRef}
+        data-profile-import-menu
+        aria-busy={isImporting}
+        className="mb-3 [&_button]:min-h-[44px] [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-accent"
+        onKeyDownCapture={handleImportKeyDown}
+      >
+        <Dropdown<'dcp' | 'xmp'>
+          key={isImporting ? 'importing' : 'idle'}
+          value={null}
+          placeholder={t('profiles.importMenu')}
+          onChange={requestImport}
           disabled={isImporting}
-        >
-          <Upload size={16} className="shrink-0" />
-          <span>{t('profiles.importBase')}</span>
-        </Button>
-        <Button
-          type="button"
-          className="bg-surface text-text-primary text-sm px-2 min-h-[44px] focus-visible:outline-2 focus-visible:outline-accent hover:bg-card-active"
-          onClick={() => handleImport('xmp')}
-          disabled={isImporting}
-        >
-          <Upload size={16} className="shrink-0" />
-          <span>{t('profiles.importLook')}</span>
-        </Button>
+          triggerClassName="bg-surface !mr-0 min-h-[44px] focus-visible:outline-2 focus-visible:outline-accent"
+          options={[
+            { label: t('profiles.importBase'), value: 'dcp', disabled: isImporting },
+            { label: t('profiles.importLook'), value: 'xmp', disabled: isImporting },
+          ]}
+        />
       </div>
       {showPresetGuidance && (
         <div className="mb-3 space-y-1" role="status">

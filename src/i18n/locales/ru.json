@@ -64,7 +64,17 @@
       "vibrance": "Красочность",
       "wbPickerTooltip": "Пипетка баланса белого",
       "wbPickerWgpuDisabled": "Пипетка ББ: отключите WGPU в настройках.",
-      "whiteBalance": "Баланс белого"
+      "whiteBalance": "Баланс белого",
+      "wbPresetAsShot": "Как снято",
+      "wbPresetAuto": "Авто",
+      "wbPresetDaylight": "Дневной свет · 5500 K",
+      "wbPresetShade": "Тень · 7500 K",
+      "wbPresetCloudy": "Облачно · 6500 K",
+      "wbPresetTungsten": "Лампа накаливания · 3200 K",
+      "wbPresetFluorescent": "Люминесцентная лампа · 4000 K",
+      "wbPresetFlash": "Вспышка · 5500 K",
+      "wbPresetCustom": "Пользовательский",
+      "wbPresetAutoFailure": "Не удалось рассчитать автоматический баланс белого."
     },
     "curves": {
       "channelTitle": "Канал {{channel}}",
@@ -831,7 +841,13 @@
         "preset": "Псет",
         "style": "Стиль",
         "tool": "Инструмент"
-      }
+      },
+      "importOutcomeCancelled": "Импорт пресетов отменён.",
+      "importOutcomeSuccess": "Импортировано: {{count}}.",
+      "importOutcomePartial": "Импортировано: {{count}}. Файлов с ошибкой: {{failed}}.",
+      "importOutcomeFailed": "Пресеты не импортированы. Файлов с ошибкой: {{failed}}.",
+      "importOutcomeEmpty": "Выбранные файлы не содержат пресетов.",
+      "importOutcomeError": "Не удалось импортировать пресеты. Повторите попытку."
     },
     "switcher": {
       "tooltips": {
@@ -2210,6 +2226,8 @@
     "importFailed": "Some profiles failed to import:",
     "importNone": "No profile files were found.",
     "resetTooltip": "Clear profile selection",
-    "rescanComplete": "Profile rescan complete."
+    "rescanComplete": "Profile rescan complete.",
+    "importMenu": "Импорт",
+    "importMenuHint": "Базовый DCP + необязательный Look; пресеты коррекции применяются поверх."
   }
 }

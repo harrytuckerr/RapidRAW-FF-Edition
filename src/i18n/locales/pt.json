@@ -64,7 +64,17 @@
       "vibrance": "Vibração",
       "wbPickerTooltip": "Seletor de Balanço de Branco",
       "wbPickerWgpuDisabled": "Seletor de BB: Desative o WGPU nas Configurações.",
-      "whiteBalance": "Balanço de Branco"
+      "whiteBalance": "Balanço de Branco",
+      "wbPresetAsShot": "Como fotografado",
+      "wbPresetAuto": "Automático",
+      "wbPresetDaylight": "Luz do dia · 5500 K",
+      "wbPresetShade": "Sombra · 7500 K",
+      "wbPresetCloudy": "Nublado · 6500 K",
+      "wbPresetTungsten": "Tungsténio · 3200 K",
+      "wbPresetFluorescent": "Fluorescente · 4000 K",
+      "wbPresetFlash": "Flash · 5500 K",
+      "wbPresetCustom": "Personalizado",
+      "wbPresetAutoFailure": "Não foi possível calcular o balanço de brancos automático."
     },
     "curves": {
       "channelTitle": "Canal {{channel}}",
@@ -810,7 +820,13 @@
         "preset": "Predefinição",
         "style": "Estilo",
         "tool": "Ferramenta"
-      }
+      },
+      "importOutcomeCancelled": "Importação de predefinições cancelada.",
+      "importOutcomeSuccess": "Importados: {{count}}.",
+      "importOutcomePartial": "Importados: {{count}}. Ficheiros com falha: {{failed}}.",
+      "importOutcomeFailed": "Não foram importadas predefinições. Ficheiros com falha: {{failed}}.",
+      "importOutcomeEmpty": "Os ficheiros selecionados não continham predefinições.",
+      "importOutcomeError": "Não foi possível importar as predefinições. Tente novamente."
     },
     "switcher": {
       "tooltips": {
@@ -2173,6 +2189,8 @@
     "importFailed": "Some profiles failed to import:",
     "importNone": "No profile files were found.",
     "resetTooltip": "Clear profile selection",
-    "rescanComplete": "Profile rescan complete."
+    "rescanComplete": "Profile rescan complete.",
+    "importMenu": "Importar",
+    "importMenuHint": "DCP base + Look opcional; as predefinições de ajustes são aplicadas por cima."
   }
 }

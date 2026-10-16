@@ -3869,9 +3869,26 @@ fn compute_white_balance_sample(
     })
 }
 
+fn sample_loaded_white_balance(
+    loaded_image: &crate::app_state::LoadedImage,
+    corners: &[UvPoint],
+    expected_path: Option<&str>,
+) -> Result<WhiteBalanceSample, String> {
+    if expected_path.is_some_and(|path| path.is_empty() || path != loaded_image.path) {
+        return Err("The loaded image changed. Try white balance again.".into());
+    }
+    compute_white_balance_sample(
+        &loaded_image.image,
+        loaded_image.is_raw,
+        loaded_image.as_shot.white_balance,
+        corners,
+    )
+}
+
 #[tauri::command]
 pub async fn sample_white_balance(
     corners: Vec<UvPoint>,
+    expected_path: Option<String>,
     state: tauri::State<'_, AppState>,
 ) -> Result<WhiteBalanceSample, String> {
     let loaded_image = state
@@ -3882,13 +3899,81 @@ pub async fn sample_white_balance(
         .ok_or("No original image loaded")?;
 
     tokio::task::spawn_blocking(move || {
-        compute_white_balance_sample(
-            &loaded_image.image,
-            loaded_image.is_raw,
-            loaded_image.as_shot.white_balance,
-            &corners,
-        )
+        sample_loaded_white_balance(&loaded_image, &corners, expected_path.as_deref())
     })
     .await
     .map_err(|e| format!("Task execution failed: {}", e))?
+}
+
+#[cfg(test)]
+mod source_fence_tests {
+    use super::*;
+    use crate::app_state::LoadedImage;
+
+    fn frame() -> LoadedImage {
+        LoadedImage {
+            path: "/synthetic/current.RAF".into(),
+            image: Arc::new(DynamicImage::ImageRgb32F(Rgb32FImage::from_pixel(
+                2,
+                2,
+                image::Rgb([0.25, 0.5, 0.75]),
+            ))),
+            is_raw: true,
+            raw_meta: None,
+            raw_bytes: None,
+            as_shot: AsShot::reference(),
+            raw_linear_mode: "default".into(),
+            raw_highlight_compression: 2.5,
+        }
+    }
+
+    fn corners() -> Vec<UvPoint> {
+        vec![
+            UvPoint { x: 0.0, y: 0.0 },
+            UvPoint { x: 1.0, y: 0.0 },
+            UvPoint { x: 1.0, y: 1.0 },
+            UvPoint { x: 0.0, y: 1.0 },
+        ]
+    }
+
+    #[test]
+    fn matching_source_and_legacy_absence_preserve_the_actual_sampler_result() {
+        let frame = frame();
+        let quad = corners();
+        let baseline = compute_white_balance_sample(
+            &frame.image,
+            frame.is_raw,
+            frame.as_shot.white_balance,
+            &quad,
+        )
+        .unwrap();
+        for expected in [None, Some(frame.path.as_str())] {
+            let actual = sample_loaded_white_balance(&frame, &quad, expected).unwrap();
+            assert_eq!(
+                serde_json::to_value(actual).unwrap(),
+                serde_json::to_value(&baseline).unwrap()
+            );
+        }
+        assert_eq!(baseline.count, 4);
+        assert_eq!([baseline.r, baseline.g, baseline.b], [0.25, 0.5, 0.75]);
+    }
+
+    #[test]
+    fn a_different_source_is_rejected_before_any_pixel_sampling() {
+        let frame = frame();
+        // Empty corners would produce a different error if sampling ran first.
+        let error =
+            sample_loaded_white_balance(&frame, &[], Some("/synthetic/other.RAF")).unwrap_err();
+        assert_eq!(error, "The loaded image changed. Try white balance again.");
+        assert!(!error.contains("/synthetic/"));
+    }
+
+    #[test]
+    fn an_empty_explicit_source_is_not_the_legacy_unspecified_request() {
+        let frame = frame();
+        assert_eq!(
+            sample_loaded_white_balance(&frame, &corners(), Some("")).unwrap_err(),
+            "The loaded image changed. Try white balance again."
+        );
+    }
 }

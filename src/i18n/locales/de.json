@@ -64,7 +64,17 @@
       "vibrance": "Dynamik",
       "wbPickerTooltip": "Weißabgleich-Pipette",
       "wbPickerWgpuDisabled": "WA-Pipette: WGPU in den Einstellungen deaktivieren.",
-      "whiteBalance": "Weißabgleich"
+      "whiteBalance": "Weißabgleich",
+      "wbPresetAsShot": "Wie aufgenommen",
+      "wbPresetAuto": "Automatisch",
+      "wbPresetDaylight": "Tageslicht · 5500 K",
+      "wbPresetShade": "Schatten · 7500 K",
+      "wbPresetCloudy": "Bewölkt · 6500 K",
+      "wbPresetTungsten": "Kunstlicht · 3200 K",
+      "wbPresetFluorescent": "Leuchtstoff · 4000 K",
+      "wbPresetFlash": "Blitz · 5500 K",
+      "wbPresetCustom": "Benutzerdefiniert",
+      "wbPresetAutoFailure": "Der automatische Weißabgleich konnte nicht berechnet werden."
     },
     "curves": {
       "channelTitle": "{{channel}}-Kanal",
@@ -789,7 +799,13 @@
         "preset": "Vorgabe",
         "style": "Stil",
         "tool": "Werkzeug"
-      }
+      },
+      "importOutcomeCancelled": "Preset-Import abgebrochen.",
+      "importOutcomeSuccess": "Importiert: {{count}}.",
+      "importOutcomePartial": "Importiert: {{count}}. Fehlgeschlagene Dateien: {{failed}}.",
+      "importOutcomeFailed": "Es wurden keine Presets importiert. Fehlgeschlagene Dateien: {{failed}}.",
+      "importOutcomeEmpty": "Die ausgewählten Dateien enthielten keine Presets.",
+      "importOutcomeError": "Presets konnten nicht importiert werden. Bitte erneut versuchen."
     },
     "switcher": {
       "tooltips": {
@@ -2136,6 +2152,8 @@
     "importFailed": "Some profiles failed to import:",
     "importNone": "No profile files were found.",
     "resetTooltip": "Clear profile selection",
-    "rescanComplete": "Profile rescan complete."
+    "rescanComplete": "Profile rescan complete.",
+    "importMenu": "Importieren",
+    "importMenuHint": "Basis-DCP + optionaler Look; Anpassungsvorgaben werden darüber angewendet."
   }
 }

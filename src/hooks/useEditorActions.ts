@@ -17,6 +17,30 @@ import {
 import { calculateCenteredCrop } from '../utils/cropUtils';
 import { Invokes } from '../components/ui/AppProperties';
 import { globalImageCache } from '../utils/ImageLRUCache';
+import {
+  canApplyWhiteBalanceRequest,
+  isUsableWhiteBalanceSample,
+  trackWhiteBalanceRequestRevisions,
+} from '../utils/whiteBalancePresets';
+import type { WhiteBalanceSample } from '../utils/whiteBalancePresets';
+
+const whiteBalanceRequestRevisions = trackWhiteBalanceRequestRevisions(
+  (
+    listener: (
+      state: ReturnType<typeof useEditorStore.getState>,
+      previousState: ReturnType<typeof useEditorStore.getState>,
+    ) => void,
+  ) => useEditorStore.subscribe(listener),
+  (state: ReturnType<typeof useEditorStore.getState>) => state.selectedImage,
+  (state: ReturnType<typeof useEditorStore.getState>) => state.adjustments,
+);
+let latestAutoWhiteBalanceRequest = 0;
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    latestAutoWhiteBalanceRequest += 1;
+    whiteBalanceRequestRevisions.unsubscribe();
+  });
+}
 
 export const debouncedSetHistory = debounce((newAdj: Adjustments) => {
   useEditorStore.getState().pushHistory(newAdj);
@@ -45,6 +69,77 @@ export function useEditorActions() {
       });
     },
     [setEditor],
+  );
+
+  const handleAutoWhiteBalance = useCallback(
+    async (failureMessage: string) => {
+      const start = useEditorStore.getState();
+      const source = start.selectedImage;
+      if (!source?.isReady || typeof source.path !== 'string' || source.path.length === 0) return;
+      const sourcePath = source.path;
+      const sourceGeneration = whiteBalanceRequestRevisions.getRevisions().imageSourceGeneration;
+      const requestGeneration = ++latestAutoWhiteBalanceRequest;
+      const startingAdjustments = start.adjustments;
+      const startingWhiteBalance = {
+        temperature: startingAdjustments.temperature,
+        tint: startingAdjustments.tint,
+        whiteBalance: startingAdjustments.whiteBalance,
+      };
+      const revision = whiteBalanceRequestRevisions.getRevisions().whiteBalanceRevision;
+      const isCurrentRequest = (current: ReturnType<typeof useEditorStore.getState>, adjustments: Adjustments) =>
+        current.selectedImage?.path === sourcePath &&
+        canApplyWhiteBalanceRequest({
+          currentImageSource: current.selectedImage,
+          currentImageSourceGeneration: whiteBalanceRequestRevisions.getRevisions().imageSourceGeneration,
+          currentRequestGeneration: latestAutoWhiteBalanceRequest,
+          currentWhiteBalance: adjustments,
+          currentWhiteBalanceRevision: whiteBalanceRequestRevisions.getRevisions().whiteBalanceRevision,
+          imageSource: source,
+          imageSourceGeneration: sourceGeneration,
+          requestGeneration,
+          whiteBalance: startingWhiteBalance,
+          whiteBalanceRevision: revision,
+        });
+
+      try {
+        const sample = await invoke<WhiteBalanceSample>(Invokes.SampleWhiteBalance, {
+          expectedPath: sourcePath,
+          corners: [
+            { x: 0, y: 0 },
+            { x: 1, y: 0 },
+            { x: 1, y: 1 },
+            { x: 0, y: 1 },
+          ],
+        });
+        const current = useEditorStore.getState();
+        if (
+          !isCurrentRequest(current, current.adjustments) ||
+          !current.selectedImage?.isReady ||
+          !isUsableWhiteBalanceSample(sample)
+        ) {
+          if (!isUsableWhiteBalanceSample(sample) && isCurrentRequest(current, current.adjustments)) {
+            toast.error(failureMessage);
+          }
+          return;
+        }
+
+        setAdjustments((prev) => {
+          if (!isCurrentRequest(useEditorStore.getState(), prev)) return prev;
+          return {
+            ...prev,
+            temperature: 0,
+            tint: 0,
+            whiteBalance: { temperature: sample.temperature, tint: sample.tint },
+          };
+        });
+      } catch {
+        const current = useEditorStore.getState();
+        if (isCurrentRequest(current, current.adjustments)) {
+          toast.error(failureMessage);
+        }
+      }
+    },
+    [setAdjustments],
   );
 
   const handleRotate = useCallback(
@@ -405,6 +500,7 @@ export function useEditorActions() {
     setAdjustments,
     handleRotate,
     handleAutoAdjustments,
+    handleAutoWhiteBalance,
     handleLutSelect,
     setLutPreviewOverride,
     handleResetAdjustments,

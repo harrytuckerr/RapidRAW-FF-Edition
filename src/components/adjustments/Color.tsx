@@ -25,6 +25,7 @@ import {
   withRelativeWhiteBalance,
 } from '../../utils/whiteBalance';
 import { TextColors, TextWeights } from '../../types/typography';
+import { applyWhiteBalancePreset, WHITE_BALANCE_PRESETS } from '../../utils/whiteBalancePresets';
 
 interface ColorProps {
   color: string;
@@ -34,13 +35,14 @@ interface ColorProps {
 
 interface ColorPanelProps {
   adjustments: Adjustments;
-  setAdjustments(adjustments: Partial<Adjustments>): any;
+  setAdjustments(adjustments: Partial<Adjustments> | ((prev: Adjustments) => Adjustments)): any;
   appSettings: AppSettings | null;
   asShotWhiteBalance?: WhiteBalance;
   isForMask?: boolean;
   isWbPickerActive?: boolean;
   toggleWbPicker?: () => void;
   onDragStateChange?: (isDragging: boolean) => void;
+  onAutoWhiteBalance?: (failureMessage: string) => Promise<void>;
 }
 
 interface ColorSwatchProps {
@@ -416,6 +418,7 @@ export default function ColorPanel({
   toggleWbPicker,
   onDragStateChange,
   asShotWhiteBalance,
+  onAutoWhiteBalance,
 }: ColorPanelProps) {
   const { t } = useTranslation();
   const handleSettingsChange = useSettingsStore((state) => state.handleSettingsChange);
@@ -474,6 +477,29 @@ export default function ColorPanel({
     ? resolveWhiteBalance(kelvinAsShot, adjustments)
     : getRelativeWhiteBalance(asShotWhiteBalance, adjustments);
   const tintRange = kelvinAsShot ? MAX_TINT : RELATIVE_RANGE;
+  const localizedPresetOptions = [
+    { value: 'asShot', label: t('adjustments.color.wbPresetAsShot') },
+    { value: 'auto', label: t('adjustments.color.wbPresetAuto') },
+    { value: 'daylight', label: t('adjustments.color.wbPresetDaylight') },
+    { value: 'shade', label: t('adjustments.color.wbPresetShade') },
+    { value: 'cloudy', label: t('adjustments.color.wbPresetCloudy') },
+    { value: 'tungsten', label: t('adjustments.color.wbPresetTungsten') },
+    { value: 'fluorescent', label: t('adjustments.color.wbPresetFluorescent') },
+    { value: 'flash', label: t('adjustments.color.wbPresetFlash') },
+    { value: 'custom', label: t('adjustments.color.wbPresetCustom') },
+  ];
+  const absoluteWhiteBalance = asShotWhiteBalance ? resolveWhiteBalance(asShotWhiteBalance, adjustments) : null;
+  const hasAsShotWhiteBalance =
+    !adjustments.whiteBalance && (adjustments.temperature || 0) === 0 && (adjustments.tint || 0) === 0;
+  const matchingPresets =
+    absoluteWhiteBalance && absoluteWhiteBalance.tint === 0
+      ? WHITE_BALANCE_PRESETS.filter((preset) => preset.temperature === absoluteWhiteBalance.temperature)
+      : [];
+  const selectedWhiteBalancePreset = hasAsShotWhiteBalance
+    ? 'asShot'
+    : matchingPresets.length === 1
+      ? matchingPresets[0].id
+      : 'custom';
 
   const toggleWhiteBalanceMode = () => {
     if (appSettings) {
@@ -496,6 +522,14 @@ export default function ColorPanel({
           })
         : { ...prev, [key]: Number(value) };
     });
+  };
+
+  const handleWhiteBalancePresetChange = (presetId: string) => {
+    if (presetId === 'auto') {
+      void onAutoWhiteBalance?.(t('adjustments.color.wbPresetAutoFailure'));
+      return;
+    }
+    setAdjustments((prev: Adjustments) => applyWhiteBalancePreset(prev, presetId));
   };
 
   const handleHslChange = (key: ColorAdjustment, value: string) => {
@@ -549,6 +583,20 @@ export default function ColorPanel({
           order={toolOrder.indexOf('whiteBalance')}
           title={t('adjustments.color.whiteBalance')}
         >
+          {!isForMask && (
+            <select
+              aria-label={t('adjustments.color.whiteBalance')}
+              className="w-full min-h-11 border border-border-color rounded-md bg-surface px-3 text-text-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+              onChange={(event) => handleWhiteBalancePresetChange(event.currentTarget.value)}
+              value={selectedWhiteBalancePreset}
+            >
+              {localizedPresetOptions.map(({ label, value }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          )}
           <Slider
             key={isKelvinMode ? 'kelvinTemperature' : 'temperature'}
             defaultValue={kelvinAsShot?.temperature}

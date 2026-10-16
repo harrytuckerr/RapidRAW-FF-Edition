@@ -38,6 +38,10 @@ The prerelease contains 14 assets. All 14 public downloads returned successfully
 
 Installers published by upstream RapidRAW do not include anything described in the next sections.
 
+## Source updates after this preview
+
+Current `main` adds a compact Camera Profile import menu, ordered profile groups, a White Balance preset/Auto menu and Android adjustment-preset URI handling. Host regression and build checks are recorded in the [workflow validation](docs/integration/WORKFLOW-POLISH-VALIDATION-2026-10-16.md), including inherited type/lint failures and physical-device limits. The linked preview packages predate these updates.
+
 ## Why use it
 
 - **Start from the rendering you paid for.** Apply your camera-matched base profile and a Look in the same conceptual order as Adobe Camera Raw/Lightroom: profile first, edits after.
