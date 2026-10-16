@@ -48,8 +48,8 @@ with Rust/Cargo 1.98.1 and system GLib 2.88.1: **4 Pass, 0 Fail**. Standalone
 strict Clippy and formatting passed. The real Android preparation helper copied
 the vendored files byte-for-byte; desktop and prepared Android application
 `cargo metadata --locked --offline --no-deps` checks passed. These metadata
-checks do not compile the application. A separate Ubuntu CI job runs the four
-optimized tests; its execution is pending at publication. Full Linux GTK/Tauri
+checks do not compile the application. The separate Ubuntu CI job also ran all four optimized tests successfully
+([GitHub run 38881722250](https://github.com/harrytuckerr/RapidRAW-HT-Edition/actions/runs/38881722250)). Full Linux GTK/Tauri
 builds and rebuilt APK/DMG acceptance remain **Not exercised**.
 
 Advisory tools may continue to flag version 0.18.5, or may stop matching when

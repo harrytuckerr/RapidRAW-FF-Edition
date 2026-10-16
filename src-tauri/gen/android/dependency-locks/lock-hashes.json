@@ -1,7 +1,7 @@
 {
   "source_manifest_sha256": "5815b4c6bca1330a193d3e986cf27b4912a88138b302e53741567a7a15e4268a",
   "locks": {
-    "Cargo.lock": "b439f4b3908e8753a1b3f7d9d0e2691ef64e49761c56cc8032ea82fac1967997",
+    "Cargo.lock": "c773e00fd93979810c633694e67be6029b433dceea126b7d8a645266b5f58c85",
     "package-lock.json": "2d322ae4c3f315094d76af8e48a6da4c4191b3d8187fc28a9465e5eb8174e069"
   },
   "npm_root_pins": {
@@ -12,7 +12,7 @@
   "nested_http_api": "2.12.4 (HTTP plugin declares ^2.12.0)",
   "npm_store_fs": "absent from source manifest and resolved tree; not added",
   "cargo_pins_unchanged": true,
-  "status": "Dependency versions retained with source-map-js 1.2.2 and local glib 0.18.5 security backport. Fresh desktop/Android npm installs and frontend builds passed; native packages have not been rebuilt.",
+  "status": "Source-map-js 1.2.2 and local GLib 0.18.5 backport retained; Rustls alone updated from 0.23.43 to 0.23.45 in both Cargo locks. Targeted host Rustls regressions Pass; rebuilt release packages remain Not exercised.",
   "source_manifest_scope": "Historical dependency-resolution source manifest; retained provenance, not the current application source manifest.",
   "cargo_declaration_amendment": {
     "source_commit": "b75d096b4ef2001377cfc628835a6bd160601c28",
@@ -40,12 +40,29 @@
     "prior_android_cargo_lock_sha256": "f9d6712ff027fdcb3e0744b35fa5b3dee3f39e3aff68045975d52d719ba8bdbd",
     "amended_android_cargo_lock_sha256": "b439f4b3908e8753a1b3f7d9d0e2691ef64e49761c56cc8032ea82fac1967997",
     "package_versions_and_dependency_edges_unchanged": true,
-    "validation": "Host optimized public-FFI regressions: 4 Pass, 0 Fail. Strict standalone Clippy and formatting Pass. Real Android preparation copied every vendored file exactly; desktop and prepared Android cargo metadata --locked --offline --no-deps Pass. Linux regression CI is configured but has not yet run; full GTK/Tauri and new package acceptance remain Not exercised."
+    "validation": "Host optimized public-FFI regressions: 4 Pass, 0 Fail. Strict standalone Clippy and formatting Pass. Real Android preparation copied every vendored file exactly; desktop and prepared Android cargo metadata --locked --offline --no-deps Pass. Actual Ubuntu optimized regression CI also Pass: 4 tests, 0 Fail at GitHub run 38881722250; full GTK/Tauri and new package acceptance remain Not exercised."
   },
   "source_map_js_security_update": {
     "advisory": "GHSA-68fv-2mgg-jv7q",
     "version": "1.2.2",
     "android_npm_lock_sha256": "2d322ae4c3f315094d76af8e48a6da4c4191b3d8187fc28a9465e5eb8174e069",
     "validation": "10 upstream security regressions Pass. Fresh desktop (305 installed package entries) and Android (306 entries) npm ci and both Vite builds Pass. Initial Android private-cwd lock-copy failure is retained as an orchestration failure. No new APK or DMG built."
+  },
+  "cargo_pins_scope": "cargo_pins_unchanged refers to the helper-prescribed Android Tauri stack. Rustls is the separately recorded security patch; not every Cargo package version is unchanged.",
+  "rustls_security_update": {
+    "advisories": [
+      "GHSA-2mjx-qc3c-rqvc",
+      "RUSTSEC-2026-0285"
+    ],
+    "from_version": "0.23.43",
+    "version": "0.23.45",
+    "registry_checksum": "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634",
+    "official_advisory": "https://github.com/rustls/rustls/security/advisories/GHSA-2mjx-qc3c-rqvc",
+    "prior_desktop_cargo_lock_sha256": "36a8ec0fe12594937fd2ff674494f00968ec1118949ab9902a18012f211f1f55",
+    "prior_android_cargo_lock_sha256": "b439f4b3908e8753a1b3f7d9d0e2691ef64e49761c56cc8032ea82fac1967997",
+    "amended_desktop_cargo_lock_sha256": "356fe090962974454306f74eceb0f9303e639c46ee77b65f38208dfd2ffac8df",
+    "amended_android_cargo_lock_sha256": "c773e00fd93979810c633694e67be6029b433dceea126b7d8a645266b5f58c85",
+    "other_package_versions_and_dependency_edges_unchanged": true,
+    "validation": "Official checksum and static graph/range checks verified; desktop/private Android no-deps locked metadata Pass. Independent host public-API in-memory optimized tests: 4 Pass, 0 Fail, including aligned controls and exact same-record encryption-boundary rejection on client/Acceptor. ring+std TLS1.3 only; not upstream re-encrypted full-flight execution, full feature-unified app, certificate/full TLS/provider or Android package acceptance."
   }
 }

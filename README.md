@@ -26,6 +26,8 @@ This fork now lives at [harrytuckerr/RapidRAW-HT-Edition](https://github.com/har
 
 ## Download
 
+> **Security status:** dependency and workflow security fixes on `main` postdate this preview. The APK, DMG and source archive linked below retain their original bytes and are **not rebuilt security releases**. See the [security notes](docs/security/README.md) for validation and historical-metadata limits.
+
 [fuji-preview-2026.10.16.1](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/tag/fuji-preview-2026.10.16.1) is a published development preview built from source commit `b75d096b4ef2001377cfc628835a6bd160601c28`. The embedded app version remains **1.6.5**; the dated tag identifies this fork revision. This README refresh follows publication and is not part of the packaged source. The packages also contain the reviewed attribution resources and Android dependency-declaration overlay supplied with the release; those exact inputs are now retained on `main`.
 
 - **Apple Silicon / M-series Mac, ARM64:** [debug, ad-hoc signed DMG](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/download/fuji-preview-2026.10.16.1/RapidRAW-Fuji-fuji-preview-2026.10.16.1-b75d096b-macos-arm64-debug-adhoc.dmg). The package and mounted contents were verified. It is not Developer ID signed or notarized; Gatekeeper and full macOS app acceptance were not established.
