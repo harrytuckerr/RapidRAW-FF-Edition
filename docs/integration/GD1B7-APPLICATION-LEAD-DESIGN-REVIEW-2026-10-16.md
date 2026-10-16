@@ -1,0 +1,9 @@
+# GD1b7 application readiness — root source decision
+
+Root independently read the complete Astra design and verified its three delivered artifacts, all 26 repository/installed-source hashes, all 702 committed input bytes and HEAD/index/pointer/branch-ref against e79bdc0f. Design/source custody **Pass**; implementation/runtime/app/provider **Not exercised**. This is not independent review by Astra of its own existing session/browser work.
+
+Two concrete source findings are accepted: lib.rs:2545–2560 immediately hard-exits on normal exit events; pinned tauri2.12.1 app.rs:90 ignores prevent_exit for restart. They block later application activation until command/setup/exit/restart integration is coherent. Root owns that later package, including the narrowly scoped SettingsPanel restart migration and capability change; neither is edited by the current source author.
+
+Root authorizes the functional native application.rs facade first. Its contract fixes a 4KiB string boundary, closed typed request/response mapping, exact native selection/consent APIs, empty NotConfigured behavior, task-free construction, explicit closing and actual cleanup-proof classification. It requires no protected helper change and exposes neither launch URLs nor credentials. This package is a native implementation step, not placeholder wrappers or application command registration.
+
+The isolated snapshot contains only the accepted base plus this review, the frozen readiness and contract. The author adds only application.rs and its receipt. Root exports the module and grants independent runtime checks later; prior 502Pass/14ignored results remain historical and are not rerun or attributed to this source-only grant. Actual default-browser/Google/positive OAuth/application/device/storage/sync/configuration remain Not exercised. No cache lease, live operational action or release authority is granted.
