@@ -89,6 +89,8 @@ tauri-plugin-store = "2.4"
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 trash = "5.2.6"
 tauri-plugin-single-instance = "2.4.3"
+# Use the pinned default-handler command builder with owned child cleanup.
+open = { version = "=5.4.1", default-features = false }
 reqwest = { version = "0.13", default-features = false, features = ["json", "multipart", "rustls"] }
 tauri-plugin-clerk = "0.1.1"
 
