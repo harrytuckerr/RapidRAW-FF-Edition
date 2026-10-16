@@ -1,7 +1,8 @@
 {
+  "_public_redaction": {"original_document_sha256": "832f75531a373c078522a43c513ea2919653047a518253cca68be3ccdf02c4f2", "original_document_bytes": 4996, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "package": "H2b1 canonical statistics integration with R1/R2a",
   "created_utc": "2026-10-15T07:17:06.593262+00:00",
-  "source_checkout": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+  "source_checkout": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
   "code_freeze_parent": "05dd25e74256bf0318cf43e6462cfd778bb4de53",
   "commit_predecessor": "efd5311b43ce07401476322692e9f8d5db0e03d5",
   "source_sha256": {

@@ -4,7 +4,7 @@ Source-only delivery, 2026-10-16 Australia/Melbourne. Author: Codex CLI - Astra,
 
 ## Scope and frozen inputs
 
-Worktree: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-lifetime`; detached base `5a2208c0184657e1d2a364ad46a6cddcb5f43290`. Only existing `src-tauri/src/drive_auth/account.rs` and this new receipt changed. Private evidence: `/private/tmp/rapidraw-gd1b5-account-lifetime-implementation-20261016`.
+Worktree: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-lifetime`; detached base `5a2208c0184657e1d2a364ad46a6cddcb5f43290`. Only existing `src-tauri/src/drive_auth/account.rs` and this new receipt changed. Private evidence: `/private/tmp/rapidraw-gd1b5-account-lifetime-implementation-20261016`.
 
 Authority: approved adoption contract `e1ea97d2cc024d82f6b046657ece99965ee1a83026865bd5fe48522e047c15fc` and lead review `ec61fe37642c3c039f3372dd0bdc7413dd2835ec845f423db4b8de7a08887782`. This delivery implements prerequisite A only. B registration catalog and C session adoption remain separately gated.
 
@@ -91,3 +91,7 @@ cargo clippy --locked --offline --all-targets -- -D warnings
 No new registration is needed in this author checkout: account is already registered and its retained independent footer remains intact. Root alone controls review integration and broader canonical validation. If a compile/runtime finding requires a change, preserve this source and evidence and grant a bounded revision; do not infer acceptance from this source-only handoff.
 
 No B catalog, C adoption, browser launch, credential persistence/refresh, IPC, controller session mutation, application activation or Drive readiness is implemented. Source is frozen at this receipt for independent review.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `1a7ffb47e6cf2014122e14a5c2e38ed74db5a4298d76cfad9055be0e1ac0c91e` (10373 bytes).

@@ -2,7 +2,7 @@
 
 **Fail: required strict all-target Clippy gate on frozen product source.** Runtime author14, independent10, default272 and format checks **Pass**. No product repair or expectation change was made; root retains correction, acceptance and integration authority.
 
-Model `gpt-6.1-sol` (live Team roster), macOS-26.5.2-arm64-arm-64bit. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-token-response-review`, detached `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`. Parser `a943573b0ab5a00be6df8d7e5cd98f6d27c66fffb92766d7d2eeb9b233656f61`; module `b19422c07fed9d158a0e809f8d4248e6a17be33f4c554434b838438a46b6d802`; protected PKCE `85bd9b4882a9fb45d54c63231b22bf962c322d884f9aa84ca67f866e551e7dd8`. Both complete frozen receipts read before checks.
+Model `gpt-6.1-sol` (live Team roster), macOS-26.5.2-arm64-arm-64bit. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-token-response-review`, detached `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`. Parser `a943573b0ab5a00be6df8d7e5cd98f6d27c66fffb92766d7d2eeb9b233656f61`; module `b19422c07fed9d158a0e809f8d4248e6a17be33f4c554434b838438a46b6d802`; protected PKCE `85bd9b4882a9fb45d54c63231b22bf962c322d884f9aa84ca67f866e551e7dd8`. Both complete frozen receipts read before checks.
 
 P2 F1, `src-tauri/src/drive_auth/token_response.rs:259` /`:263`: `400 => HttpFailure::BadRequest` overlaps the later `400..=499 => HttpFailure::Client`. `clippy::match_overlapping_arm` is denied by `-D warnings` and rejects lib/lib-test compilation (exit101). The first failure log is preserved. Ordinary match priority returned expected special/fallback status categories in runtime probes; no runtime misclassification was observed. Smallest proposed separately owned correction: disjoint residual fallback `402 | 404..=428 | 430..=499`, preserving special400/401/403/429 categories. **Not applied.** No source/threshold/oracle edit, suppression or retry.
 
@@ -43,3 +43,7 @@ Rust/Cargo1.98.1, rustfmt1.9.0-stable, Clippy0.1.98. Each gate checked no compet
 Evidence `/private/tmp/rapidraw-gd1b3-token-validation-20261016`; private `receipt.json` SHA256 `4bcb50926b9d90d4e98d876510e8ed557ed24104ecdc435e3067b47df4e3ee29`; first failure, full probe, actual binaries, commands/environment and source/cleanup manifests sealed in `artifact-hashes.json` (excludes itself).
 
 Cache explicitly **released** at `2026-10-15T14:20:45.835859+00:00`, no compiler active then, 17.37GiB free. No further build or downstream work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `5173d6e044ff9fffb9408eb1dc495c17fc77c95424f4fdab5402916689c589a2` (6342 bytes).

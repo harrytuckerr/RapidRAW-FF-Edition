@@ -5,7 +5,7 @@
 ## Identity, inputs and ownership
 
 - Task `01a13e39-3770-7833-b770-b64bfa237196`; Codex CLI - Sol, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`; actual model `gpt-6.1-sol` per current Team roster. No sub-agents.
-- Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/stats-revision`, HEAD `8a4f02bcec8a3edb567979462cbf022adde6f8b9`. Initial uncommitted `delta_e.rs` was exactly the rejected SHA256 `5313d08521d63db0be0357e88e9caaac5100828dca866ad8a9ecaa61764e75fb`; verified before editing and privately preserved as `rejected-delta_e.rs`.
+- Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/stats-revision`, HEAD `8a4f02bcec8a3edb567979462cbf022adde6f8b9`. Initial uncommitted `delta_e.rs` was exactly the rejected SHA256 `5313d08521d63db0be0357e88e9caaac5100828dca866ad8a9ecaa61764e75fb`; verified before editing and privately preserved as `rejected-delta_e.rs`.
 - Final independent review SHA256 `852a69f9afc93ab67f60aec14fe22c55bf799ebc5ff4cc51d310cc5297c28e65`; final comparison contract SHA256 `f29936252b3ec103a41a76961d97902c82970416ea5802f88d497ef4341a6880`, both verified from lead docs. Contract §§5–7 and review F1/F2 govern this slice.
 - Original `stats-guards` source still hashes to rejected5313d085; no original source/receipt was modified. Owned repository writes are only `src-tauri/src/dcp/delta_e.rs` and this new receipt. No validation/colour/renderer/CLI/dependency/lock/device/Git-index/commit/push mutations.
 - New private evidence root `/private/tmp/rapidraw-h2b1-revision-20261015`, mode0700. Host macOS26.5.2 arm64, Python3.9.6, Rust/Cargo1.98.1. Library tests use the explicitly granted desktop target. **Cache was explicitly released to lead after test/Clippy completion and binary preservation; no build/test remains running.** No later H2 slice started.
@@ -80,3 +80,7 @@ The normal build script downloaded/verified its ignored ONNX runtime resource in
 The accumulator's safety/correctness depends on its documented finite nonnegative binary64 and80M sample/weight bounds. Extending that cap or supporting signed sums requires a separately reviewed proof/change; this slice does neither. Necessary feasibility bounds do not establish measurement custody. No product-fidelity or performance claim follows from these tests.
 
 Next consumer: lead freezes these hashes for independent re-review before any import. Worker stops at this receipt and released cache; no H2b2 or broader architecture work is authorized by completion.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `e53ade8142599a4366ef727aa483c17ceafc4fbb1b85a4c950f6e545b6952251` (11764 bytes).

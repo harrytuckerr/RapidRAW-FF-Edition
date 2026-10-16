@@ -1,6 +1,6 @@
 # GD1b5-S3C4 — exact native switch consent, source-only receipt
 
-2026-10-16; author **gpt-6-astra**, Team slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`; task `01a141be-e98d-7333-b1b8-4d14d2c395ac`. This is author delivery, not independent source acceptance. Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-switch-decision`, detached base `47a1a46b2fec95826ffe5e71e39b4b5889211919`.
+2026-10-16; author **gpt-6-astra**, Team slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`; task `01a141be-e98d-7333-b1b8-4d14d2c395ac`. This is author delivery, not independent source acceptance. Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-switch-decision`, detached base `47a1a46b2fec95826ffe5e71e39b4b5889211919`.
 
 **Source candidate frozen for root review. Nine new grouped test definitions; ZERO tests executed.** Standalone pinned formatting and custody checks pass. Compiler, runtime, strict Clippy, independent migration and canonical integration are Not exercised for these bytes. Historical C3 461 passes/14 ignored/fmt/strict are baseline evidence only.
 
@@ -58,10 +58,14 @@ Only original C3 inline `different_identity_and_project_require_switch_even_afte
 
 ## Checks actually performed and next gate
 
-Pinned binary `/Users/harrisontucker/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/rustfmt`, reported `rustfmt 1.9.0-stable (48a229ceae 2026-09-01)`. Exact format argv: binary `--edition 2024 --config skip_children=true <absolute-owned-session.rs>`; check adds `--check`. Format/check exits 0, logs and timestamps preserved. No rustc/Cargo/Clippy/test or dependency action. Python exact patch replay reproduces final source, added-line whitespace check is clean, and preserved test/child/footer blocks are compared byte-for-byte.
+Pinned binary `<HOME>/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/rustfmt`, reported `rustfmt 1.9.0-stable (48a229ceae 2026-09-01)`. Exact format argv: binary `--edition 2024 --config skip_children=true <absolute-owned-session.rs>`; check adds `--check`. Format/check exits 0, logs and timestamps preserved. No rustc/Cargo/Clippy/test or dependency action. Python exact patch replay reproduces final source, added-line whitespace check is clean, and preserved test/child/footer blocks are compared byte-for-byte.
 
 Before/after source custody rehashed all 675 baseline records: exactly session.rs differs, other 674 identical. Direct Git-index parsing confirms the original 675 tracked paths; HEAD/index/pointer bytes remain exact, with this one new untracked receipt making 676 product paths. No Git process/mutation, cache acquisition, build, socket/network/browser/provider/account/device/Android activity occurred. A read-only relative-path rg lookup initially used the wrong cwd and was repeated with the explicit writer cwd; it changed nothing and is not a validation gate.
 
 **Pass:** standalone formatting, exact patch replay, owned scope/protected bytes/index/HEAD/inventory checks. **Fail:** none observed in those executed checks. **Not exercised:** typechecking/compilation, any tests, Clippy, independent migration/security review, runtime/provider/full-chain/product acceptance and canonical import.
 
 Next consumer: root reviews frozen production and definitions; a separate owner migrates the protected C3 child and adds independent probes. Only a separate runtime/cache grant may run `cargo test --locked --offline --lib drive_auth::session -- --test-threads=1`, fmt/strict all-target Clippy and root's combined canonical gate. Stop at the first concrete failure; no source-author repair or downstream work is implied. Real registration/config, browser/IPC/UI, store/refresh/revoke, credential lease, Android, photos/queues/transfers/sync, main/push/deploy remain excluded. No credentials requested. Source is frozen for that review.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `a142896fcece16c90d965f161058284b2c37a464d3310a3836e283d5d54b6805` (12237 bytes).

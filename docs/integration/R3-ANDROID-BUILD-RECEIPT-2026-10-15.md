@@ -13,7 +13,7 @@
 ## Source and ownership
 
 - Actual model: `gpt-6.1-sol`; host `macOS-26.5.2-arm64-arm-64bit` / `arm64`.
-- Read-only source: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead`; clean HEAD `2a7346229bc0cc398ee7e3fee126eb89428b7dd9` before/after.
+- Read-only source: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead`; clean HEAD `2a7346229bc0cc398ee7e3fee126eb89428b7dd9` before/after.
 - All 533 source hashes match before/after. Manifest SHA256 `ef47ae3cafb1ef4427f0ad1f729a8deef8673c6fba8ea006e037330eaceaa576`.
 - Native reviewed file SHA256 `56ca21c1488f0e72fde52796e3b3fa97e1a3179f56d467cce599e615ad09d81e`. Four frontend hashes are in `receipt.json` and `source-before.json`.
 - Fresh workspace: `/private/tmp/rapidraw-r3-android-build-20261015`; evidence: `/private/tmp/rapidraw-r3-android-20261015`; both created for this task with mode0700.
@@ -23,15 +23,15 @@
 ## Commands and environment
 
 ```sh
-cd /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead
-python3 scripts/android-build.py prepare --source /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead --workspace /private/tmp/rapidraw-r3-android-build-20261015 --locks src-tauri/gen/android/dependency-locks
+cd <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead
+python3 scripts/android-build.py prepare --source <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead --workspace /private/tmp/rapidraw-r3-android-build-20261015 --locks src-tauri/gen/android/dependency-locks
 python3 scripts/android-build.py build --workspace /private/tmp/rapidraw-r3-android-build-20261015
 ```
 
 Prepare exit0 (0.519s); build exit0 (834.590s). Exact argv, timestamps and environment are in `prepare-result.json`, `build-result.json` and `run-build.py`.
 
 - Rust1.98.1/cargo1.98.1, aarch64-linux-android; JDK Zulu17.0.17; NDK26.3.11579264; SDK/platform/build-tools36; Node22.22.0/npm10.9.4; Gradle8.14.3.
-- JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home; ANDROID_HOME=/Users/harrisontucker/Library/Android/sdk; NDK_HOME=that SDK/ndk/26.3.11579264.
+- JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home; ANDROID_HOME=<HOME>/Library/Android/sdk; NDK_HOME=that SDK/ndk/26.3.11579264.
 - Wrapper: CARGO_PROFILE_DEV_DEBUG=0, CARGO_PROFILE_TEST_DEBUG=0, both CARGO_PROFILE_*_INCREMENTAL=false, CARGO_INCREMENTAL=0, private android-target. Cargo --locked; npm ci; no resolve/clean or dependency refresh command.
 - Cargo/npm download caches and Gradle module/wrapper downloads were APFS copies into private cache homes; no old compiled target reused or old cache intentionally opened for writing. No Cargo credentials/configuration or account material selected for copying. Existing debug key reused privately; no key bytes in evidence/logs. Private Gradle options keep Kotlin compilation in-process and persistence in the new workspace.
 - Cargo/npm forced offline. Gradle was not explicitly forced offline; no download message was observed, and network traffic was not measured. Verified ONNX runtime was read-copied; build log confirms download skipped.
@@ -50,3 +50,7 @@ Prepare exit0 (0.519s); build exit0 (834.590s). Exact argv, timestamps and envir
 - Full raw/sanitized logs, source/lock manifests, public signature logs, exact commands, toolchain inputs and artifact hashes are retained here. No private photo/commercial assets were used, no device commands/install/signing configuration/source/Git mutation occurred.
 
 Builder processes ended and exclusive builder ownership is explicitly released. Worker completion does not establish provider, UI, device, decoding, visual, profile or production acceptance.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `fa07defc89766044d321c3009bfebcd9cf8ee0111eb91d8a3f59095c3699c2ea` (5916 bytes).

@@ -1,11 +1,12 @@
 {
+  "_public_redaction": {"original_document_sha256": "40452cb516f7a2ea291393a9a6af8d2ec177cac2d834497e20e1fc9ffddf2145", "original_document_bytes": 7568, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "utc": "2026-10-16T05:08:58.672098+00:00",
   "root_model": "gpt-6.1-sol",
   "production_author": "gpt-6-astra",
   "formatter_author": "claude-haiku-5-5",
   "independent_validator": "gpt-6.1-sol",
   "scope": "Accepted scoped source/native/callback/build/format/strict evidence for exact integration, NOT fullcanonical/app/provider/release acceptance",
-  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format",
+  "source": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format",
   "inputs751_and_meta_raw_full713_exact": true,
   "source_report_makes752": true,
   "final_manifest": {
@@ -26,7 +27,7 @@
         "--test",
         "src/__tests__/applicationLifecycle.test.mjs"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format",
       "exit": 0,
       "duration_seconds": 0.37762575000000004,
       "stdout": {
@@ -50,7 +51,7 @@
         "src-tauri/capabilities/mobile-process.json",
         "src-tauri/tauri.conf.json"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format",
       "exit": 0,
       "duration_seconds": 0.839817125,
       "stdout": {
@@ -69,7 +70,7 @@
         "--all",
         "--check"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format/src-tauri",
       "exit": 0,
       "duration_seconds": 1.607492875,
       "stdout": {
@@ -92,7 +93,7 @@
         "-D",
         "warnings"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format/src-tauri",
       "exit": 0,
       "duration_seconds": 45.479727791,
       "stdout": {

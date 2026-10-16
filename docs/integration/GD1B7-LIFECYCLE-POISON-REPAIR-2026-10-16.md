@@ -1,6 +1,6 @@
 # GD1b7-B lifecycle fault/admission repair — source only
 
-Author/model **gpt-6-astra**, 2026-10-16; task `01a142bc-f60b-77b1-8a14-84e931f92685`. Isolated `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-poison-repair`, detached `abf1ed796246cb952691d287451b843c61985c43`. Original F1 remains **Fail: static fault-injection invariant**, not a runtime/compiler failure, ordinary production panic or provider exploit. This source repair has no independent or runtime acceptance yet.
+Author/model **gpt-6-astra**, 2026-10-16; task `01a142bc-f60b-77b1-8a14-84e931f92685`. Isolated `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-poison-repair`, detached `abf1ed796246cb952691d287451b843c61985c43`. Original F1 remains **Fail: static fault-injection invariant**, not a runtime/compiler failure, ordinary production panic or provider exploit. This source repair has no independent or runtime acceptance yet.
 
 ## Exact correction
 
@@ -39,3 +39,7 @@ Final before/after records bind all730 supplied hashes:729 unchanged, one author
 **Not exercised:** Cargo/rustc/Clippy/build/tests/Node, process query/fixture/socket/browser/provider/account/device/runtime/mobile/IPC/event-loop operations, dependency installation or shared cache. No native cache lease. No Git command/metadata write. Source edits, private scripts/hash/index/alias reads and the new receipt are the entire activity.
 
 Evidence: `/private/tmp/rapidraw-gd1b7-lifecycle-poison-repair-20261016` includes exact original copies, production replacement map, unformatted new-test draft, patch/replay/check records, complete custody vectors, corrected authority hashes and final delivery/manifest. Root static review and separately assigned independent runtime remain next; no source author acceptance of the fault repair, app activation, credentials, sync or downstream authority. Stop frozen.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `eb76b4ad906895a11c3d6ca7b5cb1e28b4e6906a101c2bcbef8eeef07084f0f3` (7346 bytes).

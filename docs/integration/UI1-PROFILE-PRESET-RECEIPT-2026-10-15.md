@@ -1,6 +1,6 @@
 # UI1 — Camera Profile and adjustment preset clarity
 
-Frozen worker package for independent review. Actual model `gpt-6.1-sol`; isolated source `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/profile-preset-ui`, detached base `5ca276ac1dab210f11ee4cecbf904038516164f8`. No commit/stage/push, native build, device, installed-app or release work.
+Frozen worker package for independent review. Actual model `gpt-6.1-sol`; isolated source `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/profile-preset-ui`, detached base `5ca276ac1dab210f11ee4cecbf904038516164f8`. No commit/stage/push, native build, device, installed-app or release work.
 
 ## Result and behavior
 
@@ -41,7 +41,7 @@ Final Chrome155 CDP metrics verify viewport390 and scrollWidth390 in both phone 
 Preview server/browser are stopped; isolated browser caches/profiles were removed. To review again:
 
 ```sh
-cd /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/profile-preset-ui
+cd <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/profile-preset-ui
 node /private/tmp/rapidraw-ui1-20261015/make-preview.mjs
 python3 -m http.server 18761 --bind 127.0.0.1 --directory /private/tmp/rapidraw-ui1-20261015/preview
 ```
@@ -64,4 +64,8 @@ Patch (four existing production files + new actual-component test): `/private/tm
 
 Private evidence `/private/tmp/rapidraw-ui1-20261015`: source-before/final-source-hashes, source.patch, baseline+final checks/logs, diagnostic comparison, preserved-semantics proof, before-fix regression and final screenshots. artifact-hashes.json freezes receipts/logs/preview/build artifacts; transient browser profiles were removed. This worker result is ready for independent review and does not authorize integration, a new app/APK build, installation or publication.
 
-Design follows the assigned ownership brief and the existing editor, using [interface-design skill](/Users/harrisontucker/.codex/plugins/cache/claude-cowork/anthropic-skills/1.0.0/skills/interface-design/SKILL.md). Neutral panels, semantic theme tokens, existing Text/Button typography,4px spacing, visible focus and44px import/toolbar targets preserve the photo editor hierarchy. The visible base+Look foundation is repeated in the preset context/capture identity. No new palette, global navigation or design-system files.
+Design follows the assigned ownership brief and the existing editor, using [interface-design skill](<HOME>/.codex/plugins/cache/claude-cowork/anthropic-skills/1.0.0/skills/interface-design/SKILL.md). Neutral panels, semantic theme tokens, existing Text/Button typography,4px spacing, visible focus and44px import/toolbar targets preserve the photo editor hierarchy. The visible base+Look foundation is repeated in the preset context/capture identity. No new palette, global navigation or design-system files.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `8378e66d355aaeab081b81164bfe283edf567432e11d84f9a4c4bf218b9e11e8` (10349 bytes).

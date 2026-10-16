@@ -1,10 +1,11 @@
 {
+  "_public_redaction": {"original_document_sha256": "4dbbdd32fedd1d9664e597d44c09f575a43ae961899ae9406954f10acbbe02b3", "original_document_bytes": 511164, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "schema_version": 1,
   "task_id": "01a1413a-972c-74a3-8409-cec770e31541",
   "generated_utc": "2026-10-15T20:28:52.343072+00:00",
   "actual_model": "gpt-6.1-sol",
   "role": "Team canonical runtime validator",
-  "source_worktree": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration",
+  "source_worktree": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration",
   "branch": "codex/drive-sync-foundation-2026-10-15",
   "base_head": "52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0",
   "source_state": "Intentional root-owned uncommitted integration; validated exact frozen working-tree inputs, not a clean-HEAD claim",
@@ -633,7 +634,7 @@
           "--nocapture",
           "--test-threads=1"
         ],
-        "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+        "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
         "environment_overrides": {
           "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
           "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -710,7 +711,7 @@
           "--all",
           "--check"
         ],
-        "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+        "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
         "environment_overrides": {
           "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
           "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -754,7 +755,7 @@
           "-D",
           "warnings"
         ],
-        "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+        "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
         "environment_overrides": {
           "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
           "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -6715,7 +6716,7 @@
       "branch": "codex/drive-sync-foundation-2026-10-15",
       "head": "52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0",
       "head_pointer": "ref: refs/heads/codex/drive-sync-foundation-2026-10-15",
-      "gitdir": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration",
+      "gitdir": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration",
       "index": {
         "bytes": 74845,
         "sha256": "cd655164261c9c43df7cd86b852c7c510edd6a128ccd0076316acdb4594c723b"
@@ -10131,7 +10132,7 @@
       "branch": "codex/drive-sync-foundation-2026-10-15",
       "head": "52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0",
       "head_pointer": "ref: refs/heads/codex/drive-sync-foundation-2026-10-15",
-      "gitdir": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration",
+      "gitdir": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration",
       "index": {
         "bytes": 74845,
         "sha256": "cd655164261c9c43df7cd86b852c7c510edd6a128ccd0076316acdb4594c723b"

@@ -1,8 +1,9 @@
 {
+  "_public_redaction": {"original_document_sha256": "5c5fd1e9ca41c1d4406a1106ce1b66bd04f6b52a3ebd6d7fd31a4df4aed9d53a", "original_document_bytes": 1938, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "utc": "2026-10-16T03:26:33.793459+00:00",
   "acceptance": "Accepted finding/custody/stop receipt; candidate source NOT accepted",
   "finding": "F1 P2 static coordinator-poison/admission invariant. Root independently corroborated request/status/native-exit observation paths. No ordinary production panic or runtime/provider exploit claimed.",
-  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-wiring-review",
+  "source": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-wiring-review",
   "base": "abf1ed796246cb952691d287451b843c61985c43",
   "protected_inputs_exact": 726,
   "final_inventory": 727,

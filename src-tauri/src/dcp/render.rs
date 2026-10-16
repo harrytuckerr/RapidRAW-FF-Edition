@@ -1442,7 +1442,7 @@ mod tests {
             return;
         }
         let path = std::path::Path::new(
-            "/Users/harrisontucker/Downloads/Fujifilm X-Pro2 Cobalt Flat v3.0.dcp",
+            "/private/tmp/rapidraw-private-fixtures/Fujifilm X-Pro2 Cobalt Flat v3.0.dcp",
         );
         assert!(path.exists(), "supplied DCP not present: {path:?}");
         let profiles = crate::dcp::parser::parse_dcp(path).expect("parse vendor DCP");

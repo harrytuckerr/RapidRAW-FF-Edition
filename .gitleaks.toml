@@ -1,0 +1,4 @@
+title = "RapidRAW: upstream default rules; no disabled rules or path allowlists"
+
+[extend]
+useDefault = true

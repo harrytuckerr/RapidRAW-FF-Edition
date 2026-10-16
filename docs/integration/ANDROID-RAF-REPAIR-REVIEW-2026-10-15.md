@@ -2,7 +2,7 @@
 
 **Verdict: implementation can begin within the limited scope below after lead assigns ownership.** Reject empty image imports and the demonstrated top-level JPEG signature under a `.raf` name; guard existing opens too. Do not require every `.raf` to start with `FUJIFILM`, and do not reject JPEG-headed content for every RAW extension. Include honest terminal import status and transactional staging; a guard alone does not deliver a recoverable user-visible repair.
 
-Model: `gpt-6-astra`, Codex CLI - Astra, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/raf-review`, frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`. Only this report is writable. No build, device command, source/lock change, staging, commit or push. Review used the engineering code-review skill; implementation remains lead-owned.
+Model: `gpt-6-astra`, Codex CLI - Astra, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/raf-review`, frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`. Only this report is writable. No build, device command, source/lock change, staging, commit or push. Review used the engineering code-review skill; implementation remains lead-owned.
 
 ## Accepted evidence and limits
 
@@ -12,7 +12,7 @@ Neither the original selected bytes nor their URI/provider relation is establish
 
 ## Findings, severity and smallest correction
 
-All repository line numbers refer to the frozen base. `RAWLER` below means `/Users/harrisontucker/.cargo/git/checkouts/rapidraw-dnglab-d9adc5b1c1279a46/a32bc1f/rawler`, locked revision `a32bc1ff1f4f3c56d4d3226082f6eb17414f9159`.
+All repository line numbers refer to the frozen base. `RAWLER` below means `<HOME>/.cargo/git/checkouts/rapidraw-dnglab-d9adc5b1c1279a46/a32bc1f/rawler`, locked revision `a32bc1ff1f4f3c56d4d3226082f6eb17414f9159`.
 
 | Priority | Source / reproducer | Consequence / minimum correction |
 |---|---|---|
@@ -97,7 +97,7 @@ Read-only: `android_integration.rs`, `raw_processing.rs`, `dcp/*`, `lib.rs`, `us
 Proposed commands after implementation, not run here (lead supplies isolated path and bounded build target):
 
 ```sh
-cd /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/<assigned-repair-snapshot>/src-tauri
+cd <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/<assigned-repair-snapshot>/src-tauri
 cargo fmt --all -- --check
 cargo test --locked --lib formats::tests -- --nocapture
 cargo test --locked --lib image_loader::tests -- --nocapture
@@ -124,3 +124,7 @@ Commands were read-only `git rev-parse HEAD`, `git status --short`, `nl`/`sed`/`
 | `src-tauri/Cargo.lock` | `7ddd491af60c07c0d0a0983ab77c6f81409961831ed679b7b444103a6d765def` |
 
 Diff: one new review document; its final SHA-256 is in delivery message. Next consumer: lead assigns the five-file repair to one owner and freezes it for independent review, then sole device operator verifies a rebuilt APK. The scope is ready without resolving provider provenance, provided the claim remains **reject/report known bad content safely**, not **original RAF acquisition fixed**. Original selected source→provider bytes→staged bytes equality is a separate live gate and remains open.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `70c16a9879cdeb169160f738988dda527ece968bae1ca7879eb32436fa5d60b1` (21299 bytes).

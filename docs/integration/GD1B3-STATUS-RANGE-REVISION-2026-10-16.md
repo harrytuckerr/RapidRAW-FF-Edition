@@ -1,6 +1,6 @@
 # GD1b3 — disjoint HTTP status pattern revision
 
-Source-only correction, 2026-10-16 Melbourne. Actual author `gpt-6-astra`; task `01a13ff0-6247-7410-9714-dd52cde2e135`. Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-token-response`, detached `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`.
+Source-only correction, 2026-10-16 Melbourne. Actual author `gpt-6-astra`; task `01a13ff0-6247-7410-9714-dd52cde2e135`. Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-token-response`, detached `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`.
 
 Only `token_response.rs:263` changed. The residual Client match arm is now disjoint from the preceding special-status arms:
 
@@ -28,3 +28,7 @@ Private root: `/private/tmp/rapidraw-gd1b3-status-revision-20261016/`. Original 
 **Pass:** exact one-line byte replacement assertion; complete inline test-section byte equality (all14 definitions preserved); elementary integer-set equality between the old residual and explicit ranges; all564 captured protected files hash-identical after editing. Protected inventory includes tracked sources/manifests/locks and supplied untracked helper/module/author receipt/design. No validator files were edited. Standalone `rustfmt --edition 2024 --check --config skip_children=true src-tauri/src/drive_auth/token_response.rs`, `git diff --check` and tracked `git diff HEAD --exit-code` all exit0. The corrected source remains untracked as supplied; the dedicated no-index patch proves its change. No-index diff exits1 because bytes differ, as expected.
 
 **Not exercised:** revised Rust compile/tests/Clippy, any native/shared cache, socket/provider/account/browser/device operation. No new test functions or altered expectations; no Cargo/dependency/Git mutation. Source-only scope is complete, frozen for independent validation. Root/validator must establish revised strict-lint and runtime acceptance before integration; this receipt makes no OAuth/grant/storage/sync claim.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `fb3017a78f64105e1a09ec1089a6bdddd887c53e0c74f07e8200612f9532713b` (3556 bytes).

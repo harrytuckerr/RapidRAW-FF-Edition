@@ -1,6 +1,6 @@
 # GD1b5-S3C2 — configured verification without adoption
 
-Source-only delivery, 2026-10-16 Melbourne. Actual model `gpt-6-astra`; task `01a140cb-1924-7da1-b7ed-bb071652171e`. Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-configured-verification`, detached base `0131d650706ee1a227f168015c07778d08623cb8`.
+Source-only delivery, 2026-10-16 Melbourne. Actual model `gpt-6-astra`; task `01a140cb-1924-7da1-b7ed-bb071652171e`. Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-configured-verification`, detached base `0131d650706ee1a227f168015c07778d08623cb8`.
 
 **Frozen for independent review; compilation/runtime/acceptance Not exercised.** C2 performs native configured verification and immediately discards a successful sealed candidate. `VerifiedNotAdopted` never means Connected, sign-in success, permission for jobs or Drive readiness. No application command, browser launch or catalog configuration is installed.
 
@@ -68,3 +68,7 @@ Not exercised: Cargo/rustc/compile/tests/Clippy/cache, sockets or cleanup runtim
 Root static review, then a separately granted independent source/runtime owner. Suggested future pinned/offline commands from src-tauri under that owner's cache grant: `cargo test --locked --offline --lib drive_auth::session -- --test-threads=1`, relevant account/registration regressions, fmt and strict all-target Clippy, then root combined native validation. Do not treat historical422 or these41 session test definitions as passed C2 evidence. Concrete failures preserve this frozen delivery and require a bounded revision grant.
 
 B catalog changes, C3 retention/watchers/adoption, C4 switching, configuration loading, credential leases/store/refresh, browser/UI/IPC/navigation and app activation remain excluded. No credentials request. Stop at frozen source/receipt for independent review.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `767e670dea13d95473ca5123680a0a7c444d06607eb38e19ea48aaff678a65a2` (11773 bytes).

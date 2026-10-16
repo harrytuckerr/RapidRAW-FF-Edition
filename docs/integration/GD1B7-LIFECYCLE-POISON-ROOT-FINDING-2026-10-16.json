@@ -1,8 +1,9 @@
 {
+  "_public_redaction": {"original_document_sha256": "e30bd9b1cf68f12ff6b2dbe81a475fb2dcedf424f1b7dd400c63d386003be6f9", "original_document_bytes": 2402, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "utc": "2026-10-16T03:23:47.175579+00:00",
   "status": "Confirmed static fault-injection invariant blocker; no runtime reproduction",
   "all726protected_inputs_and_metadata_exact": true,
-  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-wiring-review",
+  "source": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-wiring-review",
   "files": {
     "src-tauri/src/drive_auth/lifecycle.rs": {
       "bytes": 24447,

@@ -2,7 +2,7 @@
 
 Frozen 2026-10-16 Melbourne / 2026-10-15 UTC by actual `gpt-6-astra`, Team slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`, task `01a13fba-1ea2-7823-bb2d-02da80d02f05`. **Implementation and test definitions ready for independent review. No Rust compilation or socket test was executed. This does not enable Connect Google or Drive sync.**
 
-Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-loopback`; detached base `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`. Own changes are the new listener, one module-export line, and this receipt. The supplied untracked PKCE helper remains SHA-256 `85bd9b4882a9fb45d54c63231b22bf962c322d884f9aa84ca67f866e551e7dd8`; its independent compilation is a separate gate, not presumed by this receipt. No API change was needed.
+Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-loopback`; detached base `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`. Own changes are the new listener, one module-export line, and this receipt. The supplied untracked PKCE helper remains SHA-256 `85bd9b4882a9fb45d54c63231b22bf962c322d884f9aa84ca67f866e551e7dd8`; its independent compilation is a separate gate, not presumed by this receipt. No API change was needed.
 
 ## Frozen artifact custody
 
@@ -74,3 +74,7 @@ Read 2026-10-16 Melbourne / 2026-10-15 UTC:
 - [RFC8252 §§7.3, 8.3–8.4, 8.9–8.10](https://www.rfc-editor.org/rfc/rfc8252.txt): native loopback literal/actual ephemeral port, temporary listener, state and redirect binding. IPv4-only is this assignment's constrained subset; RFC guidance recommends trying both IP versions, so broader platform availability is not claimed.
 - [RFC9112 §§2–3, 5–6](https://www.rfc-editor.org/rfc/rfc9112.txt): request-line/CRLF syntax, Host cardinality, origin form, token fields, obsolete folding and message framing inform the parser. General HTTP servers also support forms/features intentionally rejected here, including absolute-form; this callback-only subset is explicit and not advertised as general HTTP conformance.
 - [RFC6749 §4.1.2](https://www.rfc-editor.org/rfc/rfc6749#section-4.1.2): unrecognized response parameters remain ignored by the frozen helper, while known fields retain exact validation. No broad scope or account inference is introduced by the listener.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `7f20c8b183d08963f0ba14f23684ce76ab067472403e4f4f8de98ad581a3bd34` (13360 bytes).

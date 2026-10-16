@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   build:
     strategy:
@@ -56,7 +59,7 @@ jobs:
           - platform: 'ubuntu-latest'
             mobile: 'android'
             target: 'aarch64-linux-android'
-            args: '--target aarch64'
+            args: '--debug --target aarch64'
             asset-prefix: '04'
     uses: ./.github/workflows/build.yml
     with:
@@ -65,6 +68,5 @@ jobs:
       build-args: ${{ matrix.args }}
       asset-prefix: ${{ matrix.asset-prefix }}
       mobile: ${{ matrix.mobile }}
-    secrets: inherit
     permissions:
-      contents: write
+      contents: read

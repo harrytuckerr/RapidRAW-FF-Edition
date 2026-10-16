@@ -2,7 +2,7 @@
 
 **Pass — focused helper-repair tests, existing R2a tests, owned formatting and final strict all-target Clippy.** The initial Clippy failure is preserved separately; an explicitly authorized alias-only correction resolved it. Source is frozen for independent re-review. Native/frontend atomic integration and real transport/UI acceptance remain open.
 
-Worker: Codex CLI - Sol, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`, actual Team roster model `gpt-6.1-sol`. Task `01a13e7f-f33e-7282-a8c6-b0274ba1837a`. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/import-native-revision`, detached HEAD `ea191124c9a52c761336a307fb1bcb09da4e84fc`. Initial source was the explicitly supplied uncommitted rejected R3A input, SHA-256 `0fa55c4ff247519e4e01962b918725b539cf0bfdc2d0fdd36ae16b1f9c08287d`.
+Worker: Codex CLI - Sol, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`, actual Team roster model `gpt-6.1-sol`. Task `01a13e7f-f33e-7282-a8c6-b0274ba1837a`. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/import-native-revision`, detached HEAD `ea191124c9a52c761336a307fb1bcb09da4e84fc`. Initial source was the explicitly supplied uncommitted rejected R3A input, SHA-256 `0fa55c4ff247519e4e01962b918725b539cf0bfdc2d0fdd36ae16b1f9c08287d`.
 
 ## Behavioral repair
 
@@ -135,3 +135,7 @@ Read-only commands included git rev-parse/status/show/diff/check, rg/sed/cat, sh
 **Not exercised:** full suite/private controls, real Tauri transport or emit failure, terminal-emitter barrier, frontend integration/UI, Android/provider/device, R2b transaction behavior, profile/renderer/fidelity. No real credential/photo input.
 
 No Git mutation, frontend, logging, provider/JNI, dependency/lock, old producer/receipt, device or downstream edit. Source/tests/receipt are frozen; exclusive native-cache ownership is explicitly released in delivery. Stop for independent re-review and atomic backend/frontend integration, without treating worker completion as acceptance.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `17cab33689ee9eac270fb1575ce8508d8b7892d24763e1b339f15a23bae1866f` (13442 bytes).

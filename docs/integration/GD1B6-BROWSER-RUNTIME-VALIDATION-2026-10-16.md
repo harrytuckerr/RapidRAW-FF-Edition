@@ -2,7 +2,7 @@
 
 **Interrupted / not accepted:** the sole Cargo test command ended by SIGINT (Python return **-2**); fmt and Clippy are **Not exercised**. The new test fixture has a root-identified observer bound defect, and mailbox/process-inspection orchestration mistakes occurred. No source/oracle repair or rerun was made. **Compilation did complete and runtime did start**: final raw stdout has21 completed Pass rows,1 started/incomplete row and1 unstarted definition, with no harness summary. This is not a23-test passing gate and is not zero runtime execution.
 
-Actual reviewer `gpt-6.1-sol`, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`; production author Astra/`gpt-6-astra`. Review `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-review`, detached `6932d49ba6f989baf5b9ca2ae450b4846fec6512`. Existing693 inputs remained read-only. New child26329B SHA `8a55fc706e47442d020a6ee63690e6831a4495d33c66dc288256c8f2324e8efd`, nine definitions; author14 untouched. All new source/oracles were formatted/frozen before compiler invocation (freeze9110ba62/oracles6c839aa9).
+Actual reviewer `gpt-6.1-sol`, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`; production author Astra/`gpt-6-astra`. Review `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-review`, detached `6932d49ba6f989baf5b9ca2ae450b4846fec6512`. Existing693 inputs remained read-only. New child26329B SHA `8a55fc706e47442d020a6ee63690e6831a4495d33c66dc288256c8f2324e8efd`, nine definitions; author14 untouched. All new source/oracles were formatted/frozen before compiler invocation (freeze9110ba62/oracles6c839aa9).
 
 ## Defect, chronology and corrections to status updates
 
@@ -19,7 +19,7 @@ The comm-with-args compiler detector used at startup can miss long executable pa
 
 ## Actual command and observations
 
-Cwd `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-review/src-tauri`, Rust/Cargo1.98.1 (versions recorded), offline/locked pinned target. Sole gate:
+Cwd `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-review/src-tauri`, Rust/Cargo1.98.1 (versions recorded), offline/locked pinned target. Sole gate:
 
 ```text
 cargo test --locked --offline --lib drive_auth::browser -- --nocapture --test-threads=1
@@ -43,3 +43,7 @@ All693 root-frozen existing input hashes and exact inventory remain identical be
 Cache **explicitly released 2026-10-16T00:37:30.747533+00:00**, wide full-command/PID check found no surviving cargo/rustc/clippy/test/owned fixture, 16356143104 bytes free (≥12GiB). No further native action. Root lease file unchanged. Private evidence `/private/tmp/rapidraw-gd1b6-browser-validation-20261016` includes full chronology, original and final settled log fingerprints, every actual outcome/incomplete name, actual binary, source/patch/fixed expectations, preflight limitation, environment/argv/versions, full input custody, ignored schemas, release and sealed machine receipt/manifest.
 
 **Pass:** standalone source formatting, frozen-input custody; individual completed raw rows are observations only. **Fail:** fixture observer bound and orchestration/process-detector defects as described. **Interrupted:** the native gate, no accepted focused runtime result. **Not exercised:** fmt/Clippy, complete focused gate/canonical integration, OS default browser/Windows/Wine/WSL, provider/full positive OAuth, browser readiness/login, app/IPC/device/Android/store/sync/security-completion. Root must separately authorize observer correction and new validation; no current repair/downstream authority. C4 historical479 results do not validate this browser module.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `94cad5f2d4546e1e309564afc7a29a4362582242611e923087bda5e9d2af1184` (8514 bytes).

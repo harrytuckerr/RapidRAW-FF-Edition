@@ -1,6 +1,6 @@
 # Publication docs receipt
 
-**Model:** GPT-6 Luna. **Snapshot:** `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/publication-docs`, detached HEAD `2a7346229bc0cc398ee7e3fee126eb89428b7dd9`, tree `db1268edee6d4291d22ce929b9523b95e6a58982`.
+**Model:** GPT-6 Luna. **Snapshot:** `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/publication-docs`, detached HEAD `2a7346229bc0cc398ee7e3fee126eb89428b7dd9`, tree `db1268edee6d4291d22ce929b9523b95e6a58982`.
 
 ## Files and hashes
 
@@ -17,7 +17,7 @@ The NOTICE update replaces only the dated historical pipeline/status block. It r
 ## Commands and checks
 
 ```text
-git worktree add --detach /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/publication-docs 2a7346229bc0cc398ee7e3fee126eb89428b7dd9
+git worktree add --detach <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/publication-docs 2a7346229bc0cc398ee7e3fee126eb89428b7dd9
 git rev-parse HEAD
 git rev-parse HEAD^{tree}
 git status --short
@@ -33,3 +33,7 @@ python3 -  # read-only Markdown file/anchor checker for README.md and NOTICE.md
 **Pass:** documentation edits match the supplied publication facts and remain within the allowlist. **Fail:** none observed. **Not exercised:** CI/release availability, builds, application behavior and device/profile/Adobe workflows.
 
 **Next consumer:** lead for review and integration. The working tree is left uncommitted for that review.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `df9ae55e4f2ce7c5a36e71caf3b27392d60bfd7e6eea1808897efebe7343331d` (2642 bytes).

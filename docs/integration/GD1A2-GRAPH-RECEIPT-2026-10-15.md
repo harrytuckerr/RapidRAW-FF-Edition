@@ -1,6 +1,6 @@
 # GD1a2 — pure ancestry graph source receipt
 
-**Source ready for independent review; compilation/tests Not exercised.** Task `01a13f76-d275-7683-8811-727214da5558`; actual model `gpt-6-astra`. Owned worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-graph`, detached base `4710485193650fe881509c239f2cfe770bf9cead`. The assigned directory was initially absent; lead created it before any write. Worker performed no Git mutation.
+**Source ready for independent review; compilation/tests Not exercised.** Task `01a13f76-d275-7683-8811-727214da5558`; actual model `gpt-6-astra`. Owned worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-graph`, detached base `4710485193650fe881509c239f2cfe770bf9cead`. The assigned directory was initially absent; lead created it before any write. Worker performed no Git mutation.
 
 Only new `src-tauri/src/drive/state.rs`, one `pub mod state;` export in `drive/mod.rs`, this receipt and private `/private/tmp/rapidraw-gd1a2-graph-20261015/` evidence were written. Model/lib/Cargo/lock bytes match HEAD exactly. No Cargo, rustc, test binary, native/build cache, dependency, npm, provider, account, filesystem-runtime/store, UI, renderer or device action occurred.
 
@@ -54,3 +54,7 @@ Environment: Darwin25.5.0 arm64; rustfmt1.9.0-stable (`8bab26f4f6`,2026-07-14). 
 Root alone integrates this frozen diff after independent review and assigns the native cache. Future command from `src-tauri`: `cargo test --locked --offline --lib drive::state` (17 new definitions), followed by the already accepted model suite and appropriate fmt/strict lint checks. The parent base already registers `pub mod drive`; this task does not alter lib.rs. Compilation may expose type/lint issues because source-only formatting is not compilation evidence.
 
 Stop at this artifact. No acknowledgement generations, graph persistence, remote transport, portable payload codec, profile math, auth or UI work is bundled into it.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `7b84476aefc917701d17e1d2a509fdeb2b35aa48d1e13f2df22aa091ae453971` (7962 bytes).

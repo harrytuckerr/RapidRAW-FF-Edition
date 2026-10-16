@@ -1,6 +1,6 @@
 # GD1b7-A independent application validation
 
-**Pass** for this bounded source/focused-runtime/format/strict package. Actual model `gpt-6.1-sol`; source author `gpt-6-astra`. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-application-review`, detached `e79bdc0f096df05e821e8988803daf3332f43af8`. 2026-10-16T02:20:28.393830+00:00. Review used the engineering code-review skill; source inspection found no blocking production issue before execution. Root acceptance/integration remains separate.
+**Pass** for this bounded source/focused-runtime/format/strict package. Actual model `gpt-6.1-sol`; source author `gpt-6-astra`. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-application-review`, detached `e79bdc0f096df05e821e8988803daf3332f43af8`. 2026-10-16T02:20:28.393830+00:00. Review used the engineering code-review skill; source inspection found no blocking production issue before execution. Root acceptance/integration remains separate.
 
 Nine independent grouped definitions were fixed and source-formatted before compilation: all nine public raw-string codecs with exact 4096/4097-byte and decoded-field failures; task-free options/catalog and scope rejection; fixed wire metadata/precision and response size; proposal floor/cap/original-clock tuples; closed errors and cleanup classification; real ticket Busy/cancel/stale/fresh attempts; sink-owned versus externally held ticket Drop; idempotent closing and real shutdown fences; owned joined denial-only localhost callback. All 16 author definitions remain exact. Positive Connection/Proposal DTO fixtures are metadata serialization only, never sealed proof/adoption.
 
@@ -55,3 +55,7 @@ Cache explicitly released `2026-10-16T02:19:59.433339+00:00`; bounded full-width
 | `drive_auth::application::tests::strict_json_rejects_alias_duplicates_unknown_types_and_bounds` | Pass |
 | `drive_auth::application::tests::task_free_getters_cancel_decision_and_disconnect_map_actual_public_owner` | Pass |
 | `drive_auth::application::tests::unpolled_and_polled_caller_drop_keep_native_ticket_cleanup` | Pass |
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `50974029acc9eca6a9e50b544e4d7adfed3c94a78ccd5d134303f22fd7d0131d` (8862 bytes).

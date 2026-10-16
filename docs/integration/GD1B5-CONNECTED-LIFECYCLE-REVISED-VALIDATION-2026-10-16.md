@@ -1,6 +1,6 @@
 # C3 revised validation — static blocker before execution
 
-**Fail (source preflight); runtime Not exercised.** Model `gpt-6.1-sol`, task `01a1412b-4e32-75f0-b0f5-3b147f087777`. Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-connected-lifecycle-review`, detached `52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0`.
+**Fail (source preflight); runtime Not exercised.** Model `gpt-6.1-sol`, task `01a1412b-4e32-75f0-b0f5-3b147f087777`. Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-connected-lifecycle-review`, detached `52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0`.
 
 Root's test-only correction adds `assert_eq!(slot.key, work.key)` at `src-tauri/src/drive_auth/connected_lifecycle_independent_tests.rs:802`. `Key` at session.rs251–255 derives Clone/Copy/PartialEq/Eq and has no Debug implementation. `assert_eq!` requires Debug for its diagnostic formatting even when equality would succeed. This immutable test line cannot type-check. This is a static diagnosis, **not an observed compiler error**.
 
@@ -11,3 +11,7 @@ All668 input hashes/exact inventory matched `84ea2802d1e5ef4a1d54d57cf4244d996df
 ZERO Cargo/compiler/test/formatter/Clippy invocations; ZERO tests executed; no new binary. The corrected fail_start cleanup and120ms timeout tail remain Not exercised. The historical original67Pass/1Fail run remains Fail and immutable. Pinned1.98.1 environment was prescribed, but no toolchain command was needed under this stopped grant.
 
 Cache lease **released unused** `2026-10-15T20:06:26.817324+00:00`; no cargo/rustc/clippy-driver, 18463039488B free. Pass: source/inventory/HEAD/index custody. Fail: root-corrected probe's static Debug-bound blocker. Not exercised: compile/runtime/fmt/Clippy/canonical/provider/full-chain/C4/app/device/sync acceptance. No source, dependency, Git, network or device action. Stop frozen; no downstream authority.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `5104a6f0a3656285cba6a35b14d7435814c5d0b803566e2aa445356183af1bbe` (2386 bytes).

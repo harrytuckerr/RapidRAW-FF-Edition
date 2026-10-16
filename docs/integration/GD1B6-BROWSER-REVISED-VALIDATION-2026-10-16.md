@@ -1,6 +1,6 @@
 # GD1b6 revised browser validation
 
-Pass for this bounded new gate. Codex CLI - Sol, actual roster model `gpt-6.1-sol`, 2026-10-16T01:05:11.432162+00:00. Detached `6932d49ba6f989baf5b9ca2ae450b4846fec6512`, snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-observer-review`. Author Astra; prior independent production review and probes Sol; observer correction Sol, independently source-reviewed by root. Root canonical acceptance remains separate.
+Pass for this bounded new gate. Codex CLI - Sol, actual roster model `gpt-6.1-sol`, 2026-10-16T01:05:11.432162+00:00. Detached `6932d49ba6f989baf5b9ca2ae450b4846fec6512`, snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-observer-review`. Author Astra; prior independent production review and probes Sol; observer correction Sol, independently source-reviewed by root. Root canonical acceptance remains separate.
 
 | Gate | Exit | Duration (s) | Result |
 | --- | ---: | ---: | --- |
@@ -49,3 +49,7 @@ Cache explicitly released at `2026-10-16T01:04:52.277660+00:00`; robust bounded 
 | `drive_auth::browser::tests::processes::real_selected_child_success_nonzero_and_spawn_error_are_distinct` | Pass |
 | `drive_auth::browser::tests::processes::stale_and_real_handoff_expiry_prevent_any_dispatch` | Pass |
 | `drive_auth::browser::tests::selected_recipe_is_exactly_first_and_never_a_program_override` | Pass |
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `01c80f573a81cd3f07928e0b0d5c23a1f1b781fc35adeae92235ebdd68637c70` (7419 bytes).

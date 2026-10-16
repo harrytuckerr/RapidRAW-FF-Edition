@@ -1,6 +1,6 @@
 # GD0 contract receipt — 2026-10-15
 
-**Delivered for independent design review.** Task `01a13f34-3c0e-7a03-b4b3-f1ebcfec38da`; actual model `gpt-6-astra` per Team roster. Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-contract`, detached base `5ca276ac1dab210f11ee4cecbf904038516164f8`.
+**Delivered for independent design review.** Task `01a13f34-3c0e-7a03-b4b3-f1ebcfec38da`; actual model `gpt-6-astra` per Team roster. Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-contract`, detached base `5ca276ac1dab210f11ee4cecbf904038516164f8`.
 
 Only new `docs/drive/contract.md`, this receipt and private `/private/tmp/rapidraw-gd0-contract-20261015/` evidence were written. No source/lock/Git/account/login/project/resource/build/cache/device/UI mutation. Google primary documentation was browsed; no authenticated provider request or account data was accessed.
 
@@ -35,3 +35,7 @@ Current Google policy's explicit app-content-backup restriction and cache-retent
 Assign **GD1a only** first: new `src-tauri/src/drive/mod.rs`, `model.rs`, `state.rs` with inline pure tests; lead owns `lib.rs` registration and all shared manifests/locks. Validate bounded v1 envelopes/account/storage space, derive immutable graph heads, detect conflicts/tombstone races and reject stale acknowledgements. Payload applicability remains Unvalidated until the separate codec slice. No filesystem/network/auth/UI renderer work. Exact test cases, later isolated owners, commands and stop points are in contract §9; the preset round-trip prerequisite is separately assignable.
 
 Unresolved acceptance decisions: actual cross-native grant/space visibility; provider policy/retention eligibility; secure-store and Android SDK dependency choices; exact portable adjustment/RenderContext codec after consumer audit; measured phone budgets; full E4 UX and E1 encoded-export integration. Neither completion of GD0 nor later mock success closes those gates.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `8d471588e52d2019a43fb6fb0e89ad7e331f82aa9d073a7f5b7b7d779e472365` (5492 bytes).

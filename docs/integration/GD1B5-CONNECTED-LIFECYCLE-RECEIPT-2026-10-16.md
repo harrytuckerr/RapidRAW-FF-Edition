@@ -1,6 +1,6 @@
 # GD1b5-S3C3 — connected ownership and complete lifecycle
 
-Source-only delivery, 2026-10-16 Melbourne; actual model `gpt-6-astra`. Task `01a140f4-031a-7840-93b6-7ba7ae0a6b13`. Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-connected-lifecycle`, detached `52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0`.
+Source-only delivery, 2026-10-16 Melbourne; actual model `gpt-6-astra`. Task `01a140f4-031a-7840-93b6-7ba7ae0a6b13`. Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-connected-lifecycle`, detached `52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0`.
 
 **Frozen for root production review, separately authorized independent test migration, then runtime validation. ZERO tests executed.** This implements native first/same-account ownership; it does not activate Google sign-in, a real catalog, UI or Drive jobs. The protected historical C2 child still requires its explicitly planned migration before a coherent test build; no compile/runtime/Clippy acceptance is claimed.
 
@@ -80,3 +80,7 @@ The generated patch was replayed independently in memory against the whole basel
 Pass: formatting/whitespace, patch replay, protected custody and static preservation checks. Not exercised: compiler/type checking, Cargo/tests/Clippy, watcher/socket/runtime behavior, independent test migration, canonical acceptance, provider/account/browser/UI/IPC/storage/refresh/Android/device/editor/transfer/sync. No cache lease was acquired. Existing442 baseline passes are not changed-source evidence.
 
 Next consumer: root production review, then separately authorized independent child migration and C3 fixed-case validation, then focused/combined canonical checks under a new cache grant. No source-author repairs after freeze without a separate grant. C4 confirmation, real configuration, credential leases, persistence and application activation remain excluded. Stop frozen; no downstream work or credential request.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `1786dcf8107b1e64cb3d7b75048eee366cf0ea5f2c86a1156c2947966f0e0d3d` (13850 bytes).

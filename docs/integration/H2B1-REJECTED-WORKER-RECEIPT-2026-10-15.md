@@ -5,7 +5,7 @@
 ## Identity, inputs and ownership
 
 - Task `01a13e23-6679-77e3-83df-0cfa98d577e9`; Codex CLI - Sol, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`, actual model `gpt-6.1-sol` per current Team runtime roster. No sub-agents.
-- Detached snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/stats-guards`, frozen HEAD `8877d7eaa14442814912a199c8de9abdfba5c8b9`; initially clean.
+- Detached snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/stats-guards`, frozen HEAD `8877d7eaa14442814912a199c8de9abdfba5c8b9`; initially clean.
 - Reviewed contract SHA256 `f29936252b3ec103a41a76961d97902c82970416ea5802f88d497ef4341a6880`, sections5/6/7; independent review SHA256 `c9be23b548446ace92365dafa17f08f1362f8237d9451c355aecd53525aede0b`. Both read from the lead checkout and hashes verified before edits.
 - Host macOS26.5.2 arm64, Python3.9.6; `rustc 1.98.1 (48a229cea 2026-09-01)`, `cargo 1.98.1 (797e8a9bc 2026-08-05)`, selected inside `src-tauri`.
 - Exclusive desktop target `/private/tmp/rapidraw-integration-20261015/target` was granted after R1 released it. **Explicitly released back to the lead after the sole scoped test completed. No build/test remains running.** Logs/patch/metadata are in its new mode0700 child `h2b1-statistics-20261015/`; these generated artifacts are outside the repository.
@@ -69,3 +69,7 @@ Next consumer: independent reviewer on this exact source/patch and receipt, then
 - Owned source SHA256: `5313d08521d63db0be0357e88e9caaac5100828dca866ad8a9ecaa61764e75fb` (baseline `586d4ee19f07dabc46e65902821bf6e84ad100f45318a5d7e8b4b4b2d56c7f50`).
 - Source patch: `target/h2b1-statistics-20261015/delta_e.patch` under the absolute shared target above; SHA256 `200ccceed399ae86692abbecf506f3378097d78d1969085701b00d01cdf150df`.
 - Exact test log/exit/env/disk receipt: `cargo-test.log`, `cargo-test-receipt.json`; preservation check: `preservation-check.json` in that same evidence child.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `228d4ac511eaf21010e5209ce31d9dec22a0e22a6aae90157fcf8d80e9722a34` (9237 bytes).

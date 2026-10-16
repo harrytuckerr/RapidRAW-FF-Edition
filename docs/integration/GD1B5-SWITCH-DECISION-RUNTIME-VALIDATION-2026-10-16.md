@@ -2,11 +2,11 @@
 
 **Executed gates Pass:** 86 tests passed, 0 failed, 0 ignored; standalone/final formatting and strict all-target Clippy passed. **One test evidence gap remains:** root's review found an intervening reap/expiry/notification path in the earlier-replacement timer case. These passes do not establish that case's claimed isolation of acceptance-triggered watcher rescheduling. No production defect is established by that finding; root review/canonical acceptance remains separate.
 
-Actual reviewer/new-probe author: `gpt-6.1-sol`, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`; C4 production author: Astra/`gpt-6-astra`. Review snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-switch-decision-review`, detached `47a1a46b2fec95826ffe5e71e39b4b5889211919`. All 679 original files were frozen read-only. Only the new kept independent child and this report were added; no production or old test/oracle edits.
+Actual reviewer/new-probe author: `gpt-6.1-sol`, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`; C4 production author: Astra/`gpt-6-astra`. Review snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-switch-decision-review`, detached `47a1a46b2fec95826ffe5e71e39b4b5889211919`. All 679 original files were frozen read-only. Only the new kept independent child and this report were added; no production or old test/oracle edits.
 
 ## Actual gates and unique results
 
-Cwd `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-switch-decision-review/src-tauri`; pinned toolchain directory `/Users/harrisontucker/.rustup/toolchains/1.98-aarch64-apple-darwin/bin`. `rustc 1.98.1 (48a229cea 2026-09-01)`, `cargo 1.98.1 (797e8a9bc 2026-08-05)`; host `aarch64-apple-darwin`. Exact absolute argv, UTC, durations, environment overrides, full stdout/stderr and fresh preflights are preserved privately in `commands.json`, `environment.json` and `preflights.json`.
+Cwd `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-switch-decision-review/src-tauri`; pinned toolchain directory `<HOME>/.rustup/toolchains/1.98-aarch64-apple-darwin/bin`. `rustc 1.98.1 (48a229cea 2026-09-01)`, `cargo 1.98.1 (797e8a9bc 2026-08-05)`; host `aarch64-apple-darwin`. Exact absolute argv, UTC, durations, environment overrides, full stdout/stderr and fresh preflights are preserved privately in `commands.json`, `environment.json` and `preflights.json`.
 
 | Command (exact arguments) | Exit | Seconds |
 | --- | ---: | ---: |
@@ -56,3 +56,7 @@ Private evidence `/private/tmp/rapidraw-gd1b5-switch-decision-validation-2026101
 Cache **explicitly released 2026-10-15T23:21:11.375643+00:00**, no cargo/rustc/clippy processes, 16274579456 bytes free (≥6GiB). Root-owned lease file unchanged. No more build/test commands in this task.
 
 **Pass:** actual 86/0/0 focused run, formatting, strict all-target lint, immutable-input/oracle custody. **Fail:** no executed gate failure; the isolated acceptance-notification evidence gap remains open. **Not exercised:** canonical full suite, Google/provider identity or full authorization/exchange/account chain, production registration/configuration, browser/IPC/Android/device/storage/refresh/lease/transfer/sync/product acceptance. Historical C3 failures remain literal and immutable. Source/evidence frozen for root review; no downstream implementation or publication authority.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `eee1543b41163ea9d8847fe28f2a920e1d38cefb426ff3fb9c526c392d190321` (10712 bytes).

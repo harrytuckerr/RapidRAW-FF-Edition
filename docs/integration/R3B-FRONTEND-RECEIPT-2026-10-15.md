@@ -2,7 +2,7 @@
 
 **Ready for independent review; not accepted integration.** Completed the preserved Opus partial implementation of truthful import completion, run ownership and listener lifecycle. Actual hooks and real Zustand store pass18 import test functions; existing profile suite passes16. Typecheck and whole-owned-file lint remain failing on baseline debt, with no new diagnostics. No native build/cache, physical transport/device or release action performed.
 
-Implementer: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/import-frontend-astra`, detached base **`ea191124c9a52c761336a307fb1bcb09da4e84fc`**. Governing contract `050005a661b88d7cec03252ae500970452b7cae599b409edc03507991aadab88`. This is an implementation receipt, not an independent review of my own changes.
+Implementer: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/import-frontend-astra`, detached base **`ea191124c9a52c761336a307fb1bcb09da4e84fc`**. Governing contract `050005a661b88d7cec03252ae500970452b7cae599b409edc03507991aadab88`. This is an implementation receipt, not an independent review of my own changes.
 
 ## Custody and allowed writes
 
@@ -86,3 +86,7 @@ Directory: `/private/tmp/rapidraw-r3b-astra-20261015/`. `manifest.json` includes
 **Pass —18 actual-hook/store mock-transport tests,16 existing profile tests, formatting/scope/custody checks, zero new type/lint diagnostics. Fail — overall typecheck70 and scoped lint37 pre-existing errors. Not exercised — independent review, real native wire/registration timing/provider/Android/device, native builds/cache, combined R3A+R3B integration, R2b/deletion or fidelity.** No release or production success claimed.
 
 Next consumer: independent reviewer examines these exact four frontend files against the contract and frozen producer DTO, then lead integrates the separately accepted native correction and this frontend atomically. Old frontend without runId and new native cannot be mixed. No excluded API changes were needed. This implementation turn stops at the frozen artifact; receipt hash is delivered through Team message.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `c89aeb2dc49f224b0c6f4f8c9efb59dba280a234c4018cfa24334da1db4c9811` (13143 bytes).

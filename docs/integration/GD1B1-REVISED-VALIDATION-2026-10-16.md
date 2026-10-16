@@ -3,7 +3,7 @@
 **Pass** for the frozen revised native helper checks. The unchanged independent unknown-extension probe now succeeds; this is not Google/provider acceptance. Root retains review and integration authority.
 
 - Model: `gpt-6.1-sol` (live Team roster); host: `macOS-26.5.2-arm64-arm-64bit`.
-- Snapshot: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-pkce-revision`, detached `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`.
+- Snapshot: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-pkce-revision`, detached `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`.
 - Revised `pkce.rs`: `85bd9b4882a9fb45d54c63231b22bf962c322d884f9aa84ca67f866e551e7dd8`; module: `c744895383a3048117ebbf250ddf4e3cf34441b8ab013c715bf11f2dd45bd7b8`.
 - Author receipt: `2610413dce7d9ee805c90888c611a38dd8bdfba664fc19f8746213811643f7c2`. Root-supplied registration was preserved; no product source, README, dependency, lock or Git mutation.
 
@@ -45,3 +45,7 @@ Preserved actual binaries:
 Evidence: `/private/tmp/rapidraw-gd1b1-revised-validation-20261016`; machine receipt `receipt.json` SHA256 `0ee10bd6c623a1121d28bc6d34a328891741a4f3a22c353e622fa550c4a48285`. Full commands/environment/logs, sanitized log copies, binary/source/probe hashes and cleanup receipts are retained there. `artifact-hashes.json` seals final file records; it excludes itself to avoid self-reference.
 
 Desktop cache explicitly **released** at `2026-10-15T13:46:48.631207+00:00`; no compilers remained, 17.60 GiB free. No further build or follow-on work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `888b0b2ee4c6284384f4c7839090536b0519c9e0d2a842dfa92d27fa58d0eff0` (5536 bytes).

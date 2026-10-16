@@ -1,4 +1,5 @@
 {
+  "_public_redaction": {"original_document_sha256": "36469491b35e5af3ce3c57d43f9fc469bcc82a2be924629399158a3c9153e9ef", "original_document_bytes": 6305, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "utc": "2026-10-16T04:20:50.355718+00:00",
   "model": "gpt-6.1-sol",
   "scope": "Observed diagnostic non-regression only, not whole-project typecheck Pass",
@@ -47,7 +48,7 @@
   ],
   "source_A714_B743_and_full_raw_index_meta_exact": true,
   "dependency_and_invocation_parity": {
-    "node_path": "/Users/harrisontucker/.nvm/versions/node/v22.22.0/bin/node",
+    "node_path": "<HOME>/.nvm/versions/node/v22.22.0/bin/node",
     "node_binary": {
       "bytes": 111673840,
       "sha256": "913b144fdb40638b1acef7974ab3c33fbd527cc0974cb5da467ab1e6ac51b4d4"
@@ -100,7 +101,7 @@
       "ORT_SKIP_DOWNLOAD": "1"
     },
     "current_inherited_relevant": {
-      "PATH": "/Users/harrisontucker/.local/bin:/Users/harrisontucker/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/opt/devkitpro/tools/bin:/Users/harrisontucker/.codex/packages/standalone/releases/0.160.1-aarch64-apple-darwin/codex-path:/Users/harrisontucker/.codex/tmp/arg0/codex-arg0wQyUqg:/Users/harrisontucker/.local/bin:/Users/harrisontucker/.opencode/bin:/opt/devkitpro/devkitARM/bin:/Users/harrisontucker/.rbenv/shims:/Users/harrisontucker/.antigravity/antigravity/bin:/Users/harrisontucker/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/harrisontucker/.cargo/bin:/Users/harrisontucker/Library/Android/sdk/platform-tools:/Users/harrisontucker/Library/Android/sdk/tools:/Users/harrisontucker/Library/Android/sdk/tools/bin:/Users/harrisontucker/.maestro/bin",
+      "PATH": "<HOME>/.local/bin:<HOME>/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/opt/devkitpro/tools/bin:<HOME>/.codex/packages/standalone/releases/0.160.1-aarch64-apple-darwin/codex-path:<HOME>/.codex/tmp/arg0/codex-arg0wQyUqg:<HOME>/.local/bin:<HOME>/.opencode/bin:/opt/devkitpro/devkitARM/bin:<HOME>/.rbenv/shims:<HOME>/.antigravity/antigravity/bin:<HOME>/.nvm/versions/node/v22.22.0/bin:/opt/homebrew/bin:/opt/homebrew/sbin:<HOME>/.cargo/bin:<HOME>/Library/Android/sdk/platform-tools:<HOME>/Library/Android/sdk/tools:<HOME>/Library/Android/sdk/tools/bin:<HOME>/.maestro/bin",
       "NODE_OPTIONS": null,
       "NODE_PATH": null,
       "CI": null,

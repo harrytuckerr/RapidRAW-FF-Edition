@@ -2,7 +2,7 @@
 
 **Accept the frozen native correction.** The remaining F1 boundary is repaired: the complete resolved basename survives until known-name substitution, before label/reason limits. No new defect found in this incremental change. Earlier accepted F2/alias/ownership/counting conclusions remain supported by byte-preservation checks. This is native source acceptance, not combined frontend, transport or device acceptance.
 
-Reviewer: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Producer `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/import-native-fullname`, detached **`ea191124c9a52c761336a307fb1bcb09da4e84fc`**. Report checkout `raf-review` remains **`4c1e965a53de9c835df920b2e3d69c2c8a864708`**. Baseline: rejected-ad1 in `import-native-revision` and prior report SHA `118f3ef26d2496eb9c487745fb9e4807dd75a018492ffd2c30a440ceaa632bbd`. No frontend review/self-approval or source changes performed.
+Reviewer: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Producer `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/import-native-fullname`, detached **`ea191124c9a52c761336a307fb1bcb09da4e84fc`**. Report checkout `raf-review` remains **`4c1e965a53de9c835df920b2e3d69c2c8a864708`**. Baseline: rejected-ad1 in `import-native-revision` and prior report SHA `118f3ef26d2496eb9c487745fb9e4807dd75a018492ffd2c30a440ceaa632bbd`. No frontend review/self-approval or source changes performed.
 
 ## Identity and scope
 
@@ -44,3 +44,7 @@ Executed exact comparisons establish:
 **Pass — incremental source/preservation review, unchanged-assertion failure-to-pass evidence and two independently rerun focused regressions. No remaining finding in the assigned correction. Not exercised by reviewer — Cargo/build/cache writes, full suite/R2a rerun, private controls, real transport/provider/device, combined native/frontend integration or fidelity.** Read-only commands were git rev-parse, shasum, rg/cat/tail and stdin Python identity/string comparisons; only this report was written. The existing binary ran without new compilation. No Git/lock/source/UI/device edits.
 
 Next consumer: lead may integrate this exact accepted native source with the separately independently accepted frontend and run its assigned combined checks. This report does not independently approve my own R3B implementation or close native transport/device gates. Stop at this frozen report; its hash is supplied through Team message.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `dac43dc131b0cd689cf506b904ea2d26b34ee8fda41b5d73f1a5de64496692a0` (5800 bytes).

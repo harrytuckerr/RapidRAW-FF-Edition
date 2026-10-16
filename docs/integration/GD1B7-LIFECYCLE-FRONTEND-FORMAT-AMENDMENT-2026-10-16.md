@@ -26,7 +26,7 @@ The root checker `frontend_format_ast_check.mjs` (SHA256 `ca151c2f4ac8c19edc4f81
 
 ## Commands and timings (exact)
 
-Both commands ran with cwd = the worktree and this Node binary: `/Users/harrisontucker/.nvm/versions/node/v22.22.0/bin/node`. Environment: inherited from the shell, with no overrides.
+Both commands ran with cwd = the worktree and this Node binary: `<HOME>/.nvm/versions/node/v22.22.0/bin/node`. Environment: inherited from the shell, with no overrides.
 
 | Step | argv (after the Node path) | UTC start → finish | Duration | Exit | stdout / stderr |
 |---|---|---|---|---|---|
@@ -53,3 +53,7 @@ No initial check was rerun. No other file was formatted.
 - **Node binary identity:** checked by reading its file bytes (SHA256 `913b144f…4d4`, matching the prior record). No `--version` or other toolchain query was run.
 - **Native cache:** not leased in this task.
 - No product, lint, type, or canonical acceptance is claimed. No downstream authority is granted.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `a9072b9590fd99f0cff98df97d3880458b9f5039bb57c743cc3cc4de617843b2` (4876 bytes).

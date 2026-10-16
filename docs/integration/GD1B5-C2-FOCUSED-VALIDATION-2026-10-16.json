@@ -1,8 +1,9 @@
 {
+  "_public_redaction": {"original_document_sha256": "78252fb5fc1a58b0a9b03f5da40ed97b9f8d0390254da2418bedfda80ec853b6", "original_document_bytes": 17666, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "task_id": "01a140db-d52d-7a23-9b63-3304a9f04d77",
   "verdict": "Accept assigned independent C2 source/focused runtime gates; root canonical acceptance pending",
   "model": "gpt-6.1-sol (live Team roster), independent of Astra C2 author",
-  "workspace": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review",
+  "workspace": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review",
   "base_head": "0131d650706ee1a227f168015c07778d08623cb8",
   "inputs": 656,
   "protected_inputs_unchanged": true,
@@ -14,12 +15,12 @@
   "final_inventory_count": 658,
   "deliveries": [
     {
-      "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/src-tauri/src/drive_auth/configured_verification_independent_tests.rs",
+      "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/src-tauri/src/drive_auth/configured_verification_independent_tests.rs",
       "bytes": 35930,
       "sha256": "2fe0df0c8c0191581ff5632295e67a4b79705c548bbdf921883af4a1e32dee8c"
     },
     {
-      "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/docs/integration/GD1B5-CONFIGURED-VERIFICATION-RUNTIME-VALIDATION-2026-10-16.md",
+      "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/docs/integration/GD1B5-CONFIGURED-VERIFICATION-RUNTIME-VALIDATION-2026-10-16.md",
       "bytes": 7294,
       "sha256": "31872c14682408c07aec7eb17445741efdba9891496dd3a295d3ef31d75d29c6"
     }
@@ -177,7 +178,7 @@
         "--nocapture",
         "--test-threads=1"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -222,7 +223,7 @@
         "--",
         "--check"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -262,7 +263,7 @@
         "-D",
         "warnings"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -372,8 +373,8 @@
   },
   "runtime": {
     "action": "Authorized read/hash/copy into initially absent ignored runtime; no download",
-    "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/resources/libonnxruntime.dylib",
-    "destination": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/src-tauri/resources/libonnxruntime.dylib",
+    "source": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/resources/libonnxruntime.dylib",
+    "destination": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-configured-verification-review/src-tauri/resources/libonnxruntime.dylib",
     "bytes": 33481272,
     "sha256": "2b885992d3d6fa4130d39ec84a80d7504ff52750027c547bb22c86165f19406a"
   },

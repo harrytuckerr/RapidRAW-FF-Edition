@@ -21,8 +21,12 @@ The local Mac installer and installed Fold APK were built from `fbc6b6e511814fdc
 | Apple Silicon ad-hoc DMG | `a715ceb8cd90164b91bdce8f5f588d0485ade13f4def5b83df20cc88fa0526d2` | [Local Mac artifact](UI1-MAC-LOCAL-ARTIFACT-2026-10-15.json) |
 | Android ARM64 debug APK | `6be831f069933305d4ecdff4ac928f79133ba289402b14e463ac63fa101b43f8` | [Android artifact and Fold update](UI1-ANDROID-FOLD-ARTIFACT-2026-10-15.json) |
 
-Both are available in the user's Downloads folder under the names in those receipts. The Android APK was installed in place on `RFGL73CE9XM`; the installed hash matched and MainActivity cold-launched successfully. Metadata-scoped preservation checks passed; app data contents were not exhaustively compared. Mac installation/launch and revised profile/preset workflows through the real OS chooser, physical rendering, save/reopen and export remain Not exercised. The Mac package is ad-hoc signed, not Developer ID signed or notarized.
+Both are available in the user's Downloads folder under the names in those receipts. The Android APK was installed in place on `<DEVICE_SERIAL>`; the installed hash matched and MainActivity cold-launched successfully. Metadata-scoped preservation checks passed; app data contents were not exhaustively compared. Mac installation/launch and revised profile/preset workflows through the real OS chooser, physical rendering, save/reopen and export remain Not exercised. The Mac package is ad-hoc signed, not Developer ID signed or notarized.
 
 The existing public preview `fuji-preview-2026.10.15.1` remains unchanged and predates UI1. This promotion does not publish a new binary release. The packaging-notice inventory records outstanding attribution work before another public package is represented as distribution-ready. The README's distinction between current source and the older published preview remains accurate.
 
 Drive model/graph implementation and desktop OAuth helper development remain in separate local worktrees. They are not enabled Google features in this main promotion. No Google login, credentials, account access or provider acceptance is implied.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `cbc6b9632a3b8df7c3db5203a90d1cda50aee9be20201002ce593701256f5aa9` (3673 bytes).

@@ -1,0 +1,11 @@
+# Audited 2026-10-16. Exact historical commit:path:rule:line fingerprints only.
+# Do not add wildcards, whole paths/commits, or new fingerprints without review.
+# These two generic-api-key matches are ordinary prose, not credential literals.
+e79bdc0f096df05e821e8988803daf3332f43af8:docs/integration/GD1B6-BROWSER-INTEGRATION-2026-10-16.md:generic-api-key:30
+fbc6b6e511814fdcbea46e3f5225f9bbc66f8973:docs/integration/GD0-CONTRACT-RECEIPT-2026-10-15.md:generic-api-key:31
+# These four historical matches are Clerk pk_test publishable frontend keys,
+# not sk_* secret keys. No key value is included here. See docs/security/README.md.
+92f2b9cf14dd2270c08626f67d5e813ba03081f0:src/App.tsx:generic-api-key:68
+518f56f18c3d550937c42f4cc08432cc42f47e23:changes.patch:generic-api-key:222
+518f56f18c3d550937c42f4cc08432cc42f47e23:changes.patch:generic-api-key:326
+c6062fe7a08f4d001f09b7b39f43885a3c80022d:src/App.tsx:generic-api-key:105

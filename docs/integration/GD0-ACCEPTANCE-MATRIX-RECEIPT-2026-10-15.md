@@ -1,9 +1,9 @@
 # GD0 acceptance matrix receipt — 2026-10-15
 
 - **Worker/model:** Codex CLI - Luna / GPT-6 Luna
-- **Snapshot:** `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-acceptance`
+- **Snapshot:** `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-acceptance`
 - **Frozen base:** `5ca276ac1dab210f11ee4cecbf904038516164f8`
-- **Inputs:** `/Users/harrisontucker/Documents/CoWork/RapidRaw/ORCHESTRATOR_HANDOVER_2026-10-15.md` §16.5 and sibling source-only map `drive-state-map/docs/drive/CURRENT-STATE-SEAMS-2026-10-15.md` at `af74957f`; amended scope supplied with task assignment.
+- **Inputs:** `<HOME>/Documents/CoWork/RapidRaw/ORCHESTRATOR_HANDOVER_2026-10-15.md` §16.5 and sibling source-only map `drive-state-map/docs/drive/CURRENT-STATE-SEAMS-2026-10-15.md` at `af74957f`; amended scope supplied with task assignment.
 - **Exact writable files:** `docs/drive/ACCEPTANCE-MATRIX.md`; `docs/integration/GD0-ACCEPTANCE-MATRIX-RECEIPT-2026-10-15.md`.
 - **Outcome:** Matrix frozen for lead review. All 13 acceptance cases begin **Not exercised**. No provider/account/device operation, build, source implementation change, or Git mutation was performed.
 
@@ -14,7 +14,7 @@ Commands run from the snapshot root:
 ```sh
 git rev-parse HEAD
 git status --short
-sed -n '510,615p' /Users/harrisontucker/Documents/CoWork/RapidRaw/ORCHESTRATOR_HANDOVER_2026-10-15.md
+sed -n '510,615p' <HOME>/Documents/CoWork/RapidRaw/ORCHESTRATOR_HANDOVER_2026-10-15.md
 sed -n '1,260p' ../drive-state-map/docs/drive/CURRENT-STATE-SEAMS-2026-10-15.md
 ```
 
@@ -23,3 +23,7 @@ sed -n '1,260p' ../drive-state-map/docs/drive/CURRENT-STATE-SEAMS-2026-10-15.md
 ## Limits
 
 This document extracts acceptance cases and unknown registration inputs. It makes no authentication architecture, permission feasibility, retention, conflict-resolution, cache-size, or colour-math decision. It does not wait on the separate design-contract task and does not relax existing profile or export gates.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `62c8a663d382af33e25bf25efe8c4ee72dd7e306a873a781eb3702cabaf23dba` (2311 bytes).

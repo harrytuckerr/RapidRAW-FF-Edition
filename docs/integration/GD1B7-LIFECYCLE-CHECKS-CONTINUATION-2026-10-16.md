@@ -1,6 +1,6 @@
 # GD1b7-B remaining checks — stopped at ESLint
 
-Validator/model **gpt-6.1-sol**, task01a142f2-5204-7301-958f-6bba84f20631. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-checks-review`, detached `abf1ed796246cb952691d287451b843c61985c43`. **Fail: targeted ESLint**, first failed check in this NEW continuation. No source/oracle/dependency/formatting write, fix, suppression, extra test or rerun occurred. Root separately authorized these remaining checks under disclosed inherited whole-project type debt; no fully-green or release acceptance is claimed.
+Validator/model **gpt-6.1-sol**, task01a142f2-5204-7301-958f-6bba84f20631. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-checks-review`, detached `abf1ed796246cb952691d287451b843c61985c43`. **Fail: targeted ESLint**, first failed check in this NEW continuation. No source/oracle/dependency/formatting write, fix, suppression, extra test or rerun occurred. Root separately authorized these remaining checks under disclosed inherited whole-project type debt; no fully-green or release acceptance is claimed.
 
 | Check (once, ordered) | Outcome | Exit | Seconds |
 |---|---|---:|---:|
@@ -23,3 +23,7 @@ Private frontend artifact: `{"assets/index-B1hauyzL.js": {"bytes": 4735454, "sha
 **Cache RELEASED `2026-10-16T04:30:12.755556+00:00`**, fresh5s-bounded full-width PID/parent/executable/argv proof no compiler/test/own Node/fixture conflicts; actual gate PIDs absent, free bytes `14232141824` (>=12GiB). No native command after release, unrelated signals or hard OS scheduling guarantee. Full standalone receipt at `/private/tmp/rapidraw-gd1b7-lifecycle-checks-continuation-20261016/receipt.json` includes every actual argv/cwd/UTC/env/version/exit/duration/rawstdout/stderr/hash, artifact records, complete source/index/dependency/history custody and stop reason. No test binary was executed or created by this continuation.
 
 Not exercised: Prettier/fmt/strict, any repeated/full/ignored/Android suite, mounted React/IPC/origin ACL/app/event-loop/OS quit-restart/default browser/Google/provider/Code-success/mobile/device/config/credentials/account/store/refresh/transfers/sync/main/push/deploy/release. Root alone decides any baseline attribution/source repair/new checks/canonical integration; stop frozen with no downstream authority.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `af8e346fd04befdd6b92ad0b7ae99904d5412c35b13e0827e053e3750ea60fbf` (5397 bytes).

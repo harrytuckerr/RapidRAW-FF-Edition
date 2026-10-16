@@ -2,7 +2,7 @@
 
 **Verdict: Accept the frozen revised statistics source.** Both prior false-Pass findings are repaired. No blocking arithmetic, feasibility-validation or allocation defect found within the finite nonnegative binary64 /80M-sample contract. One nonblocking bit-width comment correction is noted below. This accepts an offline statistics helper, not a colour comparator, production performance or Adobe/device evidence.
 
-Reviewer: Codex CLI - Astra / actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/stats-revision`, HEAD `8a4f02bcec8a3edb567979462cbf022adde6f8b9`. Only this report is written in `raf-review/docs/integration/`. No production code import, Rust/test-binary execution, build, shared-cache/device/Git mutation or private photograph access. Small independent stdin arithmetic and source/data verification probes ran; their exact scope is below.
+Reviewer: Codex CLI - Astra / actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/stats-revision`, HEAD `8a4f02bcec8a3edb567979462cbf022adde6f8b9`. Only this report is written in `raf-review/docs/integration/`. No production code import, Rust/test-binary execution, build, shared-cache/device/Git mutation or private photograph access. Small independent stdin arithmetic and source/data verification probes ran; their exact scope is below.
 
 ## Verified identity and preservation
 
@@ -81,3 +81,7 @@ The exact arithmetic increases complexity, but remains a private fixed-size help
 Read-only commands included `git rev-parse/status/diff/show`, `nl`/`rg`/`cat`/`tail`, `shasum`, and stdin Python with standard-library Fraction,struct,json,re,random,subprocess,hashlib/math. No shared cache was touched and no persistent probe output was written. This report is the only new artifact; its SHA is delivered via Team message.
 
 Next consumer: lead imports the exact accepted one-file revision under its integration process and runs combined checks when separately assigned. Correcting the P3 wording is a nonfunctional follow-up under ownership. This review authorizes no subsequent H2/ICC work and closes no original product fidelity/device gate.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `f20ebf94772893813ce86334335d646d2f9f9d974aea67fe8891096959e0bce7` (13548 bytes).

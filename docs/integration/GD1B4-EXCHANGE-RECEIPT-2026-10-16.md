@@ -2,7 +2,7 @@
 
 Frozen 2026-10-16 Melbourne / 2026-10-15 UTC. Actual author `gpt-6-astra`, Team slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`; task `01a13fef-9364-76e3-b0f2-7c3f1d274439`. **Source and test definitions ready for independent review. No compile, test, socket or provider operation executed.**
 
-Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange`, detached `ec1d032efe7dd321e7a99d1931730b654b922ec3`. Full frozen contract `2682a642039bfb9a974fc583c4602ef325f176a71e9176aeb3098244e2fe1779` and `GD1B4-INDEPENDENT-LEAD-REVIEW-2026-10-16.md` were read before editing. Root's reported base317Pass/14ignored/fmt/strict-lint is prerequisite evidence, not validation of this new file.
+Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange`, detached `ec1d032efe7dd321e7a99d1931730b654b922ec3`. Full frozen contract `2682a642039bfb9a974fc583c4602ef325f176a71e9176aeb3098244e2fe1779` and `GD1B4-INDEPENDENT-LEAD-REVIEW-2026-10-16.md` were read before editing. Root's reported base317Pass/14ignored/fmt/strict-lint is prerequisite evidence, not validation of this new file.
 
 ## Frozen artifacts
 
@@ -68,3 +68,7 @@ Root alone registers `exchange` in an isolated review snapshot. Under separately
 No protected API/feature mismatch was found during source authoring. Existing reqwest chunk/no_* APIs were inspected in pinned0.13.4. Hyper1.11.0 response code was also read to verify that duplicate header values remain appended for post-parse validation (`src/proto/h1/role.rs:1120–1142`), rather than assuming duplicates disappear. No dependency resolution occurred.
 
 Primary references are those already verified in the frozen accepted contract: [Google native token exchange](https://developers.google.com/identity/protocols/oauth2/native-app), [WHATWG form serialization](https://url.spec.whatwg.org/#application/x-www-form-urlencoded-serializing), [RFC6749 token semantics](https://www.rfc-editor.org/rfc/rfc6749.txt). This assignment read the full contract/review and pinned APIs; it did not perform new provider probes. Root owns independent acceptance, README and any integration/publication.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `56633c4b23df58d299841b23c1e367e6f338e92fdc343cf0b4cc76e1c0253c50` (12000 bytes).

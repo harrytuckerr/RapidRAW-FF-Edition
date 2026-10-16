@@ -1,6 +1,6 @@
 # GD1b7-B independent validation — stopped at static blocker
 
-**Request changes — Fail, static fault-injection invariant.** Validator/model gpt-6.1-sol (Team Sol), separately from author gpt-6-astra. Review snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-wiring-review`, detached `abf1ed796246cb952691d287451b843c61985c43`. No runtime failure is claimed. Source review stopped at the first blocker as required by the binding grant; no broader review or gate acceptance is implied.
+**Request changes — Fail, static fault-injection invariant.** Validator/model gpt-6.1-sol (Team Sol), separately from author gpt-6-astra. Review snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-wiring-review`, detached `abf1ed796246cb952691d287451b843c61985c43`. No runtime failure is claimed. Source review stopped at the first blocker as required by the binding grant; no broader review or gate acceptance is implied.
 
 ## Finding F1 (P2): coordinator poison while Open leaves facade admission open
 
@@ -23,3 +23,7 @@ Only this report adds a product path:726→727; both permitted child paths remai
 **Cache RELEASED `2026-10-16T03:25:23.917830+00:00`**, fresh bounded full-width PID/parent/executable/argv proof found no compiler/Node/test/known fixture survivor; free bytes `14713532416` (>=12GiB). No native command ran before or after release in this task; only source/receipt/hash checks and the5s-bounded process query ran. No hard OS scheduling guarantee is asserted.
 
 No app/IPC/window-origin/event-loop/OS quit/restart/default browser/provider/Google/Code-success/full OAuth, mobile/Android/device, credentials/store/refresh/transfers/sync/main/push/deploy acceptance. Root alone decides correction/integration; stop frozen.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `7c1f411fb6743fecbec71f8df034ff02bdafc6dc8a8d3883ba89b5cc6f4ff4f4` (5677 bytes).

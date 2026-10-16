@@ -2,11 +2,11 @@
 
 **Verdict: Accept the frozen known-answer proposal for the two stated input domains.** No numerical, rounding, provenance, or claimed-witness defect found. This is a completed independent arithmetic review, not acceptance of an H2b2 implementation or an image comparison.
 
-Reviewer: Codex CLI - Sol, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`, actual Team roster model `gpt-6.1-sol`. Review snapshot: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/oracle-review`, HEAD `8a4f02bcec8a3edb567979462cbf022adde6f8b9`. Environment observed: macOS 26.5.2 (25F84), arm64, Python 3.9.6. This review owns only this new Markdown file. Initial worktree status was clean.
+Reviewer: Codex CLI - Sol, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`, actual Team roster model `gpt-6.1-sol`. Review snapshot: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/oracle-review`, HEAD `8a4f02bcec8a3edb567979462cbf022adde6f8b9`. Environment observed: macOS 26.5.2 (25F84), arm64, Python 3.9.6. This review owns only this new Markdown file. Initial worktree status was clean.
 
 ## Inputs and exact identity
 
-All SHA-256 values below were verified from bytes, with exit 0. Paths prefixed `lead/` and `harness-review/` are siblings of this snapshot under `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/`.
+All SHA-256 values below were verified from bytes, with exit 0. Paths prefixed `lead/` and `harness-review/` are siblings of this snapshot under `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/`.
 
 | Input | SHA-256 |
 |---|---|
@@ -70,13 +70,13 @@ No severity/location/input defect is raised. The explicit domain labels, unclipp
 All shell commands used the review snapshot as working directory unless a read targeted its sibling. Read-only identity/environment commands exited 0:
 
 ```sh
-cd /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/oracle-review
+cd <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/oracle-review
 git rev-parse HEAD
 git status --short
 python3 --version
 sw_vers
 uname -m
-shasum -a 256 /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/harness-review/docs/integration/H2B2-KNOWN-ANSWER-DESIGN-2026-10-15.md /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/H2-COMPARISON-CONTRACT-2026-10-15.md /tmp/h2b2-oracle-20261015/derive.out /tmp/h2b2-oracle-20261015/amend.py /tmp/h2b2-oracle-20261015/amend.out
+shasum -a 256 <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/harness-review/docs/integration/H2B2-KNOWN-ANSWER-DESIGN-2026-10-15.md <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/H2-COMPARISON-CONTRACT-2026-10-15.md /tmp/h2b2-oracle-20261015/derive.out /tmp/h2b2-oracle-20261015/amend.py /tmp/h2b2-oracle-20261015/amend.out
 ```
 
 Read-only full text/line-number views of the proposal and contract were inspected. Official W3C §10.2–10.4 and conversion-code sections were opened with the web tool. The small arithmetic and provenance checks below were executed as `python3 - <<'PY'` heredocs, with each exact fence body followed by `PY`. Both final checks exited **0**. Earlier independent runs used the same arithmetic core; the final run adds exact rounding-cell assertions and the supplemental permutation probes. No failed arithmetic assertion occurred.
@@ -101,7 +101,7 @@ from fractions import Fraction as F
 from decimal import Decimal as D, localcontext, ROUND_HALF_EVEN
 import re, json, struct, hashlib, io, contextlib, platform, sys
 
-ROOT = Path('/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015')
+ROOT = Path('<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015')
 p = ROOT/'harness-review/docs/integration/H2B2-KNOWN-ANSWER-DESIGN-2026-10-15.md'
 doc = p.read_text()
 datasets = [json.loads(s, parse_float=D) for s in re.findall(r'\x60\x60\x60json\n(.*?)\x60\x60\x60', doc, re.S)]
@@ -348,7 +348,7 @@ print(json.dumps({
 ```python
 from pathlib import Path
 import re, hashlib, contextlib, io, json
-root=Path('/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015')
+root=Path('<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015')
 path=root/'harness-review/docs/integration/H2B2-KNOWN-ANSWER-DESIGN-2026-10-15.md'
 text=path.read_text()
 scripts=re.findall(r'\x60\x60\x60python\n(.*?)\x60\x60\x60',text,re.S)
@@ -376,3 +376,7 @@ new_json=[json.loads(s) for s in re.findall(r'\x60\x60\x60json\n(.*?)\x60\x60\x6
 assert old_json[0]['samples']==new_json[0]['samples'][:8]
 print('original_eight_match_frozen_draft',True)
 ```
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `7d64cd842c6deb2349bb7e59a407e5759fd5b0c4a323e338b971b17fdaf6fbe8` (24586 bytes).

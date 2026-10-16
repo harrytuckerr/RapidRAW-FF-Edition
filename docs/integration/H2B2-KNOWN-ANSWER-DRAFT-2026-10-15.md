@@ -2,9 +2,9 @@
 
 Preparation evidence only. This file is not `bench/dcp_validation/known-answers.json`, and it does not authorize H2b2. Implementing candidate conversion still needs a separate assignment after the H2b1 statistics import. H2b1's API was not used. No colour-pipeline source, expected-value JSON, ICC parser, white gate, build, device, cache, dependency, or Git mutation is included.
 
-Author/model: Grok Build / `grok-4.7` (slot `01a13e02-3c22-7ad0-9ed3-8bab4bc7d945`). Snapshot: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/harness-review`. Frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`, tree `9f36c891f35d9310a7977bda7d851178ad92039d`. Environment: macOS 26.5.2 / 25F84, arm64. Python 3.9.6, standard-library `decimal` only.
+Author/model: Grok Build / `grok-4.7` (slot `01a13e02-3c22-7ad0-9ed3-8bab4bc7d945`). Snapshot: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/harness-review`. Frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`, tree `9f36c891f35d9310a7977bda7d851178ad92039d`. Environment: macOS 26.5.2 / 25F84, arm64. Python 3.9.6, standard-library `decimal` only.
 
-Contract read: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/H2-COMPARISON-CONTRACT-2026-10-15.md`, SHA-256 `f29936252b3ec103a41a76961d97902c82970416ea5802f88d497ef4341a6880`, sections 3, 6, and 7. Prior review read, not modified: `docs/integration/H2A-INDEPENDENT-REVIEW-2026-10-15.md`, SHA-256 `c9be23b548446ace92365dafa17f08f1362f8237d9451c355aecd53525aede0b`. This note follows the lead contract. It does not reopen the review's ICC, threshold, or package findings. Section 6 item 2 (synthetic ICC, gamma 2, `L≈57.07542089`, PCS-D50→Wc) is not this preparation.
+Contract read: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/H2-COMPARISON-CONTRACT-2026-10-15.md`, SHA-256 `f29936252b3ec103a41a76961d97902c82970416ea5802f88d497ef4341a6880`, sections 3, 6, and 7. Prior review read, not modified: `docs/integration/H2A-INDEPENDENT-REVIEW-2026-10-15.md`, SHA-256 `c9be23b548446ace92365dafa17f08f1362f8237d9451c355aecd53525aede0b`. This note follows the lead contract. It does not reopen the review's ICC, threshold, or package findings. Section 6 item 2 (synthetic ICC, gamma 2, `L≈57.07542089`, PCS-D50→Wc) is not this preparation.
 
 ## 1. Path these numbers describe
 
@@ -332,3 +332,7 @@ Limits of this set, so a later test does not over-claim: extended D65 XYZ is ent
 Commands: `git rev-parse HEAD` and `git rev-parse HEAD^{tree}`; `git status --short`; `shasum -a 256` on the lead contract and the prior review; `python3 --version`; `sw_vers`; `uname -m`; the §4 script twice, the second stdout saved at the scratch path above. No cargo, cache, or device command.
 
 Document SHA-256 is in the delivery message; it cannot be embedded here. The only new worktree file from this task is this note. The prior review remains the other untracked file and was not changed. Stop here for independent lead/Astra review.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `22ab394a74f32af727e9b0058ee603c114346cbae039a3cb5d4f35b3f8a04ed2` (19163 bytes).

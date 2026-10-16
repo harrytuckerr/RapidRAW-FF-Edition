@@ -3,7 +3,7 @@
 Date: 2026-10-15
 Task: GD0 map — current settings, edits, preset and profile persistence seams
 Executor: Claude Code - Haiku (claude-haiku-5-5, as reported by the agent environment; configuration not inspected)
-Worktree: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-state-map`
+Worktree: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-state-map`
 Base: detached `5ca276ac1dab210f11ee4cecbf904038516164f8` (`docs: record successful main promotion and verified preview packages [skip ci]`); clean before this task
 
 ## Deliverables (new files only)
@@ -46,7 +46,7 @@ Base: detached `5ca276ac1dab210f11ee4cecbf904038516164f8` (`docs: record success
 ## Commands run (read-only)
 
 ```text
-cd /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-state-map
+cd <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-state-map
 git rev-parse HEAD                              # 5ca276ac1dab210f11ee4cecbf904038516164f8
 git symbolic-ref -q HEAD || echo DETACHED       # DETACHED
 git status --porcelain                          # clean before writing
@@ -93,3 +93,7 @@ Credential checks printed only names and line numbers. No token, key, or secret 
 - **Implementation (Astra or others)**: Not assigned by this task. Blocked until the architect's design and the UI1 collision check are complete.
 - **Cloud sync of settings / edits / presets / profiles**: Not ready. No client, endpoint, or auth-to-sync contract exists in the repo. Clerk login is not confirmed to work for sync.
 - **Device and provider proofs (Android, Clerk, `/usage`)**: Not exercised. Needs a device or account, which this task did not touch.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `2fb8518d1b1fc56a73abb017d3abefe5605c345491453d3f83227df33697cd42` (6791 bytes).

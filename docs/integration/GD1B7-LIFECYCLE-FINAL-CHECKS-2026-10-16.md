@@ -1,6 +1,6 @@
 # GD1b7-B final three checks — stopped at Prettier
 
-Validator/model **gpt-6.1-sol**, task01a14302-a476-73c0-8f6a-fccf816203a4. Existing snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-checks-review`, detached `abf1ed796246cb952691d287451b843c61985c43`. **Fail: Prettier CHECK**, first and sole executed check under this new grant. No source/oracle/test/config/dependency/formatting write, autofix, suppression, retry or extra check occurred.
+Validator/model **gpt-6.1-sol**, task01a14302-a476-73c0-8f6a-fccf816203a4. Existing snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-checks-review`, detached `abf1ed796246cb952691d287451b843c61985c43`. **Fail: Prettier CHECK**, first and sole executed check under this new grant. No source/oracle/test/config/dependency/formatting write, autofix, suppression, retry or extra check occurred.
 
 | Authorized sequence | Actual outcome | Exit | Seconds |
 |---|---|---:|---:|
@@ -22,3 +22,7 @@ Actual Rust/Cargo1.98.1/Node22.22.0/Prettier3.9.6 and resolved installed bin/pre
 **Cache RELEASED `2026-10-16T04:47:41.644537+00:00`**, fresh5s-bounded full-width PID/parent/executable/argv proof no compiler/test/ownNode/fixture conflict; actual Node PID47411 absent, free bytes `14232485888` (>=12GiB). No native command after release; no process signals or hard OS timing claim. Full standalone receipt includes each gate status, exact argv/cwd/env/UTC/PID/duration/exit/raw logs/hashes, tool/dependency/source/index/history custody and first-failure stop.
 
 No mounted React/TauriIPC/originACL/app/event-loop/OS quit-restart/default browser/Google/provider/Code-success/mobile/device/config/credentials/store/refresh/transfers/sync/main/push/deploy/release acceptance. Root alone decides a bounded source formatting correction/new checks/canonical integration. Stop frozen; no downstream work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `4ac4feacceb556887e408f046d88a28a66173235fa72a0abda5ff0be18b69160` (3844 bytes).

@@ -1,6 +1,6 @@
 # GD1b7-B revised independent validation — failed probe, stopped
 
-Validator/model **gpt-6.1-sol**, independently reviewing author gpt-6-astra. Task01a142bd-a263-76d0-8af2-6007668f3e45, isolated `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-revised-review`, detached `abf1ed796246cb952691d287451b843c61985c43`. **Fail: independent probe fidelity; no production defect demonstrated.** Original F1 remains a historical static Fail; the original review executed zero gates. This new package is not accepted runtime validation.
+Validator/model **gpt-6.1-sol**, independently reviewing author gpt-6-astra. Task01a142bd-a263-76d0-8af2-6007668f3e45, isolated `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-revised-review`, detached `abf1ed796246cb952691d287451b843c61985c43`. **Fail: independent probe fidelity; no production defect demonstrated.** Original F1 remains a historical static Fail; the original review executed zero gates. This new package is not accepted runtime validation.
 
 ## First blocker and actual execution
 
@@ -31,3 +31,7 @@ Native actual preserved binary records: `[{"executed_path": "/private/tmp/rapidr
 **Cache RELEASED `2026-10-16T03:55:24.925263+00:00`**, fresh5s-bounded full-width PID/parent/executable/argv check: no compiler/test/task fixture conflicts, Cargo PID absent, free bytes `14529740800` (>=12GiB). No native command after release. No hard OS cleanup scheduling guarantee is claimed.
 
 No Google/provider/default-browser/full positive OAuth/account mapping/app IPC/event-loop/OS quit-restart/mobile/Android/device/config/store/refresh/transfer/sync/main/push/deploy acceptance. Root alone may grant a bounded probe correction/new validation. Stop frozen; no downstream work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `5e1170013017d5903fdfcc42d250ab6e03ba894aafced504334f5ad6f3674e35` (6932 bytes).

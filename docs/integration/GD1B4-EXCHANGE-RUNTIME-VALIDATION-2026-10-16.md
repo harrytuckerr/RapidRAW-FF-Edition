@@ -2,7 +2,7 @@
 
 **Pass** for the granted independent native/localhost gates. No failures, repairs, suppressions or expectation changes. Root retains source acceptance/import and later combined/product gates.
 
-Model `gpt-6.1-sol` (live Team roster), macOS-26.5.2-arm64-arm-64bit. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review`, detached `ec1d032efe7dd321e7a99d1931730b654b922ec3`. Full contract2682a642, author receipt56633c4b and independent review77d5a97a read/hash-verified before writing. Immutable author prefix `a53690ccfc7a5c0bcb4d5bef6aa2d8c71c02764a7a7cc2249b6bdbaa36eb849b`,41,333B; full wired exchange `f8ac7bf6843ccf101610ceef93a0b0b9454203d1da09807ee3ba6e3f1877d408`; desktop module `bc7e526d8ec1082ce55e51c28a3f60ef4e1cf0519d7577daa1178df055e6ef3d`. Exact prefix and root test-only footer unchanged.
+Model `gpt-6.1-sol` (live Team roster), macOS-26.5.2-arm64-arm-64bit. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review`, detached `ec1d032efe7dd321e7a99d1931730b654b922ec3`. Full contract2682a642, author receipt56633c4b and independent review77d5a97a read/hash-verified before writing. Immutable author prefix `a53690ccfc7a5c0bcb4d5bef6aa2d8c71c02764a7a7cc2249b6bdbaa36eb849b`,41,333B; full wired exchange `f8ac7bf6843ccf101610ceef93a0b0b9454203d1da09807ee3ba6e3f1877d408`; desktop module `bc7e526d8ec1082ce55e51c28a3f60ef4e1cf0519d7577daa1178df055e6ef3d`. Exact prefix and root test-only footer unchanged.
 
 | Gate | Result | Exit | Elapsed |
 |---|---|---:|---:|
@@ -33,3 +33,7 @@ Fresh executed binary preserved:39,211,744B, SHA256 `330106f2373825e45f7cc8486d8
 **Not exercised:** full/canonical combined suite for this new source; Google/provider/live TLS/registration/client-secret omission/proxy-only reachability; external network; remote issuance/rollback/unused-code state; all retry modes/hard abort; account/grant/controller/secure store/refresh/revocation/Drive sync; browser/Tauri/UI/Android/device/ignored/GPU/vendor tests; guaranteed zeroization/totalRAM or complete security audit.
 
 Evidence `/private/tmp/rapidraw-gd1b4-exchange-validation-20261016`; machine `receipt.json` SHA256 `676b7d56c7e685e0c3ace2e8a5d846781cc29d760a4b0a83499e2aa9cbab4141`. Full/sanitized logs, source/patch, binary, definitions versus executed names, commands/environment and pre/post custody sealed by `artifact-hashes.json` (excludes itself). Cache explicitly **released** at `2026-10-15T15:20:29.460730+00:00`; no active cargo/rustc/Clippy then, 16.87GiB free. No further build/downstream work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `0ec5c62c4301e0278c0d5bbe3f75d81563b681dec3086ea84f11c3bb46d9869e` (6205 bytes).

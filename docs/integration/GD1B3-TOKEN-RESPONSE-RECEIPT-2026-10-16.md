@@ -2,7 +2,7 @@
 
 Frozen 2026-10-16 Melbourne / 2026-10-15 UTC. Actual author `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`; task `01a13fca-3d1b-7610-bad1-8f9b2942eb43`. **Source and 14 test definitions ready for independent review. Zero Rust tests/compiles executed. No verified Google grant, account ownership, storage, Connect Google or sync acceptance.**
 
-Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-token-response`; detached HEAD `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`. Own writes: new `token_response.rs`, one `pub mod token_response;` export in the supplied module, and this receipt. No helper API/dependency change was needed. Root retains registration/review/integration.
+Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-token-response`; detached HEAD `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`. Own writes: new `token_response.rs`, one `pub mod token_response;` export in the supplied module, and this receipt. No helper API/dependency change was needed. Root retains registration/review/integration.
 
 ## Frozen custody
 
@@ -84,3 +84,7 @@ Read 2026-10-16 Melbourne / 2026-10-15 UTC:
 - [RFC6749 §§5.1–5.2 and 6](https://www.rfc-editor.org/rfc/rfc6749.txt): case-insensitive token type, optional refresh token, expiry semantics, scope omission rule, unknown response field handling and bounded-category error interpretation informed the adapter. Its metadata requirements do not make supplied bytes authenticated or require local credential deletion.
 
 Existing direct dependencies only: serde1.0 (lock1.0.229) and serde_json1.0 (lock1.0.151), with `ApprovedScope` from unchanged PKCE. Standard-library Instant, Duration and BTreeSet. No raw_value/arbitrary_precision feature, new crate, Cargo/lock edit or dependency resolution. No operational Google or security acceptance is implied by this source receipt.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `abd7c8ccd5182492b8cacb02b2f2e17826440fa70df31c5bcdf488fad5327e1c` (13219 bytes).

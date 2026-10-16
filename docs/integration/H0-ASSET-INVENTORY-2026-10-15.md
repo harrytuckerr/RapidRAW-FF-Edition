@@ -28,9 +28,9 @@ The lead's 357 RAW/reference filename candidates are reproduced as **356 RAF + 1
 
 | Folder (absolute) | RAF count | Total bytes | Camera (header) | Same-basename JPEG |
 |---|---|---|---|---|
-| `/Users/harrisontucker/Documents/Photos - Personal/DCIM/211_FUJI` | 105 | 5,308,447,232 | X-Pro2 (105/105) | 0 |
-| `/Users/harrisontucker/Documents/Photos - Personal/DCIM/212_FUJI` | 124 | 6,268,865,024 | X-Pro2 (124/124) | 0 |
-| `/Users/harrisontucker/Documents/Groove/RAW` | 127 | 6,422,787,072 | X-Pro2 (127/127) | 0 |
+| `<HOME>/Documents/Photos - Personal/DCIM/211_FUJI` | 105 | 5,308,447,232 | X-Pro2 (105/105) | 0 |
+| `<HOME>/Documents/Photos - Personal/DCIM/212_FUJI` | 124 | 6,268,865,024 | X-Pro2 (124/124) | 0 |
+| `<HOME>/Documents/Groove/RAW` | 127 | 6,422,787,072 | X-Pro2 (127/127) | 0 |
 | **Total** | **356** | | **X-Pro2 (356/356)** | **0** |
 
 The `212_FUJI` folder also contains `DSCF2007.MOV` (960,911,168 bytes) and `DSCF2029.xmp`. No JPEG exists in `211_FUJI` or `212_FUJI`. `Groove/RAW` contains only RAF files.
@@ -44,11 +44,11 @@ JPEG context: 720 `.jpg`/`.jpeg` files exist under `~/Documents`. None share a b
 
 | Field | Value |
 |---|---|
-| RAW | `/Users/harrisontucker/Documents/Photos - Personal/DCIM/212_FUJI/DSCF2029.RAF` |
+| RAW | `<HOME>/Documents/Photos - Personal/DCIM/212_FUJI/DSCF2029.RAF` |
 | RAW size | 50,262,016 bytes |
 | RAW SHA256 | `b64d06dd639cea79792751b70a1409eae5c08108e0db5a5180bb1596085b9abb` |
 | RAW camera | X-Pro2 (header offset 28; magic `FUJIFILMCCD-RAW`, version `0201`) |
-| Sidecar | `/Users/harrisontucker/Documents/Photos - Personal/DCIM/212_FUJI/DSCF2029.xmp` |
+| Sidecar | `<HOME>/Documents/Photos - Personal/DCIM/212_FUJI/DSCF2029.xmp` |
 | Sidecar size | 227,558 bytes |
 | Sidecar SHA256 | `a9c39357e8b6e02309ae0fee6ed0524b9f78e0b0118073507aa7b1d14b17ecbe` |
 | Sidecar fields | `crs:RawFileName="DSCF2029.RAF"`, `crs:CameraProfile="Cobalt Modular"`, `crs:CameraProfileDigest="89281DFD6A7A6562A42FC91DE45B1E9C"`, `crs:ProcessVersion="15.4"`, `crs:Version="18.2"`, `crs:HasSettings="True"`, `crs:HasCrop="True"`, `crs:Exposure2012="0.00"`, `tiff:Make="FUJIFILM"`, `tiff:Model="X-Pro2"`, `xmp:CreatorTool="Digital Camera X-Pro2 Ver3.12"` |
@@ -62,7 +62,7 @@ Provenance note: the `crs:` namespace (camera-raw-settings) is Adobe's. `xmp:Cre
 
 ## Modular DCP
 
-- Path: `/Users/harrisontucker/Pictures/Lightroom Library.lrlibrary/eefc35bd2aff4c438f63a1a74bcf2265/cr_cameraprofiles/Fujifilm X-Pro2 Cobalt Modular v3.0.dcp`
+- Path: `<HOME>/Pictures/Lightroom Library.lrlibrary/eefc35bd2aff4c438f63a1a74bcf2265/cr_cameraprofiles/Fujifilm X-Pro2 Cobalt Modular v3.0.dcp`
 - Size: 65,350 bytes
 - SHA256: `4b80ed63b210e5738cde04430af1511c3e12e2bb53bf2471b4bb0750dceb87f3` (matches the value in the task)
 - Strings present: `Fujifilm X-Pro2`, `Cobalt Modular`
@@ -71,7 +71,7 @@ Provenance note: the `crs:` namespace (camera-raw-settings) is Adobe's. `xmp:Cre
 ## Commands run (all read-only; scratch scripts outside the repository)
 
 ```text
-cd /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/asset-inventory
+cd <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/asset-inventory
 git rev-parse HEAD                      # 4c1e965a53de9c835df920b2e3d69c2c8a864708
 git status --porcelain | wc -l          # 0 before this edit
 git symbolic-ref -q HEAD || echo DETACHED   # DETACHED
@@ -117,3 +117,7 @@ No photo was decoded. No original was modified. No photo or vendor bytes were co
 - Changed file: `docs/integration/H0-ASSET-INVENTORY-2026-10-15.md` (new, only file changed)
 - Diff: new file; `git status --porcelain` should show only `?? docs/integration/H0-ASSET-INVENTORY-2026-10-15.md`
 - Document SHA256: recorded in the team report after writing
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `447a331b4c3cbb80a64c8df375df90cde1c3d0adbf73c87f64a9266a685e9316` (9189 bytes).

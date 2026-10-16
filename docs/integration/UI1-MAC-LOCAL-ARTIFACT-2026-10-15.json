@@ -1,4 +1,5 @@
 {
+  "_public_redaction": {"original_document_sha256": "09762890bd461d20e958abb724afa4dcf961629b744445a34f3d3a9715eb8028", "original_document_bytes": 3739, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "source_head": "fbc6b6e511814fdcbea46e3f5225f9bbc66f8973",
   "current_documentation_head": "9b9b1b7933e39d2c347badf00a7a571ad0c843d5",
   "source_diff": "README and two docs only",
@@ -53,7 +54,7 @@
     "evidence_hashes_verified": 14
   },
   "delivery": {
-    "path": "/Users/harrisontucker/Downloads/RapidRAW-Fuji-UI1-fbc6b6e5-macos-arm64-adhoc.dmg",
+    "path": "<HOME>/Downloads/RapidRAW-Fuji-UI1-fbc6b6e5-macos-arm64-adhoc.dmg",
     "size": 49397178,
     "sha256": "a715ceb8cd90164b91bdce8f5f588d0485ade13f4def5b83df20cc88fa0526d2",
     "action": "new installer file only; no application install/launch"

@@ -1,6 +1,6 @@
 # GD1b7-A native facade — source-only delivery
 
-Author/model: **gpt-6-astra** (Team Astra); 2026-10-16. Task `01a14263-8ed2-7420-bd44-56b3d3884f25`. Isolated root `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-application`, detached base `e79bdc0f096df05e821e8988803daf3332f43af8`. This author also wrote native session/browser components; this receipt is not independent review. Prior canonical 502Pass/14ignored belongs to the accepted base, not this new module.
+Author/model: **gpt-6-astra** (Team Astra); 2026-10-16. Task `01a14263-8ed2-7420-bd44-56b3d3884f25`. Isolated root `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-application`, detached base `e79bdc0f096df05e821e8988803daf3332f43af8`. This author also wrote native session/browser components; this receipt is not independent review. Prior canonical 502Pass/14ignored belongs to the accepted base, not this new module.
 
 ## Owned output and custody
 
@@ -28,8 +28,12 @@ Only private cfg(test) `begin_with_sink` consumes genuine tickets through the sh
 
 ## Checks, limitations and next consumer
 
-- **Pass:** standalone pinned `/Users/harrisontucker/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/rustfmt` writes (twice) and final `--edition 2024 --config skip_children=true --check`; reported `rustfmt 1.9.0-stable (48a229ceae 2026-09-01)`. Exact argv/exit0 records and stdout/stderr are retained. This parses/formats syntax; it is not Rust compilation.
+- **Pass:** standalone pinned `<HOME>/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/rustfmt` writes (twice) and final `--edition 2024 --config skip_children=true --check`; reported `rustfmt 1.9.0-stable (48a229ceae 2026-09-01)`. Exact argv/exit0 records and stdout/stderr are retained. This parses/formats syntax; it is not Rust compilation.
 - **Pass:** byte/input/index/inventory comparison, new-file patch reconstruction and trailing-whitespace checks. No Git command was used for diff checking.
 - **Not exercised:** Cargo/rustc/Clippy/build, all 16 tests, runtime/socket/process/browser/provider/account actions, app IPC/window/shutdown hooks, mobile/device, real configuration and full positive OAuth. No cache lease, dependency/download/install or environment/account mutation.
 
 Root static review and a separately granted isolated module registration/runtime review are next. Suggested future focused command from src-tauri after root registration: `cargo test --locked --offline --lib drive_auth::application -- --nocapture --test-threads=1`, then required format/strict checks under that validator's cache grant. This receipt does not authorize execution. Package B's hard-exit/restart/capability/window integration blockers remain unchanged and must be addressed before application activation. Secure storage, refresh/revocation, leases, transfers, Drive jobs/sync, Android/GIS, real provider registration, UI and deployment remain excluded. Stop at frozen source/receipt; no downstream work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `9d2bce6267002190bef3fd81e659eb3e638b7eef88b88d3706c9159e3ab4835a` (8844 bytes).

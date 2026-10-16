@@ -2,9 +2,9 @@
 
 **Revised decision for lead review:** build the comparator through serial H2b1–H2b7 assignments in §7. The immediate candidate is **H2b1, statistics in one file only**. H2b3 (ICC) is pending actual Adobe ICC bytes and an independently reviewed white-consistency rule. No implementation is authorized by this document. The eventual comparator renders the real CPU profile path; preview/export/thumbnail and upstream equivalence remain later work. No slice alone closes D2/D6/D7.
 
-Author/model: Codex CLI - Astra / `gpt-6-astra` (Team roster). Snapshot: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/harness-design`. Frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`, tree `9f36c891f35d9310a7977bda7d851178ad92039d`; identical source tree to tested `8e6318814d42e155d88a1d0efd485f9d571b4ffb`. Environment: macOS 26.5.2 / 25F84, arm64. This task writes only this document; no implementation, build, dependency resolution, device or Git mutation.
+Author/model: Codex CLI - Astra / `gpt-6-astra` (Team roster). Snapshot: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/harness-design`. Frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`, tree `9f36c891f35d9310a7977bda7d851178ad92039d`; identical source tree to tested `8e6318814d42e155d88a1d0efd485f9d571b4ffb`. Environment: macOS 26.5.2 / 25F84, arm64. This task writes only this document; no implementation, build, dependency resolution, device or Git mutation.
 
-Revision input: Grok independent review `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/H2A-INDEPENDENT-REVIEW-2026-10-15.md`, verified SHA-256 `c9be23b548446ace92365dafa17f08f1362f8237d9451c355aecd53525aede0b`. This replaces the earlier draft `a17b2e45277f1a7480952a964dfcf3d4c590569e7c941ba2075f317ce3ffd0fe`, preserved by lead as `H2-COMPARISON-CONTRACT-DRAFT-2026-10-15.md`. F1/F2/F4/F6/F7/F8 bind the relevant slices below; F3 is explicitly qualified rather than copied. F5 belongs only to H2b7.
+Revision input: Grok independent review `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/H2A-INDEPENDENT-REVIEW-2026-10-15.md`, verified SHA-256 `c9be23b548446ace92365dafa17f08f1362f8237d9451c355aecd53525aede0b`. This replaces the earlier draft `a17b2e45277f1a7480952a964dfcf3d4c590569e7c941ba2075f317ce3ffd0fe`, preserved by lead as `H2-COMPARISON-CONTRACT-DRAFT-2026-10-15.md`. F1/F2/F4/F6/F7/F8 bind the relevant slices below; F3 is explicitly qualified rather than copied. F5 belongs only to H2b7.
 
 ## 1. Evidence and boundaries
 
@@ -24,7 +24,7 @@ Paths below are relative to the frozen snapshot; line numbers refer to that base
 | [Thumbnail](../../src-tauri/src/file_management.rs), lines 1584–1592, 1745–1762, 1816–1821 | Fast RAW path, resize, JPEG quality 75; GPU failure can return cropped base. Must observe actual route and fallback, not assume equivalent pixels or transfer. |
 | [Output shader](../../src-tauri/src/shaders/shader.wgsl), lines 1929–1950, 2013 | Additional tone processing and final clamp occur downstream of CLI output. “All adjustments zero” is not proof that app export equals CLI. |
 
-Full handover read: `/Users/harrisontucker/Documents/CoWork/RapidRaw/ORCHESTRATOR_HANDOVER_2026-10-15.md`, especially §§6–7, H2/H3, §§12–13. Authority/ownership: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/TEAM-LEDGER-2026-10-15.md`, “Ownership before dispatch”. Flat must not substitute for Modular; preserve CPU oracle and no-profile pristine input. No CCT, DCP matrix, Look-blob, GPU or production-route changes are assigned.
+Full handover read: `<HOME>/Documents/CoWork/RapidRaw/ORCHESTRATOR_HANDOVER_2026-10-15.md`, especially §§6–7, H2/H3, §§12–13. Authority/ownership: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/TEAM-LEDGER-2026-10-15.md`, “Ownership before dispatch”. Flat must not substitute for Modular; preserve CPU oracle and no-profile pristine input. No CCT, DCP matrix, Look-blob, GPU or production-route changes are assigned.
 
 ## 2. H2b interface and execution
 
@@ -143,7 +143,7 @@ No `Cargo.toml`, lock, `lib.rs`, `dcp/mod.rs`, production renderer/pipeline/raw_
 Acceptance commands, run only after an implementation assignment in its isolated snapshot:
 
 ```sh
-cd /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/<assigned-snapshot>/src-tauri
+cd <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/<assigned-snapshot>/src-tauri
 # H2b1
 cargo test --locked --lib dcp::delta_e -- --nocapture
 # H2b2 through H2b5b, only for the assigned completed slice
@@ -182,3 +182,7 @@ Read-only commands: `git rev-parse HEAD HEAD^{tree}`, `git status --short`, `rg`
 | `src-tauri/Cargo.lock` | `7ddd491af60c07c0d0a0983ab77c6f81409961831ed679b7b444103a6d765def` |
 
 Document SHA-256 is sent in the delivery message (cannot embed its own final hash). Diff against the lead-frozen draft is this document only. Next consumer is lead adjudication/review, then a separately assigned one-file H2b1 worker. H2b3 is pending evidence/review; no later slice or implementation is authorized by author delivery.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `f29936252b3ec103a41a76961d97902c82970416ea5802f88d497ef4341a6880` (43472 bytes).

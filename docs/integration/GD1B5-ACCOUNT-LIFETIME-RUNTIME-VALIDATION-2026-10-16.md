@@ -2,7 +2,7 @@
 
 **Pass** for bounded A source/native/synthetic localhost validation. No blocking finding, repair, suppression, changed expectation or repeated gate. Root retains acceptance/integration; B/catalog/C/adoption are excluded.
 
-Model `gpt-6.1-sol` (Team roster), macOS arm64, Rust/Cargo1.98.1. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-lifetime-review`, detached `5a2208c0184657e1d2a364ad46a6cddcb5f43290`. Full adoption contracte1ea97d2, root reviewec61fe37, source receipt1a7ffb47 and source reviewd02d1df1 read/hash-verified; two methods, entire bridge and four authored definitions inspected. Independently removing only two insertions reconstructed the **entire**68,249B accepted S2 baseline5fe87ede. Existing account6b0ab79e/87,892B and original childb1fca079 stayed unchanged.
+Model `gpt-6.1-sol` (Team roster), macOS arm64, Rust/Cargo1.98.1. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-lifetime-review`, detached `5a2208c0184657e1d2a364ad46a6cddcb5f43290`. Full adoption contracte1ea97d2, root reviewec61fe37, source receipt1a7ffb47 and source reviewd02d1df1 read/hash-verified; two methods, entire bridge and four authored definitions inspected. Independently removing only two insertions reconstructed the **entire**68,249B accepted S2 baseline5fe87ede. Existing account6b0ab79e/87,892B and original childb1fca079 stayed unchanged.
 
 | Gate | Observed | Exit | Total elapsed |
 |---|---|---:|---:|
@@ -31,3 +31,7 @@ Exact argv/cwd/env/UTC/exits/space/full+sanitized logs and custody are private. 
 **Not exercised:** Google/provider/liveTLS/authenticated identity/realExchangeResult entry; B/catalog/C/adoption/currentgeneration/configuration/connected lifetime; browser/IPC/store/refresh/revocation/sync/UI/Android/device; full new canonical/otherauth/CLI/ignored/GPU/vendor tests; live final-race/totalRAM/complete security audit.
 
 Evidence `/private/tmp/rapidraw-gd1b5-account-lifetime-validation-20261016`; `receipt.json` SHA256 `39522e0fd1ab624938f5c2f2d168cbf4dca8982b73068da16343b9883924b2a3`; artifact manifest includes source/binary/logs/custody/report and excludes itself. Cache explicitly **released** `2026-10-15T17:27:26.711184+00:00`, no compiler,17.86GiB free; no further builds/downstream work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `7b2069caaa442f8c4b982d71d084629800bb65a9e8d344fa1e7d801284743581` (4991 bytes).

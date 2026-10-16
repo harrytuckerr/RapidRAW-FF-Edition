@@ -1,0 +1,1135 @@
+{
+  "schema": "rapidraw-public-redaction-manifest-v1",
+  "source_commit": "bcce908ea241aba82c7838cb3c820b80675cda77",
+  "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies.",
+  "documents": [
+    {
+      "path": "COBALT_DCP_SPEC.md",
+      "original_bytes": 74124,
+      "original_sha256": "4f92529d21ed44d6991fa5052e39e1dd495a31746c0a21d937bfa31b27dee2a0",
+      "redacted_bytes": 74568,
+      "redacted_sha256": "244f6e1d17120c0edbd95fd0bc5d5f35e99ef5899972c46f5427461a7f957979",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/drive/contract.md",
+      "original_bytes": 44257,
+      "original_sha256": "a7a171f6e5a1154439941899b0efcb99d65bb73842b94f7d750d9a65a2b6bc29",
+      "redacted_bytes": 44791,
+      "redacted_sha256": "7fb1b1e1d83ce4c79fcb9958fd2adb1c14254fe83ec1e792324b1439b60cb87d",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/ANDROID-RAF-DEVICE-2026-10-15.md",
+      "original_bytes": 12022,
+      "original_sha256": "51f10e64afd1277ed2874753a392610a10d5b6385318125214ecf7cd3ca10713",
+      "redacted_bytes": 12443,
+      "redacted_sha256": "bae618c6939c213f7eb37cfa6ea90523a6e4e8a814c8c49edb202c3f31d6fb20",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/ANDROID-RAF-PAYLOAD-2026-10-15.md",
+      "original_bytes": 6333,
+      "original_sha256": "7b2a133f6d4f6481295eb932e31db2bf7e9c2822791432f522bb10e380ea14ed",
+      "redacted_bytes": 6815,
+      "redacted_sha256": "e329388606c20d2eef27e9c375c3fee9dff0c4d7eae4da4bf6956bbe295ec4bd",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/ANDROID-RAF-REPAIR-REVIEW-2026-10-15.md",
+      "original_bytes": 21299,
+      "original_sha256": "70c16a9879cdeb169160f738988dda527ece968bae1ca7879eb32436fa5d60b1",
+      "redacted_bytes": 21803,
+      "redacted_sha256": "69ec1e6abefe1acd116ef9595b0859ed8bf7cec285ec91006c29631e583b4b3f",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD0-ACCEPTANCE-MATRIX-RECEIPT-2026-10-15.md",
+      "original_bytes": 2311,
+      "original_sha256": "62c8a663d382af33e25bf25efe8c4ee72dd7e306a873a781eb3702cabaf23dba",
+      "redacted_bytes": 2814,
+      "redacted_sha256": "088afc890b29489e33cbe5ba1e78ffc116e4c1aa9b2764bd0a9457421ce8debf",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD0-ACCEPTANCE-MATRIX-V2-RECEIPT-2026-10-15.md",
+      "original_bytes": 3703,
+      "original_sha256": "def2538ccef8c5f919a29055f9b5bc7c7efea095a2524e1f8e398f53e0cb1f11",
+      "redacted_bytes": 4206,
+      "redacted_sha256": "28f6be828bd6f08a1bcd1901a0b60e1177e9d91b312fff95ce61a6dc89939aa2",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD0-CONTRACT-RECEIPT-2026-10-15.md",
+      "original_bytes": 5492,
+      "original_sha256": "8d471588e52d2019a43fb6fb0e89ad7e331f82aa9d073a7f5b7b7d779e472365",
+      "redacted_bytes": 6025,
+      "redacted_sha256": "9ae5ef3758f27d2843e22f5e9d26599803d77d4e6d9143ca22ef1fde0098aefa",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD0-STATE-MAP-RECEIPT-2026-10-15.md",
+      "original_bytes": 6791,
+      "original_sha256": "2fb8518d1b1fc56a73abb017d3abefe5605c345491453d3f83227df33697cd42",
+      "redacted_bytes": 7309,
+      "redacted_sha256": "f740c2fe230bba9ba19e3e91310b421a79e6491c26fa9cd1e6bc064ea0cb195a",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1A1-MODEL-RECEIPT-2026-10-15.md",
+      "original_bytes": 6299,
+      "original_sha256": "a1862c812e66a434b394eb3d74b55424f02d7da81dec9b2e0243d9a350de4509",
+      "redacted_bytes": 6832,
+      "redacted_sha256": "b88b329dd0a97e0b31803c7a00ad67041bd7cc1ca41d3698394008b50c97fd25",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1A2-GRAPH-RECEIPT-2026-10-15.md",
+      "original_bytes": 7962,
+      "original_sha256": "7b84476aefc917701d17e1d2a509fdeb2b35aa48d1e13f2df22aa091ae453971",
+      "redacted_bytes": 8495,
+      "redacted_sha256": "103c2b67bf07344fe3eadcb8ebca4d79171a15c0228cbdf7f2f663b9c16b9d48",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1A2-TEST-LINT-RECEIPT-2026-10-15.md",
+      "original_bytes": 4255,
+      "original_sha256": "de16560695d91582fbf17de016aa47a2201a8834542132d2c26de3ccb400e758",
+      "redacted_bytes": 4788,
+      "redacted_sha256": "45c17fbc19ee3db84bd97c085ea0347b93e948a3be51a0e053ba90d0a957714d",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B1-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 15955,
+      "original_sha256": "fddaba2af4d9c1641a6ece2bea581e3585748eeb7b56bde77a8964fb7a175f8b",
+      "redacted_bytes": 16450,
+      "redacted_sha256": "633c8ba20789adacce890e3a95864498f091c3e0d431fed4887c721e0b1f9426",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B1-ORIGINAL-VALIDATION-2026-10-16.md",
+      "original_bytes": 7126,
+      "original_sha256": "0b808dc16fe27b5d8e2f40a7ecdf3913d7cc35090e071496ad49bb38bcde9e6f",
+      "redacted_bytes": 7659,
+      "redacted_sha256": "9f01444ec62769b5038e09fe83124105674e8764728f1d3ea526a3cef9b1036d",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B1-PKCE-RECEIPT-2026-10-15.md",
+      "original_bytes": 13540,
+      "original_sha256": "2610413dce7d9ee805c90888c611a38dd8bdfba664fc19f8746213811643f7c2",
+      "redacted_bytes": 14059,
+      "redacted_sha256": "478271cb9456aea81e1bd30b382e7cd478c79b4da5db32f5ea8c96b0f8de054a",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B1-REVISED-VALIDATION-2026-10-16.md",
+      "original_bytes": 5536,
+      "original_sha256": "888b0b2ee4c6284384f4c7839090536b0519c9e0d2a842dfa92d27fa58d0eff0",
+      "redacted_bytes": 6069,
+      "redacted_sha256": "8b47e4fd33ee678b43eea2161cacf44857c3f74b622e636b37529e85032bb2c4",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B2-LOOPBACK-RECEIPT-2026-10-16.md",
+      "original_bytes": 13360,
+      "original_sha256": "7f20c8b183d08963f0ba14f23684ce76ab067472403e4f4f8de98ad581a3bd34",
+      "redacted_bytes": 13894,
+      "redacted_sha256": "45d66855b72f154faf5a1d25f44c1e8cd34fca2d1257baa23205798a9b0995f9",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B2-RUNTIME-VALIDATION-2026-10-16.md",
+      "original_bytes": 7648,
+      "original_sha256": "b3065da395b63879e0c88c23525f65477fd98b281840c0aceb85a849b484c8af",
+      "redacted_bytes": 8181,
+      "redacted_sha256": "2d23338251ad1c1e4d29392a610521b1170aedf72e37c8e3800afb743ba38b2e",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B23-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 19133,
+      "original_sha256": "a5425c06c428f84f866b4da4e2e8a81a07883073d959460bec797bbe3e05d620",
+      "redacted_bytes": 19658,
+      "redacted_sha256": "c0a44fd670117d3731e137d12947ed97d41304ff968854cb784841b0106c8658",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B3-REVISED-RUNTIME-VALIDATION-2026-10-16.md",
+      "original_bytes": 7051,
+      "original_sha256": "a6290f31eabcdc0136ee0b8c68239c8a0d41cc740490976ace5688aecdb5e2f8",
+      "redacted_bytes": 7584,
+      "redacted_sha256": "f7434bc0d158f7c8b7dbb8b1b6b285b66e427e69a7fc39912c5f8137c6ecbf1f",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B3-RUNTIME-VALIDATION-2026-10-16.md",
+      "original_bytes": 6342,
+      "original_sha256": "5173d6e044ff9fffb9408eb1dc495c17fc77c95424f4fdab5402916689c589a2",
+      "redacted_bytes": 6875,
+      "redacted_sha256": "50206f89d6ff314873b8e0afd1e628433d2152ef58b0d7fad4238dc9e1e33b37",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B3-STATUS-RANGE-REVISION-2026-10-16.md",
+      "original_bytes": 3556,
+      "original_sha256": "fb3017a78f64105e1a09ec1089a6bdddd887c53e0c74f07e8200612f9532713b",
+      "redacted_bytes": 4089,
+      "redacted_sha256": "194fad03af23fbed104272aab7bfbd47cfcf86e54e4e0e62ef5617c1734e3ccf",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B3-TOKEN-RESPONSE-RECEIPT-2026-10-16.md",
+      "original_bytes": 13219,
+      "original_sha256": "abd7c8ccd5182492b8cacb02b2f2e17826440fa70df31c5bcdf488fad5327e1c",
+      "redacted_bytes": 13753,
+      "redacted_sha256": "f3ebc35c8a4f788382ca5533b0a298b4c6a9b82f9cff4e49ebb2c9cc692be7dc",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B4-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 13818,
+      "original_sha256": "167f42a72196430084684ed108c7c988b70da5ae812a1a763d01b4e5deefdc22",
+      "redacted_bytes": 14343,
+      "redacted_sha256": "ab6eb54096b35e14ff2a875086ea5d0cc310fc77996b602dff2f245bc99baea7",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B4-EXCHANGE-CONTRACT-2026-10-16.md",
+      "original_bytes": 19643,
+      "original_sha256": "2682a642039bfb9a974fc583c4602ef325f176a71e9176aeb3098244e2fe1779",
+      "redacted_bytes": 20162,
+      "redacted_sha256": "11ab39628cd253e89ace50d9fedf95d9bff3cf6b6a2baf9730737e6d9594df1a",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B4-EXCHANGE-RECEIPT-2026-10-16.md",
+      "original_bytes": 12000,
+      "original_sha256": "56633c4b23df58d299841b23c1e367e6f338e92fdc343cf0b4cc76e1c0253c50",
+      "redacted_bytes": 12534,
+      "redacted_sha256": "fd4c16649a611351debeaf4cfecc15b9f7e6c6c19d1c6fe977897aadc5296a72",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B4-EXCHANGE-RUNTIME-VALIDATION-2026-10-16.json",
+      "original_bytes": 18143,
+      "original_sha256": "676b7d56c7e685e0c3ace2e8a5d846781cc29d760a4b0a83499e2aa9cbab4141",
+      "redacted_bytes": 18608,
+      "redacted_sha256": "4a670a81eed055e1a14fa04b9f9b75a0dd74d0676e060b3234c58fa364362066",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B4-EXCHANGE-RUNTIME-VALIDATION-2026-10-16.md",
+      "original_bytes": 6205,
+      "original_sha256": "0ec5c62c4301e0278c0d5bbe3f75d81563b681dec3086ea84f11c3bb46d9869e",
+      "redacted_bytes": 6738,
+      "redacted_sha256": "0b36516c46d10ec665dbab121102371359657d1ea4741fbfa90c6bc337aaf312",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-ACCOUNT-LIFETIME-RECEIPT-2026-10-16.md",
+      "original_bytes": 10373,
+      "original_sha256": "1a7ffb47e6cf2014122e14a5c2e38ed74db5a4298d76cfad9055be0e1ac0c91e",
+      "redacted_bytes": 10907,
+      "redacted_sha256": "43e70146a386c8a199cff70240ea7aee2ab223f4b7228f494f054343dfcfdac8",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-ACCOUNT-LIFETIME-RUNTIME-VALIDATION-2026-10-16.md",
+      "original_bytes": 4991,
+      "original_sha256": "7b2069caaa442f8c4b982d71d084629800bb65a9e8d344fa1e7d801284743581",
+      "redacted_bytes": 5524,
+      "redacted_sha256": "d7d6ff1beb2423d86d1626747253c18056c496838cdbba7ea7d02e4db29c8834",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-ACCOUNT-RECEIPT-2026-10-16.md",
+      "original_bytes": 14194,
+      "original_sha256": "8b9cb169ab20b6fb633d152f851258f8e7b7d6b39047dc0e86704e8547213afc",
+      "redacted_bytes": 14728,
+      "redacted_sha256": "3c5fe295b94686bfc2d054902a9c7c05881bc2e73cc333ced56db824f38da0b5",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-ACCOUNT-RUNTIME-VALIDATION-2026-10-16.md",
+      "original_bytes": 5327,
+      "original_sha256": "414d9f6fb6087763ec9ab6e73ad0393df1ce9b5509e1036593fd01350e65ea5e",
+      "redacted_bytes": 5860,
+      "redacted_sha256": "3186e492f1ca3da93288ca7801c7f9849889c87bbc50191443557e415c77359e",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-C2-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 21637,
+      "original_sha256": "292fc2898950c7fde59538f8b7de73ef2315c99bb5af179cfa1703134c003f60",
+      "redacted_bytes": 22162,
+      "redacted_sha256": "1d212945bcf850b746622ec4babdd52ce8fc590da0a41214f14081a9059d01c2",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-C2-FOCUSED-VALIDATION-2026-10-16.json",
+      "original_bytes": 17666,
+      "original_sha256": "78252fb5fc1a58b0a9b03f5da40ed97b9f8d0390254da2418bedfda80ec853b6",
+      "redacted_bytes": 18146,
+      "redacted_sha256": "f34cc5ec3607f6737cc4524d4c1799682c94ed62c8c852d9e0ddb9accdb08f5e",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-C3-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 511164,
+      "original_sha256": "4dbbdd32fedd1d9664e597d44c09f575a43ae961899ae9406954f10acbbe02b3",
+      "redacted_bytes": 511675,
+      "redacted_sha256": "a5214e23bf3dadde1c90a5cf55e2729d411bace33c0a07a1edbd85bd60d0f0fa",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-C4-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 613530,
+      "original_sha256": "ac70c9485efaa2f9eb347f4f28340598e810e2c70302a37181468bdea363c349",
+      "redacted_bytes": 613741,
+      "redacted_sha256": "94a0dcb19fb626b143ee7c8a1c3cab0b089274cc5e6498c6866940f0af3a1f08",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-CONFIGURED-VERIFICATION-RECEIPT-2026-10-16.md",
+      "original_bytes": 11773,
+      "original_sha256": "767e670dea13d95473ca5123680a0a7c444d06607eb38e19ea48aaff678a65a2",
+      "redacted_bytes": 12307,
+      "redacted_sha256": "ea9d5b983a600154c5edde8002005595bb7906ff10e8f6f26bd85e42c8c05d53",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-CONNECTED-LIFECYCLE-RECEIPT-2026-10-16.md",
+      "original_bytes": 13850,
+      "original_sha256": "1786dcf8107b1e64cb3d7b75048eee366cf0ea5f2c86a1156c2947966f0e0d3d",
+      "redacted_bytes": 14384,
+      "redacted_sha256": "495397a1fd40cc03ef09c6b67d69538a49fe6f858b6407fd793ed8639ec294d0",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-CONNECTED-LIFECYCLE-REVISED-VALIDATION-2026-10-16.md",
+      "original_bytes": 2386,
+      "original_sha256": "5104a6f0a3656285cba6a35b14d7435814c5d0b803566e2aa445356183af1bbe",
+      "redacted_bytes": 2919,
+      "redacted_sha256": "bf281e7ff85aa9348b45f8115d903138d6e359b82faf3f5de66ac7629766f8de",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-CONNECTED-LIFECYCLE-REVISED2-VALIDATION-2026-10-16.md",
+      "original_bytes": 5702,
+      "original_sha256": "6c91abe7d8dd85139c44b9b46a0767c69f4d7eed657cd655da4c535ca018e04d",
+      "redacted_bytes": 6235,
+      "redacted_sha256": "70b14c9f5bdc4abaa82c2192995bb644826bf8018debc8c44a78b1b0f585197d",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-CONNECTED-LIFECYCLE-REVISED3-VALIDATION-2026-10-16.md",
+      "original_bytes": 5497,
+      "original_sha256": "59196ff451ed2b1e3b9a61fce6abef009f7d1bc09ccdc257a167228e69bfff74",
+      "redacted_bytes": 6030,
+      "redacted_sha256": "15c2036264e6eac608e899cb88f4e9eb452e8aa4cd328c3116cb0eb5eb050071",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-CONNECTED-LIFECYCLE-RUNTIME-VALIDATION-2026-10-16.md",
+      "original_bytes": 10097,
+      "original_sha256": "119b1b3f7e31e0335038bffa43a7592955bd86714e52651f256e9225db45f94f",
+      "redacted_bytes": 10631,
+      "redacted_sha256": "72d1d916d037cbcc036ae6fa90e37798744195aea05c572fc7f812fe2dc29228",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-CONNECTED-LIFECYCLE-TEST-MIGRATION-2026-10-16.md",
+      "original_bytes": 13717,
+      "original_sha256": "89d16e7397f205f1397e4af205766dd12c90e0cf9fe85d5bc716cb0302a61ed0",
+      "redacted_bytes": 14236,
+      "redacted_sha256": "a9019e13753ed299c49eb7e8ae6336a1ac3246e2622f2c0a865f33a522276c4c",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-CONTINUATION-RECEIPT-2026-10-16.md",
+      "original_bytes": 5091,
+      "original_sha256": "1373705fab02834c424113ef78ee32ca057d18f91cfbac563ddd21e7c07276c9",
+      "redacted_bytes": 5624,
+      "redacted_sha256": "f4febad73da152bf525e2c426e4865f99f119ff52451db21148575bee376c97e",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-REGISTRATION-AVAILABILITY-RECEIPT-2026-10-16.md",
+      "original_bytes": 3422,
+      "original_sha256": "f9640e410aac6d1cf6a03994dbd5060fb22bc1fd7e81798efbcfd2889273179a",
+      "redacted_bytes": 3955,
+      "redacted_sha256": "7cd4a9eb0b28c07406a8f9dcf5b7155fbca2dcdee5569cd4ac48d3ce00aec111",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-REGISTRATION-RECEIPT-2026-10-16.md",
+      "original_bytes": 4392,
+      "original_sha256": "71856197be68516aad60c9510579a2f36aece5206fcf7f1b98c4e06edb2e6e0a",
+      "redacted_bytes": 4925,
+      "redacted_sha256": "d8f58a87410d820d40e484445e5ea56e09ce0a15cecffa42f18fb9f28e121240",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-S1-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 14313,
+      "original_sha256": "9b3e5e379f152b8a439f6e78d3e3fe4997eeae820fe7cdc10c50db0b33b9fdaf",
+      "redacted_bytes": 14838,
+      "redacted_sha256": "322fa0915a31f9a9356774015d6823a0889a368a4881fc869d6d1215316b176e",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-S2-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 14970,
+      "original_sha256": "cc6293b2903a7814022a1be62ca78d91246f98795fbfc5dac7407d80e3801724",
+      "redacted_bytes": 15495,
+      "redacted_sha256": "6e2f39580121e2e139ef6891192989492df53c0915ffd98aba86273429b9bce7",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-S2-INDEPENDENT-VALIDATION-2026-10-16.json",
+      "original_bytes": 18155,
+      "original_sha256": "3dcc1cfc5d25ad4bf9e609bf10445ed96258453c82ac2a38c341caf29cd771ce",
+      "redacted_bytes": 18635,
+      "redacted_sha256": "d1ae1d07d9cf83bdecc68e4a82b02379ccb149eb576c7661fe1602fba8363252",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-S3A-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 15456,
+      "original_sha256": "aad54732a56c793d2d2be13bae84dd96eeb74edb31fe756b0852f7671d5501e9",
+      "redacted_bytes": 15981,
+      "redacted_sha256": "741c5e1ba67e9d2edd6e30a5bdc114e5021bf4af759233b7bb87d73143005fbe",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-S3A-INDEPENDENT-VALIDATION-2026-10-16.json",
+      "original_bytes": 18473,
+      "original_sha256": "39522e0fd1ab624938f5c2f2d168cbf4dca8982b73068da16343b9883924b2a3",
+      "redacted_bytes": 18953,
+      "redacted_sha256": "fdc7b68b09e2e37f2b0adcd53447f3b13f6c35f6e4a7703890616f01a5c1b212",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-S3B-C1-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 20791,
+      "original_sha256": "f25858144fe83eeb4da219cb1d9c42507fbbf334e7b0a93935345c009b95b439",
+      "redacted_bytes": 21316,
+      "redacted_sha256": "0b3f0ab80a50a60cec39469b7b07a80e6eeb5f15aa1cfd0971928396a6e26510",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-S3B-C1-FOCUSED-VALIDATION-2026-10-16.json",
+      "original_bytes": 9270,
+      "original_sha256": "9f3828ad3ac03084dfdd2c5a5cae10bf0ccc8ab14e333c046b9d849dc9dfc017",
+      "redacted_bytes": 9809,
+      "redacted_sha256": "bc5dae159dd8465ec3b54edf4282f146541c4721fdf1b89093cb15dc279c0101",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-SESSION-RECEIPT-2026-10-16.md",
+      "original_bytes": 13562,
+      "original_sha256": "2410f2493390ec9ad820312dc43d0778d91be220c3938159adf093b44a28e351",
+      "redacted_bytes": 14096,
+      "redacted_sha256": "0d31f8c36cf7188d8497a15fb05747e3e81512ec2f22eb706b3fcf6da42f6014",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-SESSION-RUNTIME-VALIDATION-2026-10-16.json",
+      "original_bytes": 17002,
+      "original_sha256": "037b6167814e7c2ec6f2aae7a058e55b7bcf4b323d908e9fcbfd2529e056b184",
+      "redacted_bytes": 17482,
+      "redacted_sha256": "f9900c899bbffc26bc813eefbf7ba266e62bb3360809cb28df545416f8bafa28",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-SESSION-RUNTIME-VALIDATION-2026-10-16.md",
+      "original_bytes": 4708,
+      "original_sha256": "7c56908249604f299f8007ba4cfc9e0e65a5a64d9c7b1daff915baf50819ea7e",
+      "redacted_bytes": 5241,
+      "redacted_sha256": "f4076001912137bf6203b91d269c5bebbf0947f1172deac23f4c6e46ba310d67",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-SWITCH-CHILD-MIGRATION-2026-10-16.md",
+      "original_bytes": 7892,
+      "original_sha256": "4827df2c58d7c56f226ead2db9040759f1a2688f081544f28d4161b65a2dc3a6",
+      "redacted_bytes": 8395,
+      "redacted_sha256": "aeb5c5255d811f860b2eb6f5905b88b253820cafaad979f5aad1906c9100b583",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-SWITCH-DECISION-RECEIPT-2026-10-16.md",
+      "original_bytes": 12237,
+      "original_sha256": "a142896fcece16c90d965f161058284b2c37a464d3310a3836e283d5d54b6805",
+      "redacted_bytes": 12756,
+      "redacted_sha256": "609c6cb76fec1f3e4e74238b19f8b3d2998bb55cb2721b0bebcb1a9acc54b5f5",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-SWITCH-DECISION-RUNTIME-VALIDATION-2026-10-16.md",
+      "original_bytes": 10712,
+      "original_sha256": "eee1543b41163ea9d8847fe28f2a920e1d38cefb426ff3fb9c526c392d190321",
+      "redacted_bytes": 11216,
+      "redacted_sha256": "7a22af87e20e3778b64bc4566fb027a96f26de3f2092d54037f863ac14db6d6a",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-SWITCH-TIMER-ISOLATION-SOURCE-2026-10-16.md",
+      "original_bytes": 6268,
+      "original_sha256": "ee323c750644c786cf92ff6a7e7851ad349a01b7c2e355aacfae7631b652dd3d",
+      "redacted_bytes": 6771,
+      "redacted_sha256": "070933e8e9f193a186fe1d947955a4d5fb0098d052865288db3e589b9c74ba15",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B5-SWITCH-TIMER-ISOLATION-VALIDATION-2026-10-16.md",
+      "original_bytes": 6179,
+      "original_sha256": "caf105ce75b4a394fda7bd36741ff2318ede5add53d4da44bc031174af4a672c",
+      "redacted_bytes": 6712,
+      "redacted_sha256": "91effeb0436c279ba21bb10991598dd5dd7fc5cffa19f14fe6240db28af347e2",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B6-BROWSER-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 1578189,
+      "original_sha256": "05d63dce2e6c289e2df198b64db0d4a25ba5232d33477992f8f1928b44182648",
+      "redacted_bytes": 1578116,
+      "redacted_sha256": "6f1889ddd8655977ef20d711628246257e61c3809099516938d726a9cf053887",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B6-BROWSER-OBSERVER-SOURCE-2026-10-16.md",
+      "original_bytes": 4315,
+      "original_sha256": "d65807961b389c24c6c628bf02a6993e9f01b4e0c9a91d84445b484c39ce4d7b",
+      "redacted_bytes": 4848,
+      "redacted_sha256": "61e818b7966b437c91e743dbad9014631236094496183a28c7366569bc4d3ef6",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B6-BROWSER-RECEIPT-2026-10-16.md",
+      "original_bytes": 13463,
+      "original_sha256": "f3d585b883c935ff2d1d479765104a688e602c971e48a501eb5e33c944d452aa",
+      "redacted_bytes": 13982,
+      "redacted_sha256": "dbf914be2d762c6d3d60c119b2a0c2f668e01a96b94acbccae535faebd67b2b5",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B6-BROWSER-REVISED-VALIDATION-2026-10-16.md",
+      "original_bytes": 7419,
+      "original_sha256": "01c80f573a81cd3f07928e0b0d5c23a1f1b781fc35adeae92235ebdd68637c70",
+      "redacted_bytes": 7952,
+      "redacted_sha256": "4dd65afc09a04afca18163cff75bc02d7b27295426cf13f4c59d620a014b6dd5",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B6-BROWSER-RUNTIME-VALIDATION-2026-10-16.md",
+      "original_bytes": 8514,
+      "original_sha256": "94cad5f2d4546e1e309564afc7a29a4362582242611e923087bda5e9d2af1184",
+      "redacted_bytes": 9032,
+      "redacted_sha256": "56c59a725058a89d4963505724de80ccb83059e61a5bc5a6327cf9d2214c36df",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-APPLICATION-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 1583455,
+      "original_sha256": "d2474138135cb796a0da2f20c68f852519663caffe928715d72054d053623ddb",
+      "redacted_bytes": 1583397,
+      "redacted_sha256": "16ce299171f744cf521955cb6092a93e366017493a72aba8bc6ceb5e60713eec",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-APPLICATION-RECEIPT-2026-10-16.md",
+      "original_bytes": 8844,
+      "original_sha256": "9d2bce6267002190bef3fd81e659eb3e638b7eef88b88d3706c9159e3ab4835a",
+      "redacted_bytes": 9362,
+      "redacted_sha256": "0f6d14fe859c0efbe6cd40d42bb0aae0934aa420eb4608b81d978e6a166f40d3",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-APPLICATION-RUNTIME-VALIDATION-2026-10-16.md",
+      "original_bytes": 8862,
+      "original_sha256": "50974029acc9eca6a9e50b544e4d7adfed3c94a78ccd5d134303f22fd7d0131d",
+      "redacted_bytes": 9395,
+      "redacted_sha256": "e44fc08d080686c2a9d35e4ea792d66d383f2a155e2fc301fe5c8f07bf88a9fa",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 6701066,
+      "original_sha256": "3a0150f14ebcbbee3f8a5a12da1fafa428ec2dc79df60f445badd3d535983daf",
+      "redacted_bytes": 6481386,
+      "redacted_sha256": "d9f691499b256f95a57cdb88bc1809b0ad524080ec9719f228565dedb3219e49",
+      "index_payload_fields_removed": 2
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-CHECKS-CONTINUATION-2026-10-16.md",
+      "original_bytes": 5397,
+      "original_sha256": "af8e346fd04befdd6b92ad0b7ae99904d5412c35b13e0827e053e3750ea60fbf",
+      "redacted_bytes": 5930,
+      "redacted_sha256": "b8829d5974d3143612561f8e851961813bc1584137b5432b4151aee8fbb3074d",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-FINAL-CHECKS-2026-10-16.md",
+      "original_bytes": 3844,
+      "original_sha256": "4ac4feacceb556887e408f046d88a28a66173235fa72a0abda5ff0be18b69160",
+      "redacted_bytes": 4377,
+      "redacted_sha256": "cf6da155b2344497c70bfe75ff113ae10e7f9c54632540afd553e0523cfc8904",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-FORMATTED-VALIDATION-2026-10-16.md",
+      "original_bytes": 6681,
+      "original_sha256": "79065c09e44dd020e310f9621d07e91ed9f6fe3d1b8414d2fcd35b8c5c463c26",
+      "redacted_bytes": 7154,
+      "redacted_sha256": "aae43d50bdf74fda837dab94cce9525c5be10ab1c588deecb2d521d9df4851ff",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-FRONTEND-FORMAT-AMENDMENT-2026-10-16.md",
+      "original_bytes": 4876,
+      "original_sha256": "a9072b9590fd99f0cff98df97d3880458b9f5039bb57c743cc3cc4de617843b2",
+      "redacted_bytes": 5409,
+      "redacted_sha256": "928a310ff9ab228c0ed9355fa22bd665d0fe9116905629a62fb7e13ef131cabc",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-NAME-ROOT-ACCEPTANCE-2026-10-16.json",
+      "original_bytes": 937,
+      "original_sha256": "98c91256407c403709b3ad937840a3cad41409b5fb0702ac814aba0388ce8c67",
+      "redacted_bytes": 1520,
+      "redacted_sha256": "0ce5cc11b7075b561584ccd9d075123608c29ec980d5f4751ccdf761a19241c3",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-NAME-SOURCE-GRANT-2026-10-16.md",
+      "original_bytes": 2581,
+      "original_sha256": "37e12fc8f73cc514a7636a63b2c944542c715be2a994f162a3b3513c9919d97f",
+      "redacted_bytes": 3114,
+      "redacted_sha256": "15c32e42442fa394104d6301a66637a6671a75d07894d642354d4f6cef5d3c33",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-POISON-REPAIR-2026-10-16.md",
+      "original_bytes": 7346,
+      "original_sha256": "eb76b4ad906895a11c3d6ca7b5cb1e28b4e6906a101c2bcbef8eeef07084f0f3",
+      "redacted_bytes": 7879,
+      "redacted_sha256": "eb1b213391570489abeeb47086f4236cc41d94cc23b4f8b867562e06292c58d1",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-POISON-REPAIR-ROOT-REVIEW-2026-10-16.json",
+      "original_bytes": 1928,
+      "original_sha256": "4a166d98d43583f0a55bc133e4870490de3892429c4db8f5d883ac29b50b97cb",
+      "redacted_bytes": 2512,
+      "redacted_sha256": "5bbd5c00c2e7a192384498b95cd1d0034758e909f6f40d3800dd59d70fbbf97e",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-POISON-ROOT-FINDING-2026-10-16.json",
+      "original_bytes": 2402,
+      "original_sha256": "e30bd9b1cf68f12ff6b2dbe81a475fb2dcedf424f1b7dd400c63d386003be6f9",
+      "redacted_bytes": 2986,
+      "redacted_sha256": "0c00f190cd2337cf6df614e60b59f8efbe84b3111031fa460a49917c2e58fe82",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-PROBE-AMENDMENT-2026-10-16.md",
+      "original_bytes": 4134,
+      "original_sha256": "44ae5ef412ce8277add8e1ab628dff96cfe307fc7e3c440c3c209c216da86a36",
+      "redacted_bytes": 4667,
+      "redacted_sha256": "7c509e0329d75d41e938170005c3dfd9474aa9b72a5f58cb2cf0529045020afe",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-PROBE-AMENDMENT-ROOT-REVIEW-2026-10-16.json",
+      "original_bytes": 2802,
+      "original_sha256": "59d3b0aecc8704fbd5acb5d42c81adec0ad686910914f66178761a884bcf6398",
+      "redacted_bytes": 3386,
+      "redacted_sha256": "9dc5e4995ef868db7a57744c97bf8487d1850d7cc217a545ba3a25c379f84a2c",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-PROBE-SOURCE-GRANT-2026-10-16.md",
+      "original_bytes": 5649,
+      "original_sha256": "01f6aa9e2d4743002fadfc71f762bb6ab111ce4973ba65f6463181e1dafd05c9",
+      "redacted_bytes": 6182,
+      "redacted_sha256": "69ef18ef7c87eb50d2b194131d1c7f2809ca3bf17f85bf8a86710479544bde78",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-REVISED-FAILURE-ROOT-REVIEW-2026-10-16.json",
+      "original_bytes": 3112,
+      "original_sha256": "78ea570edfef7669acd86d5a109bc8ce24703172e043f015a72beb6f0532ff7b",
+      "redacted_bytes": 3696,
+      "redacted_sha256": "c8b195fbf26385e96a61fcf925aa43035cffb8d1b0e8721bc303fde90cc208e7",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-SCOPED-VALIDATION-ROOT-ACCEPTANCE-2026-10-16.json",
+      "original_bytes": 7568,
+      "original_sha256": "40452cb516f7a2ea291393a9a6af8d2ec177cac2d834497e20e1fc9ffddf2145",
+      "redacted_bytes": 8092,
+      "redacted_sha256": "b51f5cba769c425244291afa362513d87046ff52864030d36aa84c562c86eb0d",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-STATIC-BLOCK-ROOT-ACCEPTANCE-2026-10-16.json",
+      "original_bytes": 1938,
+      "original_sha256": "5c5fd1e9ca41c1d4406a1106ce1b66bd04f6b52a3ebd6d7fd31a4df4aed9d53a",
+      "redacted_bytes": 2522,
+      "redacted_sha256": "776b39d2233d43e41931d5e8949f0fd61dd58deaad191e883ec4d1134e931c68",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-TYPES-BASELINE-ROOT-REVIEW-2026-10-16.json",
+      "original_bytes": 6305,
+      "original_sha256": "36469491b35e5af3ce3c57d43f9fc469bcc82a2be924629399158a3c9153e9ef",
+      "redacted_bytes": 6679,
+      "redacted_sha256": "a9349783860b3f529ce48da28e314da70119123118e2fd82209f2c54bb5a9fe7",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-WIRING-CORRECTED-VALIDATION-2026-10-16.md",
+      "original_bytes": 5203,
+      "original_sha256": "9fc66c0ff3469f559a6ff2b8987b4abccfb924cc451b050184893d9c1ae58b19",
+      "redacted_bytes": 5736,
+      "redacted_sha256": "d13e24b90ed2c3c92745280c58c99c0d4a673f5a6c84068f857a731f5bb40bf7",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-WIRING-RECEIPT-2026-10-16.md",
+      "original_bytes": 10793,
+      "original_sha256": "3542a890d671194302196b99ff960d2ca8d0af426fd4ed302a060db7d724f4eb",
+      "redacted_bytes": 11327,
+      "redacted_sha256": "0f1d22a8d5dedd066bcbadf31ae4f12beb173977c0d132cd4f57c88d432f1e4b",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-WIRING-REVISED-VALIDATION-2026-10-16.md",
+      "original_bytes": 6932,
+      "original_sha256": "5e1170013017d5903fdfcc42d250ab6e03ba894aafced504334f5ad6f3674e35",
+      "redacted_bytes": 7465,
+      "redacted_sha256": "1662c18c61ec81c36ea352180d905ba48763a2d9886158afd352d9cc16cc249d",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-WIRING-ROOT-REVIEW-2026-10-16.json",
+      "original_bytes": 2148,
+      "original_sha256": "597b3ca558fc0ed07ff55cec1e41720dd3cf2d7c346e62c19d421c3d3719ded9",
+      "redacted_bytes": 2732,
+      "redacted_sha256": "ced622eafe7099c886fe25540df1186488da8b8e1fb7a0c635f381195db7a8a4",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-WIRING-SOURCE-GRANT-2026-10-16.md",
+      "original_bytes": 10988,
+      "original_sha256": "c3b28d53b8b4ed0ff45a2bf6b5c8ade62ad5d15b6fdf3ffb23d47f686d0d923a",
+      "redacted_bytes": 11522,
+      "redacted_sha256": "42c3199389200dd3b1037299146044d812410a9971e18ce31bed37d19e68fdc8",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B7-LIFECYCLE-WIRING-VALIDATION-2026-10-16.md",
+      "original_bytes": 5677,
+      "original_sha256": "7c1f411fb6743fecbec71f8df034ff02bdafc6dc8a8d3883ba89b5cc6f4ff4f4",
+      "redacted_bytes": 6210,
+      "redacted_sha256": "185274246f55200757815b4ec95e1044f4911c50c6af1918512c710f1c75e741",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B8-CREDENTIAL-BINDING-CANONICAL-VALIDATION-2026-10-16.json",
+      "original_bytes": 5316267,
+      "original_sha256": "e65244f889c20780a6f28259a6c06243c85bad59afe85138aa13477fb30af8f8",
+      "redacted_bytes": 5083241,
+      "redacted_sha256": "d63a8674be89b08d79a37b2d25e6ccf79ce7d4cd27bf2718e485de090c0563b6",
+      "index_payload_fields_removed": 2
+    },
+    {
+      "path": "docs/integration/GD1B8-CREDENTIAL-BINDING-FROZEN-VALIDATION-2026-10-16.md",
+      "original_bytes": 5324,
+      "original_sha256": "08a223605ebf23947207d769bc88c49be30f2963a5b1f0b7c3d8a4edc672dfe5",
+      "redacted_bytes": 5857,
+      "redacted_sha256": "b3ac4e00d17171c3cc5e333cc0044bca4a44dc31e6e51c42328685b04a6f6a47",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B8-CREDENTIAL-BINDING-INDEPENDENT-VALIDATION-2026-10-16.md",
+      "original_bytes": 5185,
+      "original_sha256": "2b4809d80cb45cbf0dbb473f0f151c9ff23355be5e2f7031228d4a91090991c2",
+      "redacted_bytes": 5718,
+      "redacted_sha256": "b507852ebdabf641cb243a33661b8cbc713e6b6e92368987ea167f56505c9e41",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B8-CREDENTIAL-BINDING-INTEGRATION-REVIEW-2026-10-16.json",
+      "original_bytes": 28185,
+      "original_sha256": "f67927c766f855f44af645bc79def64de22ce57b48031273d1f880b215b30f78",
+      "redacted_bytes": 28710,
+      "redacted_sha256": "a19d1a179478ff6f0cfb0f8d675afaf2e8b0dce3e0c5bec06242eb0f1b2f9f92",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B8-CREDENTIAL-BINDING-RECEIPT-2026-10-16.md",
+      "original_bytes": 5740,
+      "original_sha256": "2e370391f21f1a816d89c006aa5c01ea315f960433b06d6e8f1997bf4caa20a3",
+      "redacted_bytes": 6273,
+      "redacted_sha256": "9fab7cd577785f8199adfd1cea9f2c16a8c136a0beb2a349ba2db955eb7581e0",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/GD1B8-CREDENTIAL-BINDING-ROOT-REVIEW-2026-10-16.json",
+      "original_bytes": 7510,
+      "original_sha256": "2e11142ce2b4335452e0b8a44546e5f5f1b2fad3841a912851bc27181e3d5491",
+      "redacted_bytes": 8094,
+      "redacted_sha256": "7da6c3b33d7b2987e90f5fc6240e02ca58f1410922d3316c91e3619fc8887461",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H0-ASSET-INVENTORY-2026-10-15.md",
+      "original_bytes": 9189,
+      "original_sha256": "447a331b4c3cbb80a64c8df375df90cde1c3d0adbf73c87f64a9266a685e9316",
+      "redacted_bytes": 9632,
+      "redacted_sha256": "02eb8b5df2507bfc1beeae024ffa809b3195b22afd822455d0369eafbbd3cd65",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2-COMPARISON-CONTRACT-2026-10-15.md",
+      "original_bytes": 43472,
+      "original_sha256": "f29936252b3ec103a41a76961d97902c82970416ea5802f88d497ef4341a6880",
+      "redacted_bytes": 43946,
+      "redacted_sha256": "e70008e9612b27c0da9990d295ccc1ceb884f4aa0c19684c094d4f7910f44325",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2-COMPARISON-CONTRACT-DRAFT-2026-10-15.md",
+      "original_bytes": 31488,
+      "original_sha256": "a17b2e45277f1a7480952a964dfcf3d4c590569e7c941ba2075f317ce3ffd0fe",
+      "redacted_bytes": 31977,
+      "redacted_sha256": "9d8a99bf44e1e25f01c213c94dbf46e1fbca4b3177b4ca637d418d3b96f25f6c",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2A-INDEPENDENT-REVIEW-2026-10-15.md",
+      "original_bytes": 28706,
+      "original_sha256": "c9be23b548446ace92365dafa17f08f1362f8237d9451c355aecd53525aede0b",
+      "redacted_bytes": 29195,
+      "redacted_sha256": "12c3fd737f0854858f1fba3778d60cd1c033f13b652d2ae1c41c4dfc40752a4f",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2B1-CANONICAL-VALIDATION-2026-10-15.json",
+      "original_bytes": 4996,
+      "original_sha256": "832f75531a373c078522a43c513ea2919653047a518253cca68be3ccdf02c4f2",
+      "redacted_bytes": 5580,
+      "redacted_sha256": "24ad5c290b53b9b8495e80b9c6a89a2d029392278900efb155a0c96a10c0e388",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2B1-INDEPENDENT-REVIEW-2026-10-15.md",
+      "original_bytes": 11500,
+      "original_sha256": "852a69f9afc93ab67f60aec14fe22c55bf799ebc5ff4cc51d310cc5297c28e65",
+      "redacted_bytes": 12034,
+      "redacted_sha256": "feda75c49022989f8daf86382b5feacc9c8a06e1dbf452f97b2e569659fb175d",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2B1-REJECTED-WORKER-RECEIPT-2026-10-15.md",
+      "original_bytes": 9237,
+      "original_sha256": "228d4ac511eaf21010e5209ce31d9dec22a0e22a6aae90157fcf8d80e9722a34",
+      "redacted_bytes": 9770,
+      "redacted_sha256": "da7af7efd5b8b5185febb6dc0a467a1aa199e33754b3bee0b0c67b24d7f7009f",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2B1-REVISION-INDEPENDENT-REVIEW-2026-10-15.md",
+      "original_bytes": 13548,
+      "original_sha256": "f20ebf94772893813ce86334335d646d2f9f9d974aea67fe8891096959e0bce7",
+      "redacted_bytes": 14082,
+      "redacted_sha256": "d4fc84b4e68e0eb7d99d96d0ba6c01ca1194afe168e4839ea6b0128194629ee4",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2B1-REVISION-RECEIPT-2026-10-15.md",
+      "original_bytes": 11764,
+      "original_sha256": "e53ade8142599a4366ef727aa483c17ceafc4fbb1b85a4c950f6e545b6952251",
+      "redacted_bytes": 12298,
+      "redacted_sha256": "577ecd31ea782b1eccbc3bd709e7304602573a47130c3fd61d905ed4047d3f4b",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2B1-TEST-LINT-RECEIPT-2026-10-15.md",
+      "original_bytes": 6129,
+      "original_sha256": "3e2c2000ae4847028472a6bdd01ba4e4d503f79cf033d6feddbe176ae269a9ba",
+      "redacted_bytes": 6662,
+      "redacted_sha256": "5cfe6bf9cfdfc5632b12396571cefe59a845d7d2d30692adf9db8d2a22701312",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2B2-CANDIDATE-LAB-RECEIPT-2026-10-15.md",
+      "original_bytes": 12340,
+      "original_sha256": "2ef30772637d1903a81f413739755186e1c890aec9b1a8e91c05a8bc96f0bc49",
+      "redacted_bytes": 12874,
+      "redacted_sha256": "ff49907afe7b1ca8b6bac36083a8129a9aa7947d221e02a0c0603ddb1267491f",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2B2-INDEPENDENT-REVIEW-2026-10-15.md",
+      "original_bytes": 10198,
+      "original_sha256": "07abe6e291e100bfc309e796537877a3a573ef6a7f51318992f7d83e05cd0972",
+      "redacted_bytes": 10732,
+      "redacted_sha256": "c32c3eca7cddeba0ba4a65faa9a9e6dda7d93ade3f4446ced72d1533b12faffd",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2B2-KNOWN-ANSWER-DESIGN-2026-10-15.md",
+      "original_bytes": 34598,
+      "original_sha256": "3019ff22a4275b6ed18d0bbd434ea7c8482eac9c89fbb93d51d81f15569fa2b9",
+      "redacted_bytes": 35102,
+      "redacted_sha256": "5b5d65b436a0dab715dac88241830a31cd964c4505e36538d591888340a5bcc7",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2B2-KNOWN-ANSWER-DRAFT-2026-10-15.md",
+      "original_bytes": 19163,
+      "original_sha256": "22ab394a74f32af727e9b0058ee603c114346cbae039a3cb5d4f35b3f8a04ed2",
+      "redacted_bytes": 19682,
+      "redacted_sha256": "080c56092ff6dd3d405fa2a6679a2821f99d75c261dd492b0cb820ecd5488355",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H2B2-ORACLE-INDEPENDENT-REVIEW-2026-10-15.md",
+      "original_bytes": 24586,
+      "original_sha256": "7d64cd842c6deb2349bb7e59a407e5759fd5b0c4a323e338b971b17fdaf6fbe8",
+      "redacted_bytes": 25030,
+      "redacted_sha256": "b3a2b7dd4b9843446c5cd73546f7d89f9a864c91a58412840b2b62fc431741dd",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H6-DOC-AUDIT-2026-10-15.md",
+      "original_bytes": 13599,
+      "original_sha256": "9ae03cd8c1c202d42d052e126c9b041d8d8a4a263df3e0e04410f8c532b3b797",
+      "redacted_bytes": 14118,
+      "redacted_sha256": "796004697da2ede22e0f1a3438a0673eeed1a8eaf4ad34f981e8a2ac8838e110",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/H6B-RECEIPT-2026-10-15.md",
+      "original_bytes": 5447,
+      "original_sha256": "ce3103b021618cb0fda0a6764bf40f925f45c54ff0c16cca788d0491250c25b1",
+      "redacted_bytes": 5965,
+      "redacted_sha256": "588f95d25043ecd0065ebff0ca49849da0b8df571c5bd2b1785d0bf7d38fad3e",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/MAIN-PREVIEW-PUBLICATION-2026-10-15.md",
+      "original_bytes": 5875,
+      "original_sha256": "6a974e291db007f2f6e55b6d2a2ded3b2164192020db0424d3de8a77f53e3b02",
+      "redacted_bytes": 6427,
+      "redacted_sha256": "4c52caca58e7b4bb75def9f268ea31073f48ac82ac16cfc96c5530c94a9c33d1",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/MAIN-PUBLICATION-PREFLIGHT-2026-10-15.md",
+      "original_bytes": 11663,
+      "original_sha256": "452efee7dab6f4b2981f6f1dee67c7e4e7973952fce91def0d01734ed1622fea",
+      "redacted_bytes": 12197,
+      "redacted_sha256": "49487a8a4bbec897932abf9fcd7c8ad16196cbded61397aee22bc4a50b074f0c",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/PUBLICATION-DOCS-RECEIPT-2026-10-15.md",
+      "original_bytes": 2642,
+      "original_sha256": "df9ae55e4f2ce7c5a36e71caf3b27392d60bfd7e6eea1808897efebe7343331d",
+      "redacted_bytes": 3160,
+      "redacted_sha256": "59de58dfd6f5e5b888d8aaa9ed9c030ab1ccc0c2b73e42fe5853991fee8ab693",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R1-CANONICAL-VALIDATION-2026-10-15.json",
+      "original_bytes": 3565,
+      "original_sha256": "dcdef401a5f9d557ffe78733469d260b93e3d238c3991ca7fa3a6b296f13cd6f",
+      "redacted_bytes": 4149,
+      "redacted_sha256": "8c8c90ecd0e08c7f90a1817d07594c812bca60cb6fcec352cff3f24000195389",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R1-INDEPENDENT-REVIEW-2026-10-15.md",
+      "original_bytes": 11375,
+      "original_sha256": "1f993a5e2acf431d2b7f75e446ceda8131d013860595a1eadcee82f5e090c13e",
+      "redacted_bytes": 11894,
+      "redacted_sha256": "6a494668c080eeef735598370690bbade83e9c6736eae8e66b714bedcf7d9ad2",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R2A-INDEPENDENT-REVIEW-2026-10-15.md",
+      "original_bytes": 14388,
+      "original_sha256": "e9eb2d6b71c81ec9a9fee292da092a17734d9a5b3ff0f17a5e49ce0eebc1eb96",
+      "redacted_bytes": 14907,
+      "redacted_sha256": "c9d6480d3af8fc88ad9a7ffd51e316ce1216960cc5e09e4f5fb69db4da943aca",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3-ANDROID-BUILD-RECEIPT-2026-10-15.md",
+      "original_bytes": 5916,
+      "original_sha256": "fa07defc89766044d321c3009bfebcd9cf8ee0111eb91d8a3f59095c3699c2ea",
+      "redacted_bytes": 6404,
+      "redacted_sha256": "8adb01f35b2fdb13500cac7466f9dfed08d4d1925e1336d6deacad61f1116a86",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3-FOLD-INSTALL-RECEIPT-2026-10-15.md",
+      "original_bytes": 3895,
+      "original_sha256": "8ecc62b88a469569b654fcae6a0cb5830e843a08067e5329fdd8107fd1fd0d82",
+      "redacted_bytes": 4455,
+      "redacted_sha256": "a5cd10c7bba123f609c9493823411913325559371e873321301d54f79ff5bff1",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3-H2B2-CANONICAL-VALIDATION-2026-10-15.json",
+      "original_bytes": 10295,
+      "original_sha256": "6362abb11094b7e135992f6611e6117ed64d414fc75925b313de309aeb28b0cc",
+      "redacted_bytes": 10715,
+      "redacted_sha256": "e9f4ed815ac27cc9acbcf32c4422b42d1ada2199345a0d5e952316ca35d5c45f",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3-TERMINAL-CONTRACT-2026-10-15.md",
+      "original_bytes": 23753,
+      "original_sha256": "050005a661b88d7cec03252ae500970452b7cae599b409edc03507991aadab88",
+      "redacted_bytes": 24272,
+      "redacted_sha256": "29c6af9a812a0a1a46b399ff09589eb5eebc78fbf4cfead183b8a93d0c8d9a7f",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3A-FIRST-NATIVE-VALIDATION-2026-10-15.json",
+      "original_bytes": 2753,
+      "original_sha256": "615b0e42d1bc7dfac0ea8e1dde5220555d06e9d37dafa522a1cb762311b4e468",
+      "redacted_bytes": 3337,
+      "redacted_sha256": "8c7954bc481978755b874df6a22b8e549e5bf02337be71978f3c0164720bc95e",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3A-FULLNAME-INDEPENDENT-REVIEW-2026-10-15.md",
+      "original_bytes": 5800,
+      "original_sha256": "dac43dc131b0cd689cf506b904ea2d26b34ee8fda41b5d73f1a5de64496692a0",
+      "redacted_bytes": 6333,
+      "redacted_sha256": "e4624ab2df80b223aa00c3657d6acbd8a39f46c705fd0d0796895f8feb57ddb1",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3A-FULLNAME-RECEIPT-2026-10-15.md",
+      "original_bytes": 9949,
+      "original_sha256": "bfe4ac880f1ebcb51441ca1919957f6e9978f993fb405b31dc49a1c6373c4dd2",
+      "redacted_bytes": 10482,
+      "redacted_sha256": "66e83a578d0d757b527a2a2307c2e553d94e2b7230cf4138be9f804361e78eea",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3A-INDEPENDENT-REVIEW-2026-10-15.md",
+      "original_bytes": 16194,
+      "original_sha256": "c23f81f0cb4d36950d646a42af875cf65a4c9891f9eac2331883646b54519019",
+      "redacted_bytes": 16713,
+      "redacted_sha256": "e7554b81c656120be51286b81857708e0b1350010adcc920f34753c4d039a5f2",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3A-REJECTED-REVISION-RECEIPT-2026-10-15.md",
+      "original_bytes": 13442,
+      "original_sha256": "17cab33689ee9eac270fb1575ce8508d8b7892d24763e1b339f15a23bae1866f",
+      "redacted_bytes": 13976,
+      "redacted_sha256": "a9f4bddc0019277785cf34a51c943aaede1e8ba832194d21fc0c4beb86f11701",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3A-REVISION-INDEPENDENT-REVIEW-2026-10-15.md",
+      "original_bytes": 8626,
+      "original_sha256": "118f3ef26d2496eb9c487745fb9e4807dd75a018492ffd2c30a440ceaa632bbd",
+      "redacted_bytes": 9159,
+      "redacted_sha256": "832ae0d1148dd50d497836cc669133c2c46dd8a2f8d7f69ba1d40e993a15c7ea",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3B-FRONTEND-RECEIPT-2026-10-15.md",
+      "original_bytes": 13143,
+      "original_sha256": "c89aeb2dc49f224b0c6f4f8c9efb59dba280a234c4018cfa24334da1db4c9811",
+      "redacted_bytes": 13677,
+      "redacted_sha256": "62d65b93e754608ae1e0ad5ae0807380e04f46d35e236389fbf6f897e6b2abe9",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/R3B-USAGE-LIMIT-HANDOFF-2026-10-15.json",
+      "original_bytes": 1991,
+      "original_sha256": "bbdc529126690cfe61fbcacd06470b9c73fc9881ba0d0c87137392ef906bf1e9",
+      "redacted_bytes": 2560,
+      "redacted_sha256": "28070529e937f723d925eae867f7f6ae8981fcd86b39dd7f78dab5ae76db3d23",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/README-UI1-RECEIPT-2026-10-15.md",
+      "original_bytes": 3912,
+      "original_sha256": "97511c5e7af5b9a61612fba69b999a3da3992dc6e4fc1d53f556abec07aa108c",
+      "redacted_bytes": 4445,
+      "redacted_sha256": "5b182e657fe77e6b7acc399c737503844ba61092010dc2fd66012557e2541b0d",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/TEAM-LEDGER-2026-10-15.md",
+      "original_bytes": 50555,
+      "original_sha256": "e6b70b82b3e2fad314e3a9999483734c2de3b1ffa1088accd1cda07b725b3861",
+      "redacted_bytes": 51086,
+      "redacted_sha256": "e6c0cd5c21f73751d0552ee5af12860b94f63e742ec396c62bd929222dd4aecd",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/UI1-ANDROID-FOLD-ARTIFACT-2026-10-15.json",
+      "original_bytes": 4505,
+      "original_sha256": "a82c9f8712dfeed5c7185cbe566b28d6074b9b8b143aba92eeee150c4d2ef26b",
+      "redacted_bytes": 5093,
+      "redacted_sha256": "0db70efac2d2761cec710ff02fc9429b0126c075ed37a157d901507b93ebbe9f",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/UI1-INDEPENDENT-REVIEW-2026-10-15.md",
+      "original_bytes": 8052,
+      "original_sha256": "3825be6a5971ced2c9d29b2e3e4ea39a234958b3c1ef644ad479f2e6a8f75acc",
+      "redacted_bytes": 8585,
+      "redacted_sha256": "cdd4992c8007556b0610ce4067b522c3faa464ea5852a0ab90c8e071f34689fc",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/UI1-MAC-LOCAL-ARTIFACT-2026-10-15.json",
+      "original_bytes": 3739,
+      "original_sha256": "09762890bd461d20e958abb724afa4dcf961629b744445a34f3d3a9715eb8028",
+      "redacted_bytes": 4323,
+      "redacted_sha256": "4d61332822a73390fa369fd7f25445434c2d4f7f097ed212ecb26d2b722593c8",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/UI1-MAIN-PROMOTION-2026-10-16.md",
+      "original_bytes": 3673,
+      "original_sha256": "cbc6b9632a3b8df7c3db5203a90d1cda50aee9be20201002ce593701256f5aa9",
+      "redacted_bytes": 4225,
+      "redacted_sha256": "33a7e71d2581bd3ab7144c7170142bfe2862068083b0d3f61c08c879265dc938",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/UI1-PROFILE-PRESET-RECEIPT-2026-10-15.md",
+      "original_bytes": 10349,
+      "original_sha256": "8378e66d355aaeab081b81164bfe283edf567432e11d84f9a4c4bf218b9e11e8",
+      "redacted_bytes": 10853,
+      "redacted_sha256": "fac4f838523e8c212a2bbac4e698a09195d1afe46b7c6b905ca450c0d624c845",
+      "index_payload_fields_removed": 0
+    },
+    {
+      "path": "docs/integration/fold8-preflight-2026-10-15.md",
+      "original_bytes": 22608,
+      "original_sha256": "40d3d15669d650b4bf6ef9cd411dfb58236919204eb2b8c0c46b5d1f85b7637e",
+      "redacted_bytes": 22854,
+      "redacted_sha256": "94704b6e02dd5bf68b77e7bdfbbebf1e589c4929796046df7d4bd466aff6a82c",
+      "index_payload_fields_removed": 0
+    }
+  ]
+}

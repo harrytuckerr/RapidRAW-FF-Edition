@@ -1,0 +1,12 @@
+[package]
+name = "rapidraw-glib-variant-iter-regression"
+version = "0.0.0"
+publish = false
+edition = "2021"
+rust-version = "1.70"
+
+# Keep this narrow FFI regression separate from the Tauri application build.
+[workspace]
+
+[dependencies]
+glib = { version = "=0.18.5", path = "../../src-tauri/vendor/glib" }

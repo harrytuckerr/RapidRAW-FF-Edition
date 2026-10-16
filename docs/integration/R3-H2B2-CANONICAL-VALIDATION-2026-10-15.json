@@ -1,7 +1,8 @@
 {
+  "_public_redaction": {"original_document_sha256": "6362abb11094b7e135992f6611e6117ed64d414fc75925b313de309aeb28b0cc", "original_document_bytes": 10295, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "package": "Canonical H2b2 and atomic R3 native/frontend integration",
   "created_utc": "2026-10-15T08:25:52.488982+00:00",
-  "checkout": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+  "checkout": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
   "source_freeze_parent": "2b7e126af10891b719556c99ae5205a53f05cb76",
   "source_freeze_manifest_sha256": "ee208bb44be678c8ce8432e489f848712ee75bae6c89004c13287774332ceef4",
   "frozen_build_source_files": 407,
@@ -35,7 +36,7 @@
         "--",
         "--check"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
       "exit": 0,
       "expected_exit": 0,
       "elapsed_seconds": 0.705591334,
@@ -54,7 +55,7 @@
         "validate_dcp",
         "--message-format=json"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
       "exit": 0,
       "expected_exit": 0,
       "elapsed_seconds": 143.32097775000003,
@@ -73,7 +74,7 @@
         "-D",
         "warnings"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
       "exit": 0,
       "expected_exit": 0,
       "elapsed_seconds": 13.20730120899998,
@@ -88,7 +89,7 @@
         "--ignored",
         "--nocapture"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
       "exit": 0,
       "expected_exit": 0,
       "elapsed_seconds": 3.0395185840000067,
@@ -103,7 +104,7 @@
         "--ignored",
         "--nocapture"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri",
       "exit": 0,
       "expected_exit": 0,
       "elapsed_seconds": 0.1342645410000216,
@@ -117,7 +118,7 @@
         "--test",
         "src/__tests__/imageImport.test.mjs"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
       "exit": 0,
       "expected_exit": 0,
       "elapsed_seconds": 5.5705307920000005,
@@ -131,7 +132,7 @@
         "run",
         "test:profiles"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
       "exit": 0,
       "expected_exit": 0,
       "elapsed_seconds": 1.7925254169999993,
@@ -145,7 +146,7 @@
         "run",
         "build"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
       "exit": 0,
       "expected_exit": 0,
       "elapsed_seconds": 2.4751337090000005,
@@ -159,7 +160,7 @@
         "run",
         "typecheck"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
       "exit": 2,
       "expected_exit": 2,
       "elapsed_seconds": 17.035598874999998,
@@ -176,7 +177,7 @@
         "src/utils/imageImport.ts",
         "src/__tests__/imageImport.test.mjs"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
       "exit": 0,
       "expected_exit": 0,
       "elapsed_seconds": 0.8167862499999998,
@@ -194,7 +195,7 @@
         "--format",
         "json"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead",
       "exit": 1,
       "expected_exit": 1,
       "elapsed_seconds": 3.2916701659999994,

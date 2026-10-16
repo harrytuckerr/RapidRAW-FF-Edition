@@ -2,7 +2,7 @@
 
 Pass: the requested test-source migration, standalone formatting, exact patch replay, assertion preservation and custody checks. Eight existing test definitions remain; **ZERO tests executed**. Compilation, runtime, Clippy and C4 integration acceptance are **Not exercised**.
 
-Reviewer/migration author: Codex CLI - Sol, actual live roster model `gpt-6.1-sol`; C4 production author: Astra. Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-switch-decision-review`, detached HEAD `47a1a46b2fec95826ffe5e71e39b4b5889211919`. This independently adapts the protected C3 test to C4's explicit consent contract; it does not validate production behavior by execution. No production/API blocker was found during the bounded source inspection.
+Reviewer/migration author: Codex CLI - Sol, actual live roster model `gpt-6.1-sol`; C4 production author: Astra. Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-switch-decision-review`, detached HEAD `47a1a46b2fec95826ffe5e71e39b4b5889211919`. This independently adapts the protected C3 test to C4's explicit consent contract; it does not validate production behavior by execution. No production/API blocker was found during the bounded source inspection.
 
 Only `independent_different_and_expired_identity_require_explicit_disconnect` changed in `src-tauri/src/drive_auth/connected_lifecycle_independent_tests.rs` (original lines 507–571, migrated 507–711). Every helper, seven other test bodies, test name, original fixture duration and timing limit is unchanged. There are no new test definitions.
 
@@ -23,12 +23,12 @@ The deadline expected value is `min(work.deadline, credential_expiry)`, using th
 
 ## Executed source checks
 
-Standalone pinned formatter: `/Users/harrisontucker/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/rustfmt`, reporting `rustfmt 1.9.0-stable (48a229ceae 2026-09-01)`. Overrides: `RUSTUP_TOOLCHAIN=1.98`, `RUSTUP_AUTO_INSTALL=0`; cwd is the worktree above. Actual UTC, argv, elapsed time, stdout/stderr and exits are in private `format-results.json`. All three exits were 0:
+Standalone pinned formatter: `<HOME>/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/rustfmt`, reporting `rustfmt 1.9.0-stable (48a229ceae 2026-09-01)`. Overrides: `RUSTUP_TOOLCHAIN=1.98`, `RUSTUP_AUTO_INSTALL=0`; cwd is the worktree above. Actual UTC, argv, elapsed time, stdout/stderr and exits are in private `format-results.json`. All three exits were 0:
 
 ```text
 rustfmt --version
 rustfmt --edition 2024 --config skip_children=true /private/tmp/rapidraw-gd1b5-switch-child-migration-20261016/proposed-child.rs
-rustfmt --edition 2024 --config skip_children=true --check /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-switch-decision-review/src-tauri/src/drive_auth/connected_lifecycle_independent_tests.rs
+rustfmt --edition 2024 --config skip_children=true --check <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-switch-decision-review/src-tauri/src/drive_auth/connected_lifecycle_independent_tests.rs
 ```
 
 The first two commands prepare/check the private proposal; only the permitted function was installed after proving protected prefix/suffix equality. Python source checks (exit 0) independently replayed the unified patch, reversed the two logged source edits to the entire original child and verified formatter token equality. Whitespace checks passed. Source-only read/hash scripts performed no Rust or fixture execution.
@@ -51,3 +51,7 @@ Private evidence: `/private/tmp/rapidraw-gd1b5-switch-child-migration-20261016` 
 **Pass:** source preservation/patch replay, standalone owned-file formatting and whitespace, original-input/Git-metadata custody. **Fail:** none in these executed source checks. **Not exercised:** compilation/tests/Clippy, localhost/watcher/ticket runtime, candidate/consent races, provider identity or Google/full chain, app/IPC/storage/device/Android/sync acceptance. Historical C3 results and all existing receipts remain unchanged and cannot validate these C4 bytes.
 
 No shared cache lease was acquired or used. No Cargo/rustc/build/cache/socket/provider/network/browser/device/dependency/Git action occurred. Source and evidence are frozen for root review; independent probes/runtime require a separate grant.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `4827df2c58d7c56f226ead2db9040759f1a2688f081544f28d4161b65a2dc3a6` (7892 bytes).

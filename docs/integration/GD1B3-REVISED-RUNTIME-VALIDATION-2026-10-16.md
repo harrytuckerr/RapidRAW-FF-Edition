@@ -2,7 +2,7 @@
 
 **Pass** for the four authorized gates on revised frozen bytes. The original `a943…` strict-lint **Fail** remains unchanged; these new results apply to `7543548a…` only. Root retains source acceptance/import and the later combined canonical gate.
 
-Model `gpt-6.1-sol` (live roster), macOS-26.5.2-arm64-arm-64bit. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-token-response-revision`, detached `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`. Revised parser `7543548a508ae0e1355f3358d6f182543b623d49544533f26be4fe01fee25886`; unchanged module `b19422c07fed9d158a0e809f8d4248e6a17be33f4c554434b838438a46b6d802` and helper `85bd9b4882a9fb45d54c63231b22bf962c322d884f9aa84ca67f866e551e7dd8`. Original author, original runtime failure, status revision and expanded lead review read fully/hash-verified before testing.
+Model `gpt-6.1-sol` (live roster), macOS-26.5.2-arm64-arm-64bit. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-token-response-revision`, detached `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`. Revised parser `7543548a508ae0e1355f3358d6f182543b623d49544533f26be4fe01fee25886`; unchanged module `b19422c07fed9d158a0e809f8d4248e6a17be33f4c554434b838438a46b6d802` and helper `85bd9b4882a9fb45d54c63231b22bf962c322d884f9aa84ca67f866e551e7dd8`. Original author, original runtime failure, status revision and expanded lead review read fully/hash-verified before testing.
 
 | Gate | Result | Exit | Elapsed |
 |---|---|---:|---:|
@@ -43,3 +43,7 @@ Environment: `CARGO_TARGET_DIR=/private/tmp/rapidraw-integration-20261015/target
 Evidence `/private/tmp/rapidraw-gd1b3-revised-validation-20261016`; machine `receipt.json` SHA256 `d186d20c8d0ee8d0ecf66fdb946d68a2c77805ca0f31c784cdaaecd0b3b3f848`. Full logs, exact argv/environment/UTC/exits/times, fresh binaries, probe custody, one-line patch and source manifests sealed by `artifact-hashes.json` (excludes itself).
 
 Desktop cache explicitly **released** at `2026-10-15T14:30:23.056583+00:00`; no active cargo/rustc/Clippy then, 17.30GiB free. No further builds or downstream work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `a6290f31eabcdc0136ee0b8c68239c8a0d41cc740490976ace5688aecdb5e2f8` (7051 bytes).

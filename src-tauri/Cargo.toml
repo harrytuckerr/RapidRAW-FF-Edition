@@ -154,3 +154,8 @@ strip = true
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-clippy"))'] }
+
+# GTK3 requires glib 0.18; this published-source copy carries the official
+# VariantStrIter soundness fix. See vendor/glib/README-BACKPORT.md.
+[patch.crates-io]
+glib = { path = "vendor/glib" }

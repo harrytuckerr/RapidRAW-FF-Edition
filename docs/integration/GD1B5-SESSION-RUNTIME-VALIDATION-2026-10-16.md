@@ -2,7 +2,7 @@
 
 **Pass** for this bounded source/native/local-socket review. No blocking static finding, repair, suppression or expectation change. Root retains acceptance/integration; no account or product acceptance.
 
-Actual model `gpt-6.1-sol` (Team roster), macOS arm64, Rust/Cargo1.98.1. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-session-review`, detached `c5e1bdcf76de64bad1b87bcaa9e2526c95457efa`. Full contract11950b2f, receipt2410f249 and review0f5330ad read/hash-verified; production and all21 authored definitions inspected. Author65,348B prefix f49ac5ed and exact root-only include stay unchanged; wired session17ed9fec and desktop module5c59c0ad match.
+Actual model `gpt-6.1-sol` (Team roster), macOS arm64, Rust/Cargo1.98.1. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-session-review`, detached `c5e1bdcf76de64bad1b87bcaa9e2526c95457efa`. Full contract11950b2f, receipt2410f249 and review0f5330ad read/hash-verified; production and all21 authored definitions inspected. Author65,348B prefix f49ac5ed and exact root-only include stay unchanged; wired session17ed9fec and desktop module5c59c0ad match.
 
 | Gate | Observed | Exit | Total elapsed |
 |---|---|---:|---:|
@@ -29,3 +29,7 @@ Per-command JSON/full+sanitized logs record exact argv/cwd/UTC/env/exits/space a
 **Not exercised:** real exchange-result adoption/controller+provider flow, Google/live TLS/account proof/OS browser handoff; storage/refresh/revocation/Drive sync; Tauri IPC/UI/Android/device; full new canonical suite, ignored/vendor/GPU tests; complete security audit/hard abort/guaranteed zeroization. Source inspection and synthetic marker tests do not establish verified identity or connected state.
 
 Evidence `/private/tmp/rapidraw-gd1b5-session-validation-20261016`; `receipt.json` SHA256 `037b6167814e7c2ec6f2aae7a058e55b7bcf4b323d908e9fcbfd2529e056b184`; sealed artifact manifest excludes itself and includes this report/child. Cache explicitly **released** `2026-10-15T16:11:40.063652+00:00`, no active cargo/rustc/Clippy,18.06GiB free; no further builds/work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `7c56908249604f299f8007ba4cfc9e0e65a5a64d9c7b1daff915baf50819ea7e` (4708 bytes).

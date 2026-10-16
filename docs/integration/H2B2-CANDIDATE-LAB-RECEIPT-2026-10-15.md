@@ -2,7 +2,7 @@
 
 **Pass — private synthetic conversion core, frozen answers, targeted tests, owned formatting, and strict all-target Clippy.** This worker delivery is ready for independent source review. It does not implement image comparison or establish rendering, ICC, Adobe, GPU, or device acceptance.
 
-Worker: Codex CLI - Sol, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`, actual Team roster model `gpt-6.1-sol`. Task `01a13e6d-3b6f-73a1-b1a9-a7828e4b0e13`. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/candidate-lab`, frozen HEAD `6f1aa7abb5eeff7a1e072f1232b39a3ae3574cc8`. Initial worktree status was clean.
+Worker: Codex CLI - Sol, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`, actual Team roster model `gpt-6.1-sol`. Task `01a13e6d-3b6f-73a1-b1a9-a7828e4b0e13`. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/candidate-lab`, frozen HEAD `6f1aa7abb5eeff7a1e072f1232b39a3ae3574cc8`. Initial worktree status was clean.
 
 ## Owned changes and private API
 
@@ -119,3 +119,7 @@ The manifest also hashes the preserved initial command/log/binary/patch and runt
 **Not exercised:** actual candidate image inputs or comparison/report/CLI functionality; RAW/TIFF/ICC reference conversion; Adobe custody or fidelity; ignored GPU/upstream/ACR acceptance; Android/device/UI/export; production performance. H2b3 remains pending actual Adobe ICC bytes and a separately reviewed white-consistency bound.
 
 No commits, index changes, push, device action, renderer/statistics/CLI/schema/dependency/lock edit, or other worker-file edit. The ignored runtime download is the disclosed build side effect above. Shared-cache work is finished and the exclusive grant is explicitly released in the delivery message. Stop at frozen source/fixture/receipt for independent review; worker completion is not integration acceptance.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `2ef30772637d1903a81f413739755186e1c890aec9b1a8e91c05a8bc96f0bc49` (12340 bytes).

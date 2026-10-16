@@ -1,6 +1,6 @@
 # GD1b7-B lifecycle wiring — source-only receipt
 
-Actual model/author: **gpt-6-astra**, Team Astra, 2026-10-16. Task `01a14263-fb3a-7761-8cb9-8a8492cae202`; isolated `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-lifecycle-wiring`, detached **abf1ed796246cb952691d287451b843c61985c43**. Binding source grant SHA `c3b28d53b8b4ed0ff45a2bf6b5c8ade62ad5d15b6fdf3ffb23d47f686d0d923a`. This author wrote earlier A/session/browser components; no independent review or runtime acceptance is claimed here. Historical A canonical527Pass/14ignored is not attributed to this package.
+Actual model/author: **gpt-6-astra**, Team Astra, 2026-10-16. Task `01a14263-fb3a-7761-8cb9-8a8492cae202`; isolated `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-lifecycle-wiring`, detached **abf1ed796246cb952691d287451b843c61985c43**. Binding source grant SHA `c3b28d53b8b4ed0ff45a2bf6b5c8ade62ad5d15b6fdf3ffb23d47f686d0d923a`. This author wrote earlier A/session/browser components; no independent review or runtime acceptance is claimed here. Historical A canonical527Pass/14ignored is not attributed to this package.
 
 ## Frozen source and exact scope
 
@@ -52,3 +52,7 @@ Frontend definitions extract and transpile the actual named production callback 
 Pinned source anchors: Tauri app:90 sentinel prevention;581 exit fallback;633 request_restart flag/fallback;1449 Exit callback before cleanup/restart. Runtime-wry2.12.1:2597 RequestExit queue,2626 main-thread closure,4300 code decision. Tao0.37.1 desktop run_return then process exit. Macro2.7.1/Android2.6.3 handler:177 retains cfg; utils2.10.1/2.9.3 platform capability filters; Android build pins2.11.5. These are source evidence only; no alternate dependency fetched. Actual app/event-loop/mobile validation remains necessary to claim those layers.
 
 Next consumer is root static review, then an explicitly assigned isolated compile/runtime owner. Suggested focused tests after that grant: cargo test --locked --offline --lib drive_auth::lifecycle; cargo test --locked --offline --lib drive_auth::commands; node --test src/__tests__/applicationLifecycle.test.mjs; required full-format/strict/regression/platform gates as independently assigned. Do not execute from this receipt. Artifacts are frozen in `/private/tmp/rapidraw-gd1b7-lifecycle-wiring-implementation-20261016`. Stop; no downstream authority.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `3542a890d671194302196b99ff960d2ca8d0af426fd4ed302a060db7d724f4eb` (10793 bytes).

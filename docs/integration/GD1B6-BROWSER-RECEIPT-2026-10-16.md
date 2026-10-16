@@ -1,6 +1,6 @@
 # GD1b6 — owned native browser handoff, source-only delivery
 
-2026-10-16; actual author **gpt-6-astra**, Team slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`; task `01a14202-511f-7af2-9f25-5f327bbd6184`. Isolated writer `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-browser`, detached base `6932d49ba6f989baf5b9ca2ae450b4846fec6512`.
+2026-10-16; actual author **gpt-6-astra**, Team slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`; task `01a14202-511f-7af2-9f25-5f327bbd6184`. Isolated writer `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-browser`, detached base `6932d49ba6f989baf5b9ca2ae450b4846fec6512`.
 
 **Source candidate only. 14 inline test definitions; ZERO tests, synthetic processes, sockets or OS/browser launches executed.** Standalone pinned rustfmt/check, patch reconstruction and protected-input custody pass. No module registration, compilation, Clippy, runtime or provider acceptance is claimed. Author delivery is not independent review.
 
@@ -72,8 +72,12 @@ Unix fixtures use a fixed /bin/sh child with release file and bounded240/600 ite
 
 ## Executed checks and stop
 
-Pinned standalone executable `/Users/harrisontucker/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/rustfmt` reported `rustfmt 1.9.0-stable (48a229ceae 2026-09-01)`. Format argv: `--edition 2024 --config skip_children=true <absolute-new-browser.rs>`; check adds `--check`. Recorded format/check exits are0. No rustc/Cargo/Clippy invocation or build/cache lease occurred. Python patch reconstruction exactly reproduces source; added-line whitespace and sole-public-function checks pass. Full 690 input hashes, tracked inventory, HEAD/index/pointer and root-prepared dependencies match before/after.
+Pinned standalone executable `<HOME>/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/rustfmt` reported `rustfmt 1.9.0-stable (48a229ceae 2026-09-01)`. Format argv: `--edition 2024 --config skip_children=true <absolute-new-browser.rs>`; check adds `--check`. Recorded format/check exits are0. No rustc/Cargo/Clippy invocation or build/cache lease occurred. Python patch reconstruction exactly reproduces source; added-line whitespace and sole-public-function checks pass. Full 690 input hashes, tracked inventory, HEAD/index/pointer and root-prepared dependencies match before/after.
 
 **Pass:** these standalone format/source/custody checks only. **Fail:** none observed in the executed checks. **Not exercised:** compilation, 14 test definitions, runtime/process/socket/browser/provider/full-chain/platform/security/product acceptance, independent review and canonical import. No dependency resolution/download/Git/device/OS browser action occurred. New module is deliberately unregistered.
 
 Next: root static review/freeze, then separate isolated module registration and independent probes/runtime grant, with explicit synthetic child/socket authority and exclusive build resources. Future validator may run focused `cargo test --locked --offline --lib drive_auth::browser -- --test-threads=1`, format and strict all-target Clippy, followed by root's combined canonical gate. Stop at any concrete failure; repairs need a bounded grant. No app/IPC/UI/mobile/config/credential-store/refresh/lease/transfers/sync/release activity or credentials request is implied. Source stays frozen for that review.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `f3d585b883c935ff2d1d479765104a688e602c971e48a501eb5e33c944d452aa` (13463 bytes).

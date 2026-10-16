@@ -1,8 +1,9 @@
 {
+  "_public_redaction": {"original_document_sha256": "167f42a72196430084684ed108c7c988b70da5ae812a1a763d01b4e5deefdc22", "original_document_bytes": 13818, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "task_id": "01a1402a-eeb5-7f61-90f0-3a3976dfe763",
   "model": "gpt-6.1-sol (live Team roster verified)",
   "host": "macOS-26.5.2-arm64-arm-64bit",
-  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration",
+  "source": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration",
   "head": "ec1d032efe7dd321e7a99d1931730b654b922ec3",
   "branch": "codex/drive-sync-foundation-2026-10-15",
   "status": "Pass",
@@ -27,7 +28,7 @@
         "--nocapture",
         "--test-threads=1"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -67,7 +68,7 @@
         "--",
         "--check"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -104,7 +105,7 @@
         "-D",
         "warnings"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -307,7 +308,7 @@
     ]
   },
   "runtime": {
-    "destination": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/resources/libonnxruntime.dylib",
+    "destination": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/resources/libonnxruntime.dylib",
     "existed_before": true,
     "copied_from": null,
     "bytes": 33481272,

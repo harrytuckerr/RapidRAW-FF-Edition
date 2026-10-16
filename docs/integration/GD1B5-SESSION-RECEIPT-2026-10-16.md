@@ -1,6 +1,6 @@
 # GD1b5-S1 — native session owner, source-only receipt
 
-Frozen 2026-10-16 Melbourne by **gpt-6-astra** (live Team roster verified), task `01a14034-3201-78d0-907a-91c310827c60`. Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-session`; clean detached input `c5e1bdcf76de64bad1b87bcaa9e2526c95457efa`, following accepted source commit `cad750c5be0d07f801f8070df76133100d687aa5`.
+Frozen 2026-10-16 Melbourne by **gpt-6-astra** (live Team roster verified), task `01a14034-3201-78d0-907a-91c310827c60`. Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-session`; clean detached input `c5e1bdcf76de64bad1b87bcaa9e2526c95457efa`, following accepted source commit `cad750c5be0d07f801f8070df76133100d687aa5`.
 
 **Delivery: ready for independent source review and separately authorized registration/validation. ZERO tests executed.** This module is unregistered; this receipt does not accept compilation, runtime correctness, Google authorization, account identity, browser launch or Drive sync.
 
@@ -92,3 +92,7 @@ cargo clippy --locked --offline --all-targets -- -D warnings
 These commands are future acceptance work, **not run here**; reviewer must freeze/register source and separately authorize synthetic loopback execution first. Independent adversarial review should inspect generation/terminal commit ordering, ticket resource fencing, retained joins, panic/poison behavior, no-lock-across-await, and concurrency tests; authored fixture definitions do not self-approve those behaviors. Current base339Pass does not waive failures in this new module.
 
 After S1 acceptance, account verification remains a separate grant using authenticated fixed about.get and the configured project mapping; browser adapter/registration/IPC and later adoption remain separate serial owners. No downstream implementation has started. Source and receipt stop here for independent review.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `2410f2493390ec9ad820312dc43d0778d91be220c3938159adf093b44a28e351` (13562 bytes).

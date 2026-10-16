@@ -2,7 +2,7 @@
 
 **Verdict: Revise before accepting this native source.** Run ownership and terminal outcome accounting are sound in static review. Two P2 defects in the new user-visible diagnostic helpers remain: long labels remove the actionable reason, and URI punctuation can expose an unredacted suffix. Repairs fit the already owned backend file and its tests; no DTO, R2a, logging or frontend scope expansion is needed. Backend/frontend still must integrate atomically after review and tests.
 
-Reviewer: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed producer `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/import-terminal`, detached HEAD **`ea191124c9a52c761336a307fb1bcb09da4e84fc`**. Report checkout `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/raf-review` remains **`4c1e965a53de9c835df920b2e3d69c2c8a864708`**. Only this new report written. No Rust/test-binary execution, cargo/build/cache/device/source/lock/Git mutation.
+Reviewer: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed producer `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/import-terminal`, detached HEAD **`ea191124c9a52c761336a307fb1bcb09da4e84fc`**. Report checkout `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/raf-review` remains **`4c1e965a53de9c835df920b2e3d69c2c8a864708`**. Only this new report written. No Rust/test-binary execution, cargo/build/cache/device/source/lock/Git mutation.
 
 ## Identity and preservation
 
@@ -94,3 +94,7 @@ cargo clippy --offline --locked --all-targets -- -D warnings
 ```
 
 This backend changes the required command argument and event shapes. It cannot land alone with the old frontend. Independent R3B review, combined checks and real native transport remain separate gates. This report does not authorize source repairs, native-cache use or any later implementation slice. Report SHA is supplied through Team message.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `c23f81f0cb4d36950d646a42af875cf65a4c9891f9eac2331883646b54519019` (16194 bytes).

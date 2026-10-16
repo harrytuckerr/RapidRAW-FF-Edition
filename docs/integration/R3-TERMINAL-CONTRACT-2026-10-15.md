@@ -2,7 +2,7 @@
 
 **Ready for separately assigned implementation; no implementation performed.** Replace false all-success feedback with a validated terminal result and protect it with per-run identity plus one active native batch. This amends only R3 and its ownership in the accepted `ANDROID-RAF-REPAIR-REVIEW-2026-10-15.md` (§§63–81; SHA256 `70c16a9879cdeb169160f738988dda527ece968bae1ca7879eb32436fa5d60b1`). R2a staging remains frozen. R2b/local-sidecar/deletion and URI logging changes remain separate.
 
-Author: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Source authority: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead` at **`05dd25e74256bf0318cf43e6462cfd778bb4de53`**. Actual report checkout `raf-review` is **`4c1e965a53de9c835df920b2e3d69c2c8a864708`**, not the brief's `8a4f02bc`; no checkout change made. All source references below are to the lead base. Report is the only writable artifact.
+Author: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Source authority: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead` at **`05dd25e74256bf0318cf43e6462cfd778bb4de53`**. Actual report checkout `raf-review` is **`4c1e965a53de9c835df920b2e3d69c2c8a864708`**, not the brief's `8a4f02bc`; no checkout change made. All source references below are to the lead base. Report is the only writable artifact.
 
 ## Confirmed defects and boundaries
 
@@ -130,6 +130,10 @@ SHA-256 recomputed from `git show 05dd25e7:<path>` and compared byte-for-byte to
 | `src/__tests__/profileCompatibility.test.mjs` | `569336a4a131a285468e38072efe04b8892ce0385b174562222dd522619e9b5b` |
 | `package.json` | `9796b348c9f7767854fa701b8696969e1ab06e2d52e58b4dd9fc3cade7447e08` |
 
-Installed primary implementation read: `/Users/harrisontucker/Documents/CoWork/RapidRaw/node_modules/@tauri-apps/api/event.js:71–83` registers via asynchronous invoke and resolves an unlisten callback. The lead snapshot has no node_modules; no install or symlink was created. Current package declares existing uuid/esbuild/react-test-renderer and `test:profiles`; no additional dependency needed. Source-only review does not establish native transport ordering, so the contract deliberately tolerates reorder/duplication and gates readiness.
+Installed primary implementation read: `<HOME>/Documents/CoWork/RapidRaw/node_modules/@tauri-apps/api/event.js:71–83` registers via asynchronous invoke and resolves an unlisten callback. The lead snapshot has no node_modules; no install or symlink was created. Current package declares existing uuid/esbuild/react-test-renderer and `test:profiles`; no additional dependency needed. Source-only review does not establish native transport ordering, so the contract deliberately tolerates reorder/duplication and gates readiness.
 
 **Pass — read-only source/identity/call-site analysis and completed contract. Fail — current frozen false-success and overlap behavior remain unfixed. Not exercised — new tests (not written), Rust/Node test execution, builds, shared cache, devices or native transport.** Commands actually executed: rg, cat/sed/nl/tail, read-only git rev-parse/status/show, shasum, and stdin Python hashlib/subprocess source identity comparison. No production source, lock, Git, cache or device mutation. Report hash is delivered in Team message. Remaining implementation choices are ordinary function names/test seams; no unresolved choice about protocol, success predicate or overlap policy remains. Lead must explicitly grant proposed new ownership and native test window.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `050005a661b88d7cec03252ae500970452b7cae599b409edc03507991aadab88` (23753 bytes).

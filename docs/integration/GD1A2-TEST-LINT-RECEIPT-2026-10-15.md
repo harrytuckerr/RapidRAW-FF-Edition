@@ -1,7 +1,7 @@
 # GD1a2 test-lint receipt — 2026-10-15
 
 - **Worker/model:** Codex CLI - Luna / GPT-6 Luna
-- **Snapshot:** `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-graph-lint`
+- **Snapshot:** `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-graph-lint`
 - **Frozen HEAD:** `3b1d89e1eb977db29059b8faedac708a969e1bfa`
 - **Assigned source inputs:** root-copied `state.rs` SHA-256 `4aa951702419bd31cf50c5581071167657852a20ac754941f39d7d49c146acbb`; pre-existing root-owned `mod.rs` SHA-256 `f46c6145370f504089e16a6db9d55435e7bd465c4a2036685015abb285b85c14` (unchanged by this task).
 - **Source/document files changed:** exactly `src-tauri/src/drive/state.rs` (ten test-call substitutions) and this new receipt. As explicitly assigned for validation, the ignored ONNX runtime library was also copied to `src-tauri/resources/`; it remains ignored. No other source/production behavior, test assertions/meaning, model, module, lib, manifest, lock, or dependency changes.
@@ -52,3 +52,7 @@ cargo clippy --locked --offline --all-targets -- -D warnings
 The assigned cache `/private/tmp/rapidraw-integration-20261015/target` was used exclusively for this task and is now **RELEASED to the lead**. Free space was 18 GiB before and 17 GiB after; the copied ONNX library validated locally and the build script skipped any download. No stage, commit, push, dependency/network access, device action, or provider action occurred.
 
 **Next consumer:** root independent review and integration. This worker stops at this frozen patch.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `de16560695d91582fbf17de016aa47a2201a8834542132d2c26de3ccb400e758` (4255 bytes).

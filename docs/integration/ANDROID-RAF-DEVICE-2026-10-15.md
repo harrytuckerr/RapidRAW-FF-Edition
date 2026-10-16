@@ -5,8 +5,8 @@
 ## Task/provenance and limits
 
 - Task `01a13e10-29dc-7192-bcbc-09806a1726a4`; sole device operator slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`, model `gpt-6.1-sol` per current Team roster. No sub-agents.
-- Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/device`, frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`.
-- Host macOS26.5.2 arm64, Python3.9.6; same ADB33.0.3 host as H1a. Device serial `RFGL73CE9XM`, current RapidRAW PID24047; serial-specific `get-state` returns `device`.
+- Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/device`, frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`.
+- Host macOS26.5.2 arm64, Python3.9.6; same ADB33.0.3 host as H1a. Device serial `<DEVICE_SERIAL>`, current RapidRAW PID24047; serial-specific `get-state` returns `device`.
 - H1a preflight document remains unchanged: SHA256 `40d3d15669d650b4bf6ef9cd411dfb58236919204eb2b8c0c46b5d1f85b7637e`. That prior receipt verified the installed attempt-8 APK SHA256 `bf8d139932aba062ec4da0d8ffcf446d6465ecec96b258dd658e5aace018a546`; H1R did not pull/re-hash the APK again.
 - Private evidence is in newly created mode0700 `/private/tmp/rapidraw-fuji-H1-20261015/raf-diagnostic/`. Device photo paths/basename are replaced here by `<APP_MEDIA>/.library/<FAILED_RAF>`; exact task identifiers/argv are retained only in private JSON receipts.
 - No UI taps, launches, force-stop, install, log clearing, data/settings/permission/device-file mutation, source/lock/Git changes, builds or emulator operations. No ADB forward/CDP connection was needed. User remained free to test the phone.
@@ -82,20 +82,24 @@ No active screen-test window is assumed. Stop at this diagnostic receipt; lead/O
 
 ## Commands, exits and artifact receipt
 
-Device paths below are redacted aliases; exact executable argv are in private JSON. Every device command explicitly uses `-s RFGL73CE9XM`. All commands are read-only; `logcat -d` does not clear logs.
+Device paths below are redacted aliases; exact executable argv are in private JSON. Every device command explicitly uses `-s <DEVICE_SERIAL>`. All commands are read-only; `logcat -d` does not clear logs.
 
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM get-state` → 0 (connection).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell pidof io.github.CyberTimon.RapidRAW` → 0 (pid).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell dumpsys activity activities` → 0 (foreground).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell 'run-as io.github.CyberTimon.RapidRAW grep -n -B 4 -A 4 '"'"'No decoder found'"'"' logs/app.log'` → 0 (exact-error-context).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM logcat -d -v epoch --pid=24047` → 0 (pid-logcat-context).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell 'run-as io.github.CyberTimon.RapidRAW grep -n -i '"'"'<FAILED_STEM>'"'"' logs/app.log'` → 0 (failed-basename-log-history).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell 'run-as io.github.CyberTimon.RapidRAW grep -n -i '"'"'content://'"'"' logs/app.log'` → 1 (content-uri-error-evidence).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell run-as io.github.CyberTimon.RapidRAW stat -c ''"'"'%s %Y %i'"'"'' <APP_MEDIA>/.library/<FAILED_RAF>` → 0 (stat-before).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM exec-out run-as io.github.CyberTimon.RapidRAW head -c 64 <APP_MEDIA>/.library/<FAILED_RAF>` → 0 (header64).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell run-as io.github.CyberTimon.RapidRAW sha256sum <APP_MEDIA>/.library/<FAILED_RAF>` → 0 (sha256).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell run-as io.github.CyberTimon.RapidRAW stat -c ''"'"'%s %Y %i'"'"'' <APP_MEDIA>/.library/<FAILED_RAF>` → 0 (stat-after).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> get-state` → 0 (connection).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell pidof io.github.CyberTimon.RapidRAW` → 0 (pid).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell dumpsys activity activities` → 0 (foreground).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell 'run-as io.github.CyberTimon.RapidRAW grep -n -B 4 -A 4 '"'"'No decoder found'"'"' logs/app.log'` → 0 (exact-error-context).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> logcat -d -v epoch --pid=24047` → 0 (pid-logcat-context).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell 'run-as io.github.CyberTimon.RapidRAW grep -n -i '"'"'<FAILED_STEM>'"'"' logs/app.log'` → 0 (failed-basename-log-history).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell 'run-as io.github.CyberTimon.RapidRAW grep -n -i '"'"'content://'"'"' logs/app.log'` → 1 (content-uri-error-evidence).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell run-as io.github.CyberTimon.RapidRAW stat -c ''"'"'%s %Y %i'"'"'' <APP_MEDIA>/.library/<FAILED_RAF>` → 0 (stat-before).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> exec-out run-as io.github.CyberTimon.RapidRAW head -c 64 <APP_MEDIA>/.library/<FAILED_RAF>` → 0 (header64).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell run-as io.github.CyberTimon.RapidRAW sha256sum <APP_MEDIA>/.library/<FAILED_RAF>` → 0 (sha256).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell run-as io.github.CyberTimon.RapidRAW stat -c ''"'"'%s %Y %i'"'"'' <APP_MEDIA>/.library/<FAILED_RAF>` → 0 (stat-after).
 
 Host source reads used `nl -ba`/`sed` at the file/lines above and `rg` for the literal error/URI boundaries; no source edits occurred. Git HEAD/status and H1a document SHA were checked. A zero-byte bootstrap temporary was accidentally created at the H1 evidence root before the new child existed; it was immediately removed, leaving no persistent out-of-allowlist change. Only this document and `raf-diagnostic/` contain persistent H1R writes.
 
 Private `report-receipt.json`, `ANDROID-RAF-DEVICE.patch` and `evidence-manifest.json` provide the new-document hash/diff, preflight-preservation check, exact status and evidence hashes. No stages/commits/pushes were performed. Next consumers are the lead and Opus slot ending`f6f8`; both received the critical header/hash/log observation through Team messaging.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `51f10e64afd1277ed2874753a392610a10d5b6385318125214ecf7cd3ca10713` (12022 bytes).

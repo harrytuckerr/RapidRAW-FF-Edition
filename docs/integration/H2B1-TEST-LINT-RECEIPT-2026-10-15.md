@@ -2,7 +2,7 @@
 
 **Pass — bounded source patch and owned-file formatting check.** The only source change names the existing constant's test-row tuple type. Clippy and a rebuilt runtime artifact are **Not exercised** by this worker; the lead retains canonical rebuild/test/lint acceptance.
 
-Worker: Codex CLI - Sol, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`, actual Team roster model `gpt-6.1-sol`. Task `01a13e65-3c90-7893-9fe3-3fb8c09c3046`. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/stats-lint`, detached HEAD `05dd25e74256bf0318cf43e6462cfd778bb4de53`. The initial source was an explicitly supplied uncommitted input, verified as SHA-256 `6d58fe2ce868944234e6508b287b9f4c6837d10ede5b327e0932f735522d1d1b`.
+Worker: Codex CLI - Sol, slot `01a13e03-d91b-7810-a557-ca8e5fd5cd16`, actual Team roster model `gpt-6.1-sol`. Task `01a13e65-3c90-7893-9fe3-3fb8c09c3046`. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/stats-lint`, detached HEAD `05dd25e74256bf0318cf43e6462cfd778bb4de53`. The initial source was an explicitly supplied uncommitted input, verified as SHA-256 `6d58fe2ce868944234e6508b287b9f4c6837d10ede5b327e0932f735522d1d1b`.
 
 The frozen canonical failure log was read at `/private/tmp/rapidraw-h2b1-canonical-20261015/clippy.log`, SHA-256 `ac8ee6007d8209c60b790454a11b9b36f817e03c8f88cd048ec25131a62e0a77`. It reports `clippy::type_complexity` at the old `EXACT_MEAN_ORACLE` declaration, line 1138, promoted to an error by `-D warnings`. The canonical 181 library tests, two CLI tests, five controls, and format Pass are lead-reported prior evidence; this worker did not rerun them.
 
@@ -83,3 +83,7 @@ assert hashlib.sha256(after).hexdigest() == '70f57e66d3b4d95f8038cc6c698a39203f1
 **Fail:** the frozen canonical log contains the assigned pre-patch Clippy failure; no new Clippy result is claimed. The mistaken edition-2021 format check is recorded above and was resolved by checking with the package's actual edition.
 
 **Not exercised:** compiling, Clippy, unit/runtime tests, any new binary or runtime artifact. No Cargo, build, shared cache, device, dependency/lock, or Git mutation. Prior worker receipt/review and other snapshots were untouched. Final owned-file status is the supplied modified source plus this new receipt. The receipt hash is reported in the Team delivery message; root independent review and canonical verification remain required. Stop here.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `3e2c2000ae4847028472a6bdd01ba4e4d503f79cf033d6feddbe176ae269a9ba` (6129 bytes).

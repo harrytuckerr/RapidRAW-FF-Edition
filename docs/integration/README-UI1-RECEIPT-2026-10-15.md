@@ -1,7 +1,7 @@
 # README UI1 receipt — 2026-10-15
 
 - **Worker/model:** Codex CLI - Luna / GPT-6 Luna
-- **Snapshot/base:** `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/readme-ui1`, detached `bb21a75815d5331c65dec2efa23ac712e545c2ed`
+- **Snapshot/base:** `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/readme-ui1`, detached `bb21a75815d5331c65dec2efa23ac712e545c2ed`
 - **Exact writable files:** `README.md`; new `docs/integration/README-UI1-RECEIPT-2026-10-15.md`.
 - **No other checkout edits:** canonical `profile-preset-integration` had unrelated UI and integration changes and was read-only; all edits were made in this detached snapshot.
 
@@ -32,3 +32,7 @@ Status text separates source/component and host serialization checks from OS cho
 - This receipt SHA-256: sent to the lead with the reviewable README diff.
 
 **Next consumer:** lead review/import. The README remains a detached, uncommitted patch; no new release is implied.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `97511c5e7af5b9a61612fba69b999a3da3992dc6e4fc1d53f556abec07aa108c` (3912 bytes).

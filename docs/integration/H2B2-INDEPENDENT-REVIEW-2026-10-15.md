@@ -2,7 +2,7 @@
 
 **Verdict: Accept.** The private candidate conversion matches the contracted path, keeps finite negative and above-one values, fails closed on non-finite stages and required inverses, and checks all 108 frozen components and 43 fault cells at strict absolute error `< 1e-6` in the correct input domain. No conversion, custody, tolerance, or false-range defect found. This is not acceptance of image comparison, ICC, Adobe, GPU, or a device. Compare remains unavailable.
 
-Reviewer: Grok Build / `grok-4.7`, slot `01a13e02-3c22-7ad0-9ed3-8bab4bc7d945`. This note is written only in `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/harness-review`, whose actual HEAD is still `4c1e965a53de9c835df920b2e3d69c2c8a864708`, tree `9f36c891f35d9310a7977bda7d851178ad92039d`. That snapshot does not contain the candidate. The reviewed tree is the sibling `candidate-lab` worktree, producer base `6f1aa7abb5eeff7a1e072f1232b39a3ae3574cc8`, tree `be4f79c0644a315aed604c1d090cbe9f8e0f70bb`, with an uncommitted append. Environment: macOS 26.5.2 / 25F84, arm64. No Cargo, cache write, device, source edit, lock edit, or Git mutation.
+Reviewer: Grok Build / `grok-4.7`, slot `01a13e02-3c22-7ad0-9ed3-8bab4bc7d945`. This note is written only in `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/harness-review`, whose actual HEAD is still `4c1e965a53de9c835df920b2e3d69c2c8a864708`, tree `9f36c891f35d9310a7977bda7d851178ad92039d`. That snapshot does not contain the candidate. The reviewed tree is the sibling `candidate-lab` worktree, producer base `6f1aa7abb5eeff7a1e072f1232b39a3ae3574cc8`, tree `be4f79c0644a315aed604c1d090cbe9f8e0f70bb`, with an uncommitted append. Environment: macOS 26.5.2 / 25F84, arm64. No Cargo, cache write, device, source edit, lock edit, or Git mutation.
 
 The oracle note `3019ff22…` and Sol's oracle review `7d64cd84…` were frozen inputs for expected-value identity only. This review read the Rust and rechecked the fixture bytes. It does not adopt either document as the implementation verdict.
 
@@ -66,3 +66,7 @@ No defect is raised. Severity, reproducer, and minimum fix do not apply.
 **Not exercised:** ICC parsing and PCS-D50→Wc, actual candidate images, Adobe comparison, GPU parity (`--ignored` was not used), Android, device, UI, export, and production performance. `compare` is still unimplemented. The three ignored validation tests remain ignored.
 
 Commands were read-only `git rev-parse`, `git status`, `git diff`, `git show`, `git check-ignore`, `shasum -a 256`, a stdlib Python custody comparison, and the preserved-binary invocation above. Document SHA-256 is in the delivery message. Stop here. No downstream slice is authorized by this review.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `07abe6e291e100bfc309e796537877a3a573ef6a7f51318992f7d83e05cd0972` (10198 bytes).

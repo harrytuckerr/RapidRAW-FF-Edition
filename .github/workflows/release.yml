@@ -4,6 +4,9 @@ on:
   release:
     types: [created]
 
+permissions:
+  contents: read
+
 jobs:
   release:
     strategy:
@@ -66,6 +69,10 @@ jobs:
       asset-name-pattern: '[name]_v[version]_[platform]_[arch][ext]'
       asset-prefix: ${{ matrix.asset-prefix }}
       mobile: ${{ matrix.mobile }}
-    secrets: inherit
+      sign-android: ${{ matrix.mobile == 'android' }}
+    secrets:
+      ANDROID_KEY_ALIAS: ${{ matrix.mobile == 'android' && secrets.ANDROID_KEY_ALIAS || '' }}
+      ANDROID_KEY_PASSWORD: ${{ matrix.mobile == 'android' && secrets.ANDROID_KEY_PASSWORD || '' }}
+      ANDROID_KEY_BASE64: ${{ matrix.mobile == 'android' && secrets.ANDROID_KEY_BASE64 || '' }}
     permissions:
       contents: write

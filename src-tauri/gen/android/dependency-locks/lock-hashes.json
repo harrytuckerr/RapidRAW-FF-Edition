@@ -1,8 +1,8 @@
 {
   "source_manifest_sha256": "5815b4c6bca1330a193d3e986cf27b4912a88138b302e53741567a7a15e4268a",
   "locks": {
-    "Cargo.lock": "f9d6712ff027fdcb3e0744b35fa5b3dee3f39e3aff68045975d52d719ba8bdbd",
-    "package-lock.json": "1fab8b696139c37da88d1c76980799f210a4b00914cd91f717e3b100923bd37c"
+    "Cargo.lock": "b439f4b3908e8753a1b3f7d9d0e2691ef64e49761c56cc8032ea82fac1967997",
+    "package-lock.json": "2d322ae4c3f315094d76af8e48a6da4c4191b3d8187fc28a9465e5eb8174e069"
   },
   "npm_root_pins": {
     "@tauri-apps/api": "2.11.1",
@@ -12,7 +12,7 @@
   "nested_http_api": "2.12.4 (HTTP plugin declares ^2.12.0)",
   "npm_store_fs": "absent from source manifest and resolved tree; not added",
   "cargo_pins_unchanged": true,
-  "status": "Resolution pins retained; direct dependency declaration reconciled and ARM64 debug APK built and verified.",
+  "status": "Dependency versions retained with source-map-js 1.2.2 and local glib 0.18.5 security backport. Fresh desktop/Android npm installs and frontend builds passed; native packages have not been rebuilt.",
   "source_manifest_scope": "Historical dependency-resolution source manifest; retained provenance, not the current application source manifest.",
   "cargo_declaration_amendment": {
     "source_commit": "b75d096b4ef2001377cfc628835a6bd160601c28",
@@ -24,6 +24,28 @@
     "release_tag": "fuji-preview-2026.10.16.1",
     "application_version": "1.6.5",
     "android_apk_sha256": "bcff8a7d64eb36820e64d6e02653b71314bd223e51f93b112c86614e106e4d08",
-    "scope": "Locked ARM64 debug build and package verification passed with this lock; not provider or full device feature acceptance."
+    "scope": "Historical b75d096b ARM64 debug APK using the pre-security Cargo/npm lock hashes recorded here; it does not validate the current amended locks or rebuilt packages.",
+    "cargo_lock_sha256_at_build": "f9d6712ff027fdcb3e0744b35fa5b3dee3f39e3aff68045975d52d719ba8bdbd",
+    "package_lock_sha256_at_build": "1fab8b696139c37da88d1c76980799f210a4b00914cd91f717e3b100923bd37c"
+  },
+  "glib_security_backport": {
+    "advisories": [
+      "GHSA-wrw7-89jp-8q8g",
+      "RUSTSEC-2024-0429"
+    ],
+    "version": "0.18.5",
+    "source": "src-tauri/vendor/glib",
+    "published_crate_sha256": "233daaf6e83ae6a12a52055f568f9d7cf4671dabb78ff9560ab6da230ce00ee5",
+    "official_fix_commit": "b5a4071e439bef2b5eea76c3aa25e5ae84839e34",
+    "prior_android_cargo_lock_sha256": "f9d6712ff027fdcb3e0744b35fa5b3dee3f39e3aff68045975d52d719ba8bdbd",
+    "amended_android_cargo_lock_sha256": "b439f4b3908e8753a1b3f7d9d0e2691ef64e49761c56cc8032ea82fac1967997",
+    "package_versions_and_dependency_edges_unchanged": true,
+    "validation": "Host optimized public-FFI regressions: 4 Pass, 0 Fail. Strict standalone Clippy and formatting Pass. Real Android preparation copied every vendored file exactly; desktop and prepared Android cargo metadata --locked --offline --no-deps Pass. Linux regression CI is configured but has not yet run; full GTK/Tauri and new package acceptance remain Not exercised."
+  },
+  "source_map_js_security_update": {
+    "advisory": "GHSA-68fv-2mgg-jv7q",
+    "version": "1.2.2",
+    "android_npm_lock_sha256": "2d322ae4c3f315094d76af8e48a6da4c4191b3d8187fc28a9465e5eb8174e069",
+    "validation": "10 upstream security regressions Pass. Fresh desktop (305 installed package entries) and Android (306 entries) npm ci and both Vite builds Pass. Initial Android private-cwd lock-copy failure is retained as an orchestration failure. No new APK or DMG built."
   }
 }

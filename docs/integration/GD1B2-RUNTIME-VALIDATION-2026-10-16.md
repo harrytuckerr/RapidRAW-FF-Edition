@@ -2,7 +2,7 @@
 
 **Pass** for the final bounded native/runtime gates. The first strict lint attempt **Fail** was confined to two assertions in the independent temporary probe; its exact source, binary and failure log remain preserved. Lead retains source acceptance/integration. This does not connect Google or implement Drive sync.
 
-Model `gpt-6.1-sol` (live roster), macOS-26.5.2-arm64-arm-64bit; detached `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4` at `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-loopback-review`. Exact listener `ee3b4ccbd31ff154a2aed9b51723d533c7ee944460a165b14375b42ed7678c41`, module `47ffc8546999cca0a1e5fafc77eb117625821803a501bdf84cdcf4ba6c22c0ca`, PKCE `85bd9b4882a9fb45d54c63231b22bf962c322d884f9aa84ca67f866e551e7dd8`. Both author and lead receipts read in full before execution.
+Model `gpt-6.1-sol` (live roster), macOS-26.5.2-arm64-arm-64bit; detached `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4` at `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-loopback-review`. Exact listener `ee3b4ccbd31ff154a2aed9b51723d533c7ee944460a165b14375b42ed7678c41`, module `47ffc8546999cca0a1e5fafc77eb117625821803a501bdf84cdcf4ba6c22c0ca`, PKCE `85bd9b4882a9fb45d54c63231b22bf962c322d884f9aa84ca67f866e551e7dd8`. Both author and lead receipts read in full before execution.
 
 | Gate | Result | Exit | Elapsed |
 |---|---|---:|---:|
@@ -56,3 +56,7 @@ Actual preserved binaries:
 Private evidence `/private/tmp/rapidraw-gd1b2-loopback-validation-20261016`; `receipt.json` SHA256 `c3a3c8b6d9e21a45a2672e09cab4ce01145baa5fb5e796be29f4d618eb210081`. Logs, both probes, correction diff, commands/environment, before/after manifests, binary custody and cleanup are sealed by `artifact-hashes.json` (excludes itself).
 
 Desktop cache **released** at `2026-10-15T14:11:01.111625+00:00`, no active cargo/rustc/Clippy, 17.47GiB free. No further build or downstream work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `b3065da395b63879e0c88c23525f65477fd98b281840c0aceb85a849b484c8af` (7648 bytes).

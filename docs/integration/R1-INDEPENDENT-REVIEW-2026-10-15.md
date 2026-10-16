@@ -2,7 +2,7 @@
 
 **Verdict: Accept the frozen two-source-file R1 change. Revise the receipt prose separately as listed below.** No blocking source defect found. This accepts the bounded existing-open guard, not Android runtime behavior, original RAW acquisition, import staging or overall profile acceptance.
 
-Reviewer: Codex CLI - Astra, actual model `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed snapshot: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/raf-guards`, detached base `8877d7eaa14442814912a199c8de9abdfba5c8b9`. Report-only checkout: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/raf-review`. Prior design `ANDROID-RAF-REPAIR-REVIEW-2026-10-15.md` governs only its R1 slice here. No source edits, builds, tests, device commands, private-photo rendering or build-cache use by this reviewer.
+Reviewer: Codex CLI - Astra, actual model `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed snapshot: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/raf-guards`, detached base `8877d7eaa14442814912a199c8de9abdfba5c8b9`. Report-only checkout: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/raf-review`. Prior design `ANDROID-RAF-REPAIR-REVIEW-2026-10-15.md` governs only its R1 slice here. No source edits, builds, tests, device commands, private-photo rendering or build-cache use by this reviewer.
 
 ## Frozen input verification
 
@@ -79,3 +79,7 @@ The receipt appropriately leaves genuine X-T5 RAW, native Minolta fixture, Andro
 Read-only commands: `git rev-parse HEAD`, `git status --short`, `git diff --numstat`, frozen-diff comparison via Python/subprocess/hashlib, `git diff --check`, `nl`/`rg`/`cat`/`tail`, `shasum -a 256` over assigned source/receipt/log/binary. One base-comparison command initially had a mistyped SHA and exited128; corrected exact-SHA command returned0 and no source differences. No test binary execution or build-cache access.
 
 Only new artifact is this report; final SHA-256 is delivered through Team messaging. Next consumer: lead imports the accepted two-source-file diff with receipt corrections and performs combined validation/device evidence under its own assignment. This review neither changes source nor expands scope.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `1f993a5e2acf431d2b7f75e446ceda8131d013860595a1eadcee82f5e090c13e` (11375 bytes).

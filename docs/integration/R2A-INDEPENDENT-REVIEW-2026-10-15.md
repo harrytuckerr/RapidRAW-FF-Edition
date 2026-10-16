@@ -2,7 +2,7 @@
 
 **Verdict: Revise for one bounded cleanup-reporting defect (P2).** The URI-only validation, same-buffer staging and no-clobber publication design otherwise matches the assigned slice. A post-publication metadata error is incorrectly treated as proof that the temporary path is absent. Fix that branch and refresh its focused evidence before accepting R2a. No R2b/local-path or R3/event implementation is requested here.
 
-Reviewer: Codex CLI - Astra, actual model `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/uri-import`, HEAD `8a4f02bcec8a3edb567979462cbf022adde6f8b9`. Only this new report is written in `raf-review/docs/integration/`. Read-only review: no source edits, Cargo/build/test-binary execution, filesystem failure experiment, cache mutation, private photo reading/rendering or device operation.
+Reviewer: Codex CLI - Astra, actual model `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/uri-import`, HEAD `8a4f02bcec8a3edb567979462cbf022adde6f8b9`. Only this new report is written in `raf-review/docs/integration/`. Read-only review: no source edits, Cargo/build/test-binary execution, filesystem failure experiment, cache mutation, private photo reading/rendering or device operation.
 
 ## Frozen input identity
 
@@ -47,7 +47,7 @@ Line numbers below are in modified `uri-import/src-tauri/src/file_management.rs`
 
 ## Installed tempfile3.27.0 and ownership analysis
 
-Read local source at `/Users/harrisontucker/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tempfile-3.27.0/src/file/`:
+Read local source at `<HOME>/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/tempfile-3.27.0/src/file/`:
 
 - `imp/unix.rs:94–134`: Android/macOS/Linux no-replace publication first uses `renameat_with(...,NOREPLACE)`. NOSYS/INVAL fall back to `hard_link`; other errors return directly. Hard-link creation refuses an existing destination. Its subsequent unlink error is deliberately ignored. There is no replace-rename fallback in the reviewed wrapper or this `overwrite=false` implementation.
 - `mod.rs:857–865,299–313`: initial `NamedTempFile.keep()` transfers file/path and disables automatic path cleanup. Unix `imp::keep` at137–138 always returns Ok; Windows-specific keep failure is not an Android-production path in this slice.
@@ -87,3 +87,7 @@ The receipt otherwise labels host versus Android/provider evidence candidly and 
 Read-only commands: `git rev-parse HEAD`, `git status --short`, `git diff`, `git show HEAD:...`, `git diff --check`, Python/subprocess text/hash comparisons (no file writes), `nl`/`rg`/`cat`/`tail`, `shasum -a 256`. No shared build-cache access/mutation or test-binary execution. Only this report is a new persistent artifact; its SHA is in the delivery message.
 
 Next consumer: lead assigns a narrow same-file correction and focused regression, then freezes a new source/diff/receipt for re-review. The current source is not accepted as fully satisfying R2a cleanup reporting. Android build/provider/Fold gates remain required after source acceptance. Stop here; no R2b/R3 scope expansion or source editing by reviewer.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `e9eb2d6b71c81ec9a9fee292da092a17734d9a5b3ff0f17a5e49ce0eebc1eb96` (14388 bytes).

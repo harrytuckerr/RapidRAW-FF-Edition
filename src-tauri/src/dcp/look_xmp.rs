@@ -849,8 +849,9 @@ mod tests {
             eprintln!("SKIPPED: RAPIDRAW_TEST_ASSETS not set — cannot run Look acceptance tests");
             return;
         }
-        let dir = std::env::var("RAPIDRAW_LOOKS_DIR")
-            .unwrap_or_else(|_| "/Users/harrisontucker/Downloads/Cobalt_CCD_Fever_3".to_string());
+        let dir = std::env::var("RAPIDRAW_LOOKS_DIR").unwrap_or_else(|_| {
+            "/private/tmp/rapidraw-private-fixtures/Cobalt_CCD_Fever_3".to_string()
+        });
         if !std::path::Path::new(&dir).is_dir() {
             eprintln!("SKIPPED: Looks directory not found at {dir}");
             return;

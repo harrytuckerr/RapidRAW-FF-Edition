@@ -1111,8 +1111,9 @@ mod tests {
     #[ignore = "requires vendor DCP; enable with RAPIDRAW_TEST_ASSETS=1"]
     #[allow(clippy::approx_constant)] // real DCP matrix value near FRAC_PI_6
     fn parses_supplied_cobalt_dcp_exact() {
-        let path =
-            Path::new("/Users/harrisontucker/Downloads/Fujifilm X-Pro2 Cobalt Flat v3.0.dcp");
+        let path = Path::new(
+            "/private/tmp/rapidraw-private-fixtures/Fujifilm X-Pro2 Cobalt Flat v3.0.dcp",
+        );
         if std::env::var("RAPIDRAW_TEST_ASSETS").as_deref() != Ok("1") {
             eprintln!("SKIPPED: RAPIDRAW_TEST_ASSETS not set — cannot parse supplied DCP");
             return;

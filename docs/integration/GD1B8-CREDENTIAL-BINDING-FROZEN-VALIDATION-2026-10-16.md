@@ -1,6 +1,6 @@
 # GD1b8-A frozen credential-binding validation
 
-**Pass for this new bounded validation task.** Validator **gpt-6.1-sol**, production author **gpt-6-astra**; task `01a1434c-3da0-7c83-a3bb-fd004f7f55ac`, detached `eadcc985455d33deaa8f5677b641d511342c2f17` in `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-credential-binding-review`. Source, existing child20100B/c7716979 and original oracle8247B/47b3d8bf stayed unchanged. No source/helper/oracle/expectation/formatter write or Git command occurred.
+**Pass for this new bounded validation task.** Validator **gpt-6.1-sol**, production author **gpt-6-astra**; task `01a1434c-3da0-7c83-a3bb-fd004f7f55ac`, detached `eadcc985455d33deaa8f5677b641d511342c2f17` in `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-credential-binding-review`. Source, existing child20100B/c7716979 and original oracle8247B/47b3d8bf stayed unchanged. No source/helper/oracle/expectation/formatter write or Git command occurred.
 
 | Check, once in this order | Result | Exit | Wall seconds |
 |---|---|---:|---:|
@@ -27,3 +27,7 @@ Actual Rust/Cargo1.98.1 identities and pinned executable hashes, explicit locked
 **Cache RELEASED `2026-10-16T06:06:03.664146+00:00`**, full-width fresh process proof no compiler/test/fixture conflicts or actual gate PID survivors; free bytes `12946984960`, new10GiB final-floor-met `True`. No native command after release. No hard OS scheduling/abort or secure-erasure claim.
 
 **Not exercised:** broader canonical/default/ignored/compile-fail suites, real Google/provider/default browser/positive public OAuth/account-project attestation, OS store/backend/custody/retention/renewal/offline consent/configuration, actual app/IPC/mobile/device/sync/release. Existing TypeScriptFail70/ESLintFail49 and separate observed no-new comparisons remain historical, not fully-green frontend acceptance. Root final acceptance/integration and any later task remain separate. Stop frozen.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `08a223605ebf23947207d769bc88c49be30f2963a5b1f0b7c3d8a4edc672dfe5` (5324 bytes).

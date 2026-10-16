@@ -1,8 +1,9 @@
 {
+  "_public_redaction": {"original_document_sha256": "bbdc529126690cfe61fbcacd06470b9c73fc9881ba0d0c87137392ef906bf1e9", "original_document_bytes": 1991, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "created_utc": "2026-10-15T07:39:54.047338+00:00",
   "reason": "UserconfirmedClaudeusagewindowlimit; userauthorizedOpus->Astra fallback",
-  "old_snapshot": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/import-terminal",
-  "new_snapshot": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/import-frontend-astra",
+  "old_snapshot": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/import-terminal",
+  "new_snapshot": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/import-frontend-astra",
   "base_commit": "ea191124c9a52c761336a307fb1bcb09da4e84fc",
   "files": {
     "src-tauri/src/file_management.rs": {

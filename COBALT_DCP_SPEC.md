@@ -59,7 +59,7 @@ The project is complete when **all** of the following are true and demonstrated:
 |---|---|
 | **Working fork (all work happens here)** | `https://github.com/harrytuckerr/RapidRAW` |
 | **Upstream (read-only reference)** | `https://github.com/CyberTimon/RapidRAW` — default branch `main`, AGPL-3.0 |
-| **Local working directory** | `/Users/harrisontucker/Documents/CoWork/RapidRaw` |
+| **Local working directory** | `<HOME>/Documents/CoWork/RapidRaw` |
 | **Integration branch** | `cobalt/main` — every PR targets this, never `main` |
 | **Feature branches** | `cobalt/w1-dcp-parser`, `cobalt/w2-cpu-render`, … one per workstream |
 | **Android** | **Same repository** — `src-tauri/gen/android/`. There is no separate Android repo to fork. |
@@ -69,8 +69,8 @@ The project is complete when **all** of the following are true and demonstrated:
 **⚠️ The local directory is NOT empty** — it already contains `COBALT_DCP_SPEC.md` and `tools/`. `git clone` refuses a non-empty target, so W0 must use the init-and-fetch sequence in §6.W0, not a plain clone. These files are part of the project and must be committed onto `cobalt/main`, not deleted.
 
 **Vendor assets live outside the repo** and are never committed (§8.1):
-- `/Users/harrisontucker/Downloads/Cobalt_CCD_Fever_3/` — 17 Look XMPs + manual
-- `/Users/harrisontucker/Downloads/Fujifilm X-Pro2 Cobalt Flat v3.0.dcp` — the base DCP
+- `<HOME>/Downloads/Cobalt_CCD_Fever_3/` — 17 Look XMPs + manual
+- `<HOME>/Downloads/Fujifilm X-Pro2 Cobalt Flat v3.0.dcp` — the base DCP
 
 ---
 
@@ -104,7 +104,7 @@ You are the **orchestrator**. You will dispatch sub-agents against the workstrea
 
 ### 1.1 Verified facts — the Look XMPs
 
-Source: `/Users/harrisontucker/Downloads/Cobalt_CCD_Fever_3/` — 17 `.xmp` files + 1 PDF manual.
+Source: `<HOME>/Downloads/Cobalt_CCD_Fever_3/` — 17 `.xmp` files + 1 PDF manual.
 
 All 17 files share this exact structure (verified across all 17):
 
@@ -172,7 +172,7 @@ All 17 files share this exact structure (verified across all 17):
 
 ### 1.3 Verified facts — the DCP
 
-Source: `/Users/harrisontucker/Downloads/Fujifilm X-Pro2 Cobalt Flat v3.0.dcp` (1,102,942 bytes).
+Source: `<HOME>/Downloads/Fujifilm X-Pro2 Cobalt Flat v3.0.dcp` (1,102,942 bytes).
 
 Header: `49 49 52 43` = `II` + magic `0x4352`, IFD at offset 8, **18 entries**. Full tag dump (verified):
 
@@ -608,7 +608,7 @@ Every workstream must land on its own branch and merge via PR into `cobalt/main`
 1. **Set up the working directory. It is NOT empty** — it already contains `COBALT_DCP_SPEC.md` and `tools/`, which are project files and must be preserved and committed. `git clone` refuses a non-empty target, so use init-and-fetch:
 
    ```bash
-   cd /Users/harrisontucker/Documents/CoWork/RapidRaw
+   cd <HOME>/Documents/CoWork/RapidRaw
    git init -b main
    git remote add origin   https://github.com/harrytuckerr/RapidRAW.git
    git remote add upstream https://github.com/CyberTimon/RapidRAW.git
@@ -1014,7 +1014,7 @@ Use this shape for every dispatch. Fill the braces; embed the named sections **v
 ```
 You are implementing workstream {Wn} of the RapidRAW Cobalt DCP project.
 
-REPOSITORY: /Users/harrisontucker/Documents/CoWork/RapidRaw
+REPOSITORY: <HOME>/Documents/CoWork/RapidRaw
 BRANCH: create `cobalt/{wn}-{slug}` off `cobalt/main`. Never commit to `main`.
 
 CONTEXT YOU MUST READ FIRST (verbatim, do not paraphrase):
@@ -1078,3 +1078,7 @@ what remains uncertain.
 ---
 
 *End of specification. Verified against the supplied Cobalt assets and upstream `CyberTimon/RapidRAW@main` on 2026-08-20.*
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `4f92529d21ed44d6991fa5052e39e1dd495a31746c0a21d937bfa31b27dee2a0` (74124 bytes).

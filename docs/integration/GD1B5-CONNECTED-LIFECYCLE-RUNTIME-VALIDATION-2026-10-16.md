@@ -2,7 +2,7 @@
 
 **Fail: one focused run selected68 definitions;67 passed,1 failed,0 ignored,378 filtered out.** No rerun, repair, expectation change, cargo fmt-all or Clippy followed. Canonical integration is not accepted by this receipt.
 
-Actual model `gpt-6.1-sol`; C3 author `gpt-6-astra`. Task `01a14113-e59e-7fc0-b40a-97599fe724fd`, 16 October 2026 Melbourne. Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-connected-lifecycle-review`, detached `52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0`. Owned only the new connected lifecycle child, this new report and private evidence. Runtime ORT read-copy and generated ignored schemas were the explicit build-artifact exceptions.
+Actual model `gpt-6.1-sol`; C3 author `gpt-6-astra`. Task `01a14113-e59e-7fc0-b40a-97599fe724fd`, 16 October 2026 Melbourne. Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-connected-lifecycle-review`, detached `52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0`. Owned only the new connected lifecycle child, this new report and private evidence. Runtime ORT read-copy and generated ignored schemas were the explicit build-artifact exceptions.
 
 ## Exact failure and attribution
 
@@ -60,3 +60,7 @@ All665 root inputs and exact inventory matched manifest `d36549e38fb675d2eb724fb
 **Pass:** compilation of frozen source/new probe;67 selected functions; pre-run owned rustfmt/check; frozen665-input/child/HEAD/index custody. **Fail:** the single focused runtime gate and one new startup group, unchanged as above. **Not exercised:** cargo fmt-all/strict Clippy after failure, later tail rows of the failed group, combined canonical suite/integration, production Google exchange/provider/account mapping/full-chain authentication, C4, real catalog/configuration, browser/IPC/secure store/refresh/credential lease, Android/device/UI/editor/Drive transfers/sync or product/security acceptance.
 
 Cache **RELEASED** at `2026-10-15T20:01:36.684348+00:00`; no cargo/rustc/clippy-driver process, 18468745216B free. No more build commands. Private evidence `/private/tmp/rapidraw-gd1b5-connected-lifecycle-validation-20261016` includes machine receipt, exact logs/binary/source/patch/cases, fault context, pre/post custody and sealed artifact manifest. Final hashes are supplied in Team handoff to avoid self-referential sealing. Stop frozen for root review; no downstream authority or waiting.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `119b1b3f7e31e0335038bffa43a7592955bd86714e52651f256e9225db45f94f` (10097 bytes).

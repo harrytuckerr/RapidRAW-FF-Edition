@@ -10,7 +10,7 @@ Only this new document and private evidence under `/private/tmp/rapidraw-fuji-H1
 
 ## Frozen input and environment
 
-- Snapshot: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/device`, detached at `4c1e965a53de9c835df920b2e3d69c2c8a864708`; tree `9f36c891f35d9310a7977bda7d851178ad92039d`.
+- Snapshot: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/device`, detached at `4c1e965a53de9c835df920b2e3d69c2c8a864708`; tree `9f36c891f35d9310a7977bda7d851178ad92039d`.
 - `git diff --exit-code 8e6318814d42e155d88a1d0efd485f9d571b4ffb HEAD`: exit 0, empty. Initial working tree clean.
 - Host: macOS 26.5.2 / Darwin 25.5.0, Apple arm64; Python 3.9.6, Node 22.22.0, ADB 1.0.41 / 33.0.3-8952118. Host verification used SDK build-tools 36.0.0 and Zulu JDK17. No build or dependency resolution run.
 - Read full original `ORCHESTRATOR_HANDOVER_2026-10-15.md`, historical `docs/integration/STATUS-2026-10-15.md`, `docs/BUILD.md`, attempt-8 build/source receipts, `scripts/integration-fixtures.py` and the lead continuation ledger. The original handover's old PR/physical/emulator status is historical; the lead ledger supersedes it where dated.
@@ -22,7 +22,7 @@ Read-only capture interval: 05:31:40–05:32:11 UTC, after an initial `get-state
 
 | Item | Observed value / scope |
 |---|---|
-| Authorized serial | `RFGL73CE9XM` (`get-state=device`, matching `get-serialno`) |
+| Authorized serial | `<DEVICE_SERIAL>` (`get-state=device`, matching `get-serialno`) |
 | Device | Samsung `SM-F971B`, device `h8q`, `arm64-v8a` |
 | OS | Android 17, API37; security patch 2026-10-05 |
 | Build fingerprint | `samsung/h8qxxx/h8q:17/CP2A.260605.016/F971BXXS3AZIJ_OXM3AZIJ:user/release-keys` |
@@ -107,44 +107,48 @@ Task pair: camera `RapidRAW Integration Camera`; base `H1 20261015 Look Base`; L
 
 - Genuine Android SAF and export pickers: observe screen/UI hierarchy, then use bounded native input against current geometry. H1a performed neither UI dumps nor screenshots/taps. Avoid fixed blind coordinates; cover-screen dimensions may change.
 - Existing debug WebView socket was observed for PID24047, and host Node22 exposes built-in `WebSocket`. H1b can rediscover the PID/socket and create a task-owned host forward, inspect `/json/list`, and drive real DOM controls/listeners with CDP. Native SAF remains a real Android picker; direct backend `invoke` would not establish picker/UI acceptance. No dependency install or source instrumentation is necessary for this candidate route. CDP attachment itself is Not exercised; retain screenshot/native input fallback.
-- Planned commands, **not run in H1a**: `adb -s RFGL73CE9XM forward tcp:9223 localabstract:webview_devtools_remote_<fresh-pid>`; `adb -s RFGL73CE9XM exec-out screencap -p`; `adb -s RFGL73CE9XM shell uiautomator dump /dev/tty`; scoped `adb -s RFGL73CE9XM shell input ...`. Remove only the task-owned forward afterward. Never redirect to an emulator or change debugging/settings to make a path work.
+- Planned commands, **not run in H1a**: `adb -s <DEVICE_SERIAL> forward tcp:9223 localabstract:webview_devtools_remote_<fresh-pid>`; `adb -s <DEVICE_SERIAL> exec-out screencap -p`; `adb -s <DEVICE_SERIAL> shell uiautomator dump /dev/tty`; scoped `adb -s <DEVICE_SERIAL> shell input ...`. Remove only the task-owned forward afterward. Never redirect to an emulator or change debugging/settings to make a path work.
 - Technical preflight prerequisites are satisfied. **Unattended interactive H1b cannot start now:** last observation had another foreground app; the lead still needs to dispatch H1b and coordinate its window. No new build is needed for the initial synthetic test. Whether to cold-restart/remove task dependencies belongs to the follow-on assignment, not inferred authority.
 - Commercial assets remain private. Supplied X-Pro2 Flat does not satisfy Modular Looks. Lead message reports its read-only IFD verification of the newly found private X-Pro2 Modular: cameraFujifilm X-Pro2, ProfileNameCobalt Modular, embed policy2, SHA256 `4b80ed63b210e5738cde04430af1511c3e12e2bb53bf2471b4bb0750dceb87f3`; H1a did not copy or independently validate it. Lead identifies `IMG_0138.DNG` as iPhone13Pro/iPhone14,2, unsuitable for the Fuji base. Matching real Fuji RAW and controlled Adobe reference remain unconfirmed. These do not block the synthetic H1b slice.
 
 ## Exact commands and private evidence
 
-All device argv/UTC/exit codes and sanitized outputs are in `preflight-receipts.json`; the read-only collector is `collect-readonly.py`. Every device command explicitly targets `-s RFGL73CE9XM`. Host ADB version inspection was informational and did not address a device.
+All device argv/UTC/exit codes and sanitized outputs are in `preflight-receipts.json`; the read-only collector is `collect-readonly.py`. Every device command explicitly targets `-s <DEVICE_SERIAL>`. Host ADB version inspection was informational and did not address a device.
 
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM get-state` → 1 (authorized).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM get-state` → 0 (final-authorized-recheck).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM get-serialno` → 0 (serial).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell getprop ro.product.manufacturer` → 0 (ro.product.manufacturer).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell getprop ro.product.model` → 0 (ro.product.model).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell getprop ro.product.device` → 0 (ro.product.device).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell getprop ro.build.version.release` → 0 (ro.build.version.release).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell getprop ro.build.version.sdk` → 0 (ro.build.version.sdk).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell getprop ro.build.version.security_patch` → 0 (ro.build.version.security_patch).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell getprop ro.build.fingerprint` → 0 (ro.build.fingerprint).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell getprop ro.product.cpu.abilist` → 0 (ro.product.cpu.abilist).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell getprop ro.hardware.egl` → 0 (ro.hardware.egl).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell getprop ro.hardware.vulkan` → 0 (ro.hardware.vulkan).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell dumpsys activity activities` → 0 (foreground).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell dumpsys power` → 0 (power).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell dumpsys device_state` → 0 (device-state).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell wm size` → 0 (screen-size).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell dumpsys webviewupdate` → 0 (webview).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell dumpsys SurfaceFlinger` → 0 (gpu-surfaceflinger).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell dumpsys package io.github.CyberTimon.RapidRAW` → 0 (package-version).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell pm path io.github.CyberTimon.RapidRAW` → 0 (package-path).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell pidof io.github.CyberTimon.RapidRAW` → 0 (pid).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM logcat -d -v threadtime --pid=24047` → 0 (existing-pid-gpu-log).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell run-as io.github.CyberTimon.RapidRAW tail -n 300 logs/app.log` → 0 (existing-private-app-gpu-log).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM pull '/data/app/~~ieiGAy7_8849jYMayc-N8g==/io.github.CyberTimon.RapidRAW-WrxlkEeXfi7-1TkJtgh_VQ==/base.apk' /private/tmp/rapidraw-fuji-H1-20261015/installed-base.apk` → 0 (pull-installed-apk).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell run-as io.github.CyberTimon.RapidRAW grep GPU logs/app.log` → 0 (existing-adapter-log).
-- `/Users/harrisontucker/Library/Android/sdk/platform-tools/adb -s RFGL73CE9XM shell cat /proc/net/unix` → 0 (existing-webview-debug-socket).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> get-state` → 1 (authorized).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> get-state` → 0 (final-authorized-recheck).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> get-serialno` → 0 (serial).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell getprop ro.product.manufacturer` → 0 (ro.product.manufacturer).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell getprop ro.product.model` → 0 (ro.product.model).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell getprop ro.product.device` → 0 (ro.product.device).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell getprop ro.build.version.release` → 0 (ro.build.version.release).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell getprop ro.build.version.sdk` → 0 (ro.build.version.sdk).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell getprop ro.build.version.security_patch` → 0 (ro.build.version.security_patch).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell getprop ro.build.fingerprint` → 0 (ro.build.fingerprint).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell getprop ro.product.cpu.abilist` → 0 (ro.product.cpu.abilist).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell getprop ro.hardware.egl` → 0 (ro.hardware.egl).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell getprop ro.hardware.vulkan` → 0 (ro.hardware.vulkan).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell dumpsys activity activities` → 0 (foreground).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell dumpsys power` → 0 (power).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell dumpsys device_state` → 0 (device-state).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell wm size` → 0 (screen-size).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell dumpsys webviewupdate` → 0 (webview).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell dumpsys SurfaceFlinger` → 0 (gpu-surfaceflinger).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell dumpsys package io.github.CyberTimon.RapidRAW` → 0 (package-version).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell pm path io.github.CyberTimon.RapidRAW` → 0 (package-path).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell pidof io.github.CyberTimon.RapidRAW` → 0 (pid).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> logcat -d -v threadtime --pid=24047` → 0 (existing-pid-gpu-log).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell run-as io.github.CyberTimon.RapidRAW tail -n 300 logs/app.log` → 0 (existing-private-app-gpu-log).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> pull '/data/app/~~ieiGAy7_8849jYMayc-N8g==/io.github.CyberTimon.RapidRAW-WrxlkEeXfi7-1TkJtgh_VQ==/base.apk' /private/tmp/rapidraw-fuji-H1-20261015/installed-base.apk` → 0 (pull-installed-apk).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell run-as io.github.CyberTimon.RapidRAW grep GPU logs/app.log` → 0 (existing-adapter-log).
+- `<HOME>/Library/Android/sdk/platform-tools/adb -s <DEVICE_SERIAL> shell cat /proc/net/unix` → 0 (existing-webview-debug-socket).
 
-Host verification commands: `JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home /Users/harrisontucker/Library/Android/sdk/build-tools/36.0.0/apksigner verify --verbose --print-certs <APK>` (local preserved and pulled installed APK, both exit0); SDK36.0.0 `aapt dump badging <local-APK>` exit0; SHA256 via Python streaming hash; `python3 tools/inspect_dcp.py <h1-look-base.dcp>` and `python3 tools/inspect_look_xmp.py <h1-look.xmp>` both exit0; `git diff --exit-code <tested-SHA> HEAD` exit0. Full argv/output in the corresponding JSON receipts. First host hash attempt used unavailable `hashlib.file_digest` on Python3.9.6 (exit1); corrected to streaming SHA256, then completed. This was a host helper compatibility error, not a product test failure.
+Host verification commands: `JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-17.jdk/Contents/Home <HOME>/Library/Android/sdk/build-tools/36.0.0/apksigner verify --verbose --print-certs <APK>` (local preserved and pulled installed APK, both exit0); SDK36.0.0 `aapt dump badging <local-APK>` exit0; SHA256 via Python streaming hash; `python3 tools/inspect_dcp.py <h1-look-base.dcp>` and `python3 tools/inspect_look_xmp.py <h1-look.xmp>` both exit0; `git diff --exit-code <tested-SHA> HEAD` exit0. Full argv/output in the corresponding JSON receipts. First host hash attempt used unavailable `hashlib.file_digest` on Python3.9.6 (exit1); corrected to streaming SHA256, then completed. This was a host helper compatibility error, not a product test failure.
 
 Private evidence includes `environment.json`, `preflight-receipts.json`, `source-receipt-verification.json`, `local-apk-hash.json`, `local-apk-metadata.json`, `installed-apk-hash.json`, `installed-apk-signature.json`, `local-checks.json`, fixture identity/table/repeat/manifest receipts, fixture files, two helper scripts and pulled `installed-base.apk`. `evidence-manifest.json` records their hashes; the report hash and new-file diff are in `report-receipt.json` and `fold8-preflight.patch` outside Git. No production tests were rerun and no acceptance inherited from a build.
 
 Next consumer: lead independent review/import of this allowlisted document, then sole-device H1b dispatch during the coordinated window. H1a stops at this receipt.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `40d3d15669d650b4bf6ef9cd411dfb58236919204eb2b8c0c46b5d1f85b7637e` (22608 bytes).

@@ -2,7 +2,7 @@
 
 **Verdict: bounded Revise — F2 is repaired; F1 still fails for a URI-resolved display name truncated before substitution.** The255-scalar regressions pass, and native ownership/counting/DTOs remain unchanged. One narrow formatting-context correction and regression are needed; no broader native or frontend redesign.
 
-Reviewer: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed Sol's `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/import-native-revision` at detached **`ea191124c9a52c761336a307fb1bcb09da4e84fc`**. Report checkout remains **`4c1e965a53de9c835df920b2e3d69c2c8a864708`**. Incremental comparison only against rejected0fa and prior review `c23f81f0cb4d36950d646a42af875cf65a4c9891f9eac2331883646b54519019`; no restart of the original guard/item-operation review. R3B frontend was not edited or independently approved here.
+Reviewer: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed Sol's `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/import-native-revision` at detached **`ea191124c9a52c761336a307fb1bcb09da4e84fc`**. Report checkout remains **`4c1e965a53de9c835df920b2e3d69c2c8a864708`**. Incremental comparison only against rejected0fa and prior review `c23f81f0cb4d36950d646a42af875cf65a4c9891f9eac2331883646b54519019`; no restart of the original guard/item-operation review. R3B frontend was not edited or independently approved here.
 
 ## Frozen inputs verified
 
@@ -51,3 +51,7 @@ An independent stdin ASCII probe of these exact string operations executed and r
 **Pass — F2, alias/lifetime/preservation review, executed17 existing R3 tests. Fail — remaining F1 over256-scalar resolved-name cause/action loss. Not exercised — new-case Rust regression, R2a rerun by reviewer, Cargo/build/cache mutations, combined frontend/native integration, full suite/private controls, Tauri/provider/device or fidelity.** No source/lock/Git/frontend edit. Only this report written.
 
 Next consumer: one narrowly assigned full-name-context repair and regression, then frozen source re-review; retain accepted guard/DTO/counting/F2 changes. Root independently owns frontend review and atomic combined checks. This review does not approve my own R3B frontend or authorize any downstream work. Report hash is delivered through Team message.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `118f3ef26d2496eb9c487745fb9e4807dd75a018492ffd2c30a440ceaa632bbd` (8626 bytes).

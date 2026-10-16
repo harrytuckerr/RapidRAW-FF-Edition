@@ -2,7 +2,7 @@
 
 **Pass — actual-driver regression, focused tests, owned formatting and strict all-target Clippy.** Frozen worker repair for independent re-review; not native/frontend integration or provider/UI acceptance.
 
-Worker: Codex CLI - Sol, slot 01a13e03-d91b-7810-a557-ca8e5fd5cd16; actual Team roster model gpt-6.1-sol. Task 01a13e97-4e30-77a3-8e75-c285ae5fbbca. Snapshot /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/import-native-fullname, detached HEAD ea191124c9a52c761336a307fb1bcb09da4e84fc. Explicit initial uncommitted source was rejected-ad1, SHA-256 ad1f52f03e2ca136a6639ee7ac9e9a9a870fee853a58e0022fd8894972a63a20.
+Worker: Codex CLI - Sol, slot 01a13e03-d91b-7810-a557-ca8e5fd5cd16; actual Team roster model gpt-6.1-sol. Task 01a13e97-4e30-77a3-8e75-c285ae5fbbca. Snapshot <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/import-native-fullname, detached HEAD ea191124c9a52c761336a307fb1bcb09da4e84fc. Explicit initial uncommitted source was rejected-ad1, SHA-256 ad1f52f03e2ca136a6639ee7ac9e9a9a870fee853a58e0022fd8894972a63a20.
 
 ## Change and one-callsite proof
 
@@ -105,3 +105,7 @@ Old ad1 source/17cab336 receipt and prior artifact directory were not edited. Re
 **Not exercised:** full suite/two ignored private RAW controls, actual provider/Android/JNI/Tauri transport, frontend/UI/device/atomic integration, R2b, rendering/profile/fidelity. No real photo or credential input.
 
 No Git mutation, old snapshot/receipt/artifact, frontend, provider, dependency/lock or device edit. Source/tests/receipt are frozen for independent re-review; exclusive native cache is explicitly released in delivery. Stop here.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `bfe4ac880f1ebcb51441ca1919957f6e9978f993fb405b31dc49a1c6373c4dd2` (9949 bytes).

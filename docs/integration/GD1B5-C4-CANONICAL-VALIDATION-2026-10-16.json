@@ -1,10 +1,11 @@
 {
+  "_public_redaction": {"original_document_sha256": "ac70c9485efaa2f9eb347f4f28340598e810e2c70302a37181468bdea363c349", "original_document_bytes": 613530, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "schema_version": 1,
   "task_id": "01a141ee-368b-7c60-b195-6a4655b97b8b",
   "generated_utc": "2026-10-15T23:43:55.520465+00:00",
   "actual_model": "gpt-6.1-sol",
   "role": "Team canonical runtime validator",
-  "source_worktree": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration",
+  "source_worktree": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration",
   "branch": "codex/drive-sync-foundation-2026-10-15",
   "base_head": "47a1a46b2fec95826ffe5e71e39b4b5889211919",
   "source_state": "Intentional root-owned imported working tree; all686 frozen bytes validated read-only. No worker Git/source/test/oracle mutation.",
@@ -79,7 +80,7 @@
         "own_pid": 73531,
         "root_lease_modified": false
       },
-      "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-switch-timer-proof-review",
+      "source": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-switch-timer-proof-review",
       "inputs": {
         ".github/CODEOWNERS": {
           "bytes": 51,
@@ -2825,52 +2826,52 @@
     },
     "accepted_documents": [
       {
-        "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-INTEGRATION-REVIEW-2026-10-16.md",
+        "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-INTEGRATION-REVIEW-2026-10-16.md",
         "bytes": 4206,
         "sha256": "f0f33d0ab36537a683cdd3b80cea26c39ad0826214cf43c836b804cf1daced1c"
       },
       {
-        "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-DECISION-RECEIPT-2026-10-16.md",
+        "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-DECISION-RECEIPT-2026-10-16.md",
         "bytes": 12237,
         "sha256": "a142896fcece16c90d965f161058284b2c37a464d3310a3836e283d5d54b6805"
       },
       {
-        "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-DECISION-LEAD-REVIEW-2026-10-16.md",
+        "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-DECISION-LEAD-REVIEW-2026-10-16.md",
         "bytes": 4110,
         "sha256": "11fcf9c341dc99955fa987d8f7d19df7b423e2310421106efc59fab846ce7562"
       },
       {
-        "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-CHILD-MIGRATION-2026-10-16.md",
+        "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-CHILD-MIGRATION-2026-10-16.md",
         "bytes": 7892,
         "sha256": "4827df2c58d7c56f226ead2db9040759f1a2688f081544f28d4161b65a2dc3a6"
       },
       {
-        "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-CHILD-MIGRATION-LEAD-REVIEW-2026-10-16.md",
+        "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-CHILD-MIGRATION-LEAD-REVIEW-2026-10-16.md",
         "bytes": 2521,
         "sha256": "e05745ec5c5afb83022ce5ca8b7dda66154b17fae9c4fec9aa7f7c9149e22e34"
       },
       {
-        "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-DECISION-RUNTIME-VALIDATION-2026-10-16.md",
+        "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-DECISION-RUNTIME-VALIDATION-2026-10-16.md",
         "bytes": 10712,
         "sha256": "eee1543b41163ea9d8847fe28f2a920e1d38cefb426ff3fb9c526c392d190321"
       },
       {
-        "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-RUNTIME-LEAD-REVIEW-2026-10-16.md",
+        "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-RUNTIME-LEAD-REVIEW-2026-10-16.md",
         "bytes": 2930,
         "sha256": "b062f0db1e9d1c0f39b5d64de2d803198e6386755d1889ef878b4b66860dde64"
       },
       {
-        "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-TIMER-ISOLATION-SOURCE-2026-10-16.md",
+        "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-TIMER-ISOLATION-SOURCE-2026-10-16.md",
         "bytes": 6268,
         "sha256": "ee323c750644c786cf92ff6a7e7851ad349a01b7c2e355aacfae7631b652dd3d"
       },
       {
-        "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-TIMER-ISOLATION-LEAD-REVIEW-2026-10-16.md",
+        "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-TIMER-ISOLATION-LEAD-REVIEW-2026-10-16.md",
         "bytes": 2594,
         "sha256": "02e9ba5ec8f91f922ae003881273d20445e7d08678c981cb889b4f0837a382f3"
       },
       {
-        "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-TIMER-ISOLATION-VALIDATION-2026-10-16.md",
+        "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-SWITCH-TIMER-ISOLATION-VALIDATION-2026-10-16.md",
         "bytes": 6179,
         "sha256": "caf105ce75b4a394fda7bd36741ff2318ede5add53d4da44bc031174af4a672c"
       }
@@ -2908,7 +2909,7 @@
   "toolchain": [
     {
       "argv": [
-        "/Users/harrisontucker/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/rustc",
+        "<HOME>/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/rustc",
         "-Vv"
       ],
       "stdout": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
@@ -2919,7 +2920,7 @@
     },
     {
       "argv": [
-        "/Users/harrisontucker/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/cargo",
+        "<HOME>/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/cargo",
         "-V"
       ],
       "stdout": "cargo 1.98.1 (797e8a9bc 2026-08-05)\n",
@@ -2931,7 +2932,7 @@
   ],
   "host_and_environment": {
     "model": "gpt-6.1-sol",
-    "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+    "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
     "overrides": {
       "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
       "RUSTUP_TOOLCHAIN": "1.98",
@@ -3016,7 +3017,7 @@
     {
       "label": "combined-test",
       "argv": [
-        "/Users/harrisontucker/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/cargo",
+        "<HOME>/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/cargo",
         "test",
         "--locked",
         "--offline",
@@ -3033,7 +3034,7 @@
         "--nocapture",
         "--test-threads=1"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "RUSTUP_TOOLCHAIN": "1.98",
@@ -3069,12 +3070,12 @@
     {
       "label": "cargo-fmt",
       "argv": [
-        "/Users/harrisontucker/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/cargo",
+        "<HOME>/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/cargo",
         "fmt",
         "--all",
         "--check"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "RUSTUP_TOOLCHAIN": "1.98",
@@ -3110,7 +3111,7 @@
     {
       "label": "cargo-clippy",
       "argv": [
-        "/Users/harrisontucker/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/cargo",
+        "<HOME>/.rustup/toolchains/1.98-aarch64-apple-darwin/bin/cargo",
         "clippy",
         "--locked",
         "--offline",
@@ -3119,7 +3120,7 @@
         "-D",
         "warnings"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "RUSTUP_TOOLCHAIN": "1.98",
@@ -9281,9 +9282,9 @@
           "bytes": 100,
           "sha256": "8e32a461084a4ae11928e73d5394bb7bd57d75a02183884184b2425998cb4c90"
         },
-        "gitdir": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration",
+        "gitdir": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration",
         "branch_ref": {
-          "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
+          "path": "<HOME>/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
           "bytes": 41,
           "sha256": "728e8805ab42d8747e81e4e5266123937bfe85f66bd376cb128bce27f2a1c1a8",
           "value": "47a1a46b2fec95826ffe5e71e39b4b5889211919"
@@ -13451,9 +13452,9 @@
           "bytes": 100,
           "sha256": "8e32a461084a4ae11928e73d5394bb7bd57d75a02183884184b2425998cb4c90"
         },
-        "gitdir": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration",
+        "gitdir": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration",
         "branch_ref": {
-          "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
+          "path": "<HOME>/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
           "bytes": 41,
           "sha256": "728e8805ab42d8747e81e4e5266123937bfe85f66bd376cb128bce27f2a1c1a8",
           "value": "47a1a46b2fec95826ffe5e71e39b4b5889211919"
@@ -13569,7 +13570,7 @@
     },
     "schema_copies_retained": true,
     "known_ORT": {
-      "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/resources/libonnxruntime.dylib",
+      "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/resources/libonnxruntime.dylib",
       "record": {
         "bytes": 33481272,
         "sha256": "2b885992d3d6fa4130d39ec84a80d7504ff52750027c547bb22c86165f19406a"

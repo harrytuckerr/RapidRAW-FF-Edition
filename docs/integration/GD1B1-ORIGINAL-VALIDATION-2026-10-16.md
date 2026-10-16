@@ -29,7 +29,7 @@ Synthetic ports are unbound caller assertions. Receiving a code in this helper i
 
 ## Frozen input, commands and custody
 
-Actual model `gpt-6.1-sol`, macOS26.5.2 arm64. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-pkce-review`, detached base `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`, plus the root-provided single module-registration line and exact original untracked helper/author receipt. Registration is not a Tauri command or an enabled authorization feature.
+Actual model `gpt-6.1-sol`, macOS26.5.2 arm64. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-pkce-review`, detached base `e8113f9c49d064ea0ef8c6c8e0effe3c67c6bed4`, plus the root-provided single module-registration line and exact original untracked helper/author receipt. Registration is not a Tauri command or an enabled authorization feature.
 
 - pkce.rs SHA256 `50d623cfe07972c843351339ba1d5e3f6810e40dee0b5e7788514f8c2f00f9c4`.
 - mod.rs SHA256 `c744895383a3048117ebbf250ddf4e3cf34441b8ab013c715bf11f2dd45bd7b8`.
@@ -56,3 +56,7 @@ Preserved actual binaries:
 | Private binaries/independent7 | 2326608 | `352bfeb84f7d5f2ec9524acd5e81d0081226c1da82edc24f01ce728da849f947` |
 
 Evidence `/private/tmp/rapidraw-gd1b1-original-validation-20261016`: receipt.json SHA `577232a6c7461d2e18fd881aa760600bdc5b370a1d2c53705362ef8d73a17e4b`; exact result/log files, probe, original registration diff, full protected/ignored manifests and preserved binaries. Cache lease explicitly released at2026-10-15T13:34:27.516744+00:00. Worker completion is not integration, authorization, provider or product acceptance.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `0b808dc16fe27b5d8e2f40a7ecdf3913d7cc35090e071496ad49bb38bcde9e6f` (7126 bytes).

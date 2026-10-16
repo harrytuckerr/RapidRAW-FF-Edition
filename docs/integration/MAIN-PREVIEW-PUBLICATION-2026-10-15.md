@@ -24,7 +24,7 @@ The Android download is the source-matched, owner-debug-signed APK, not a produc
 
 ## Physical Fold evidence and current profile question
 
-The exact APK SHA-256 `b56d8bdcd7bc108197f4f34558ac43e368a5117290eb29fb1eeb5c35c006c516` was installed in place on `RFGL73CE9XM`; installed hash, package and signing identity matched. Normal cold-launch command returned `Status: ok`. UID, first-install time and data-directory metadata were preserved; app-data contents were not compared. No uninstall, data clear, permission/settings changes or photo operations were performed by this install task.
+The exact APK SHA-256 `b56d8bdcd7bc108197f4f34558ac43e368a5117290eb29fb1eeb5c35c006c516` was installed in place on `<DEVICE_SERIAL>`; installed hash, package and signing identity matched. Normal cold-launch command returned `Status: ok`. UID, first-install time and data-directory metadata were preserved; app-data contents were not compared. No uninstall, data clear, permission/settings changes or photo operations were performed by this install task.
 
 - **Pass — user-reported:** app opens, UI and basic adjustments work; following this update, a RAF opens successfully.
 - **User-reported unresolved:** no profiles appear for the opened RAF. This is not yet a proven filtering or rendering defect.
@@ -39,3 +39,7 @@ The historical emulator rendering failure remains a separate observed environmen
 The comparison CLI still reports unavailable; statistics and candidate Lab helpers are groundwork, not a completed Adobe oracle. The production profile path remains CPU. Complete physical profile/export tests, real-camera Adobe references, the comparison harness, measured performance and the original support matrix before claiming the product vision is complete.
 
 The inherited in-app update notice still points upstream. Use this fork's release page for Fuji Edition downloads until the separately queued update-link correction is reviewed and delivered.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `6a974e291db007f2f6e55b6d2a2ded3b2164192020db0424d3de8a77f53e3b02` (5875 bytes).

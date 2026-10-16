@@ -2,7 +2,7 @@
 
 **Pass** for bounded source/native/synthetic localhost validation. No blocking static finding, repair, suppression or expectation change. Root retains acceptance/integration. No provider/account or S3 adoption acceptance.
 
-Model `gpt-6.1-sol` (Team roster), macOS arm64; Rust/Cargo1.98.1. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-review`, detached `bd7f2d00a498315f48898c88ed99fbb225fa1113`. Full contract8afb6aa7, lead design441222fd, author receipt8b9cb169 and independent review926357ee read/hash-verified; production/all17 authored definitions inspected. Exact68,171B author prefix7834f144 and root-only test footer preserved; wired source5fe87ede/modulea2e83b21 unchanged.
+Model `gpt-6.1-sol` (Team roster), macOS arm64; Rust/Cargo1.98.1. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account-review`, detached `bd7f2d00a498315f48898c88ed99fbb225fa1113`. Full contract8afb6aa7, lead design441222fd, author receipt8b9cb169 and independent review926357ee read/hash-verified; production/all17 authored definitions inspected. Exact68,171B author prefix7834f144 and root-only test footer preserved; wired source5fe87ede/modulea2e83b21 unchanged.
 
 | Gate | Observed | Exit | Total elapsed |
 |---|---|---:|---:|
@@ -33,3 +33,7 @@ Per-command JSON/full+sanitized logs preserve exact argv/cwd/env/UTC/exits/space
 **Not exercised:** liveGoogle/TLS/provider/authenticated identity/registration mapping; realExchangeResult entry/controller integration/S3live-current-generation/configuration/adoption; live final-race/hardabort/remote rollback; browser/IPC/store/refresh/revocation/sync/UI/Android/device; full new canonical/ignored/vendor/GPU tests; totalRAM/zeroization/complete security audit.
 
 Evidence `/private/tmp/rapidraw-gd1b5-account-validation-20261016`; `receipt.json` SHA256 `3dcc1cfc5d25ad4bf9e609bf10445ed96258453c82ac2a38c341caf29cd771ce`; artifact manifest seals logs/binary/source/custody/report and excludes itself. Cache explicitly **released** `2026-10-15T16:53:26.237353+00:00`, no compiler,18.05GiB free; no further builds/downstream work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `414d9f6fb6087763ec9ab6e73ad0393df1ce9b5509e1036593fd01350e65ea5e` (5327 bytes).

@@ -1,6 +1,6 @@
 # GD1b7-B formatted-test validation
 
-**Pass for this four-check sequence.** Validator/model **gpt-6.1-sol**, task `01a1430c-6a71-74e0-a497-0da059f12164`; Haiku authored the formatter-only amendment, Astra authored production. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format`, detached `abf1ed796246cb952691d287451b843c61985c43`. No source/oracle/test/config/dependency write, formatter write, Git command, repair, suppression or retry occurred.
+**Pass for this four-check sequence.** Validator/model **gpt-6.1-sol**, task `01a1430c-6a71-74e0-a497-0da059f12164`; Haiku authored the formatter-only amendment, Astra authored production. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format`, detached `abf1ed796246cb952691d287451b843c61985c43`. No source/oracle/test/config/dependency write, formatter write, Git command, repair, suppression or retry occurred.
 
 | Check, once in this order | Result | Exit | Wall seconds |
 |---|---|---:|---:|
@@ -11,10 +11,10 @@
 
 Exact commands:
 
-- `node --test src/__tests__/applicationLifecycle.test.mjs` — cwd `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format`.
-- `node node_modules/prettier/bin/prettier.cjs --check src/components/panel/SettingsPanel.tsx src/hooks/useExternalEditSession.ts src/__tests__/applicationLifecycle.test.mjs src-tauri/capabilities/default.json src-tauri/capabilities/mobile-process.json src-tauri/tauri.conf.json` — cwd `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format`.
-- `cargo fmt --all --check` — cwd `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format/src-tauri`.
-- `cargo clippy --locked --offline --all-targets -- -D warnings` — cwd `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format/src-tauri`.
+- `node --test src/__tests__/applicationLifecycle.test.mjs` — cwd `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format`.
+- `node node_modules/prettier/bin/prettier.cjs --check src/components/panel/SettingsPanel.tsx src/hooks/useExternalEditSession.ts src/__tests__/applicationLifecycle.test.mjs src-tauri/capabilities/default.json src-tauri/capabilities/mobile-process.json src-tauri/tauri.conf.json` — cwd `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format`.
+- `cargo fmt --all --check` — cwd `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format/src-tauri`.
+- `cargo clippy --locked --offline --all-targets -- -D warnings` — cwd `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-frontend-format/src-tauri`.
 
 The formatted test file is5031B/SHA256 `5f1dff4a6fe7b4093d0d241dd3a9fed1767164230fd4c4df2b97a903ded740d5`. The actual Node summary is `{"cancelled": 0, "fail": 0, "pass": 4, "skipped": 0, "suites": 0, "tests": 4, "todo": 0}`. The same four fixed top-level cases ran:
 
@@ -38,3 +38,7 @@ Rust/Cargo1.98.1, Node22.22.0, Prettier3.9.6/esbuild0.28.2 and resolved tool/pac
 **Cache RELEASED `2026-10-16T05:04:57.459111+00:00`**: fresh5s-bounded full-width PID/parent/executable/argv proof shows no competing compiler/test/Node/task-fixture and all four actual gate PIDs absent; free bytes `14131417088` (>=12GiB). No native command after release. No hard OS scheduling/timing guarantee is claimed.
 
 **Not exercised:** full canonical/native runtime suite, actual app/IPC/originACL/event-loop/OS quit/restart, default browser/provider/Google/positive Code handoff/account, Android/device/configuration/credentials/storage/refresh/transfer/sync/main/push/deploy/release. Root separately decides canonical integration and local commit. Stop frozen; no downstream action.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `79065c09e44dd020e310f9621d07e91ed9f6fe3d1b8414d2fcd35b8c5c463c26` (6681 bytes).

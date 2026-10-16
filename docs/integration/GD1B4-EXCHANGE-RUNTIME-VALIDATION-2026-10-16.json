@@ -1,8 +1,9 @@
 {
+  "_public_redaction": {"original_document_sha256": "676b7d56c7e685e0c3ace2e8a5d846781cc29d760a4b0a83499e2aa9cbab4141", "original_document_bytes": 18143, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "task_id": "01a14019-8673-7a60-8250-73a3ab2d5d74",
   "model": "gpt-6.1-sol (live Team roster verified)",
   "host": "macOS-26.5.2-arm64-arm-64bit",
-  "source": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review",
+  "source": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review",
   "head": "ec1d032efe7dd321e7a99d1931730b654b922ec3",
   "status": "Pass \u2014 bounded independent native exchange validation; root acceptance/import remains separate",
   "checks": {
@@ -18,7 +19,7 @@
         "--nocapture",
         "--test-threads=1"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -61,7 +62,7 @@
         "--",
         "--check"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -99,7 +100,7 @@
         "-D",
         "warnings"
       ],
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
         "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -134,9 +135,9 @@
       "2024",
       "--config",
       "skip_children=true",
-      "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri/src/drive_auth/exchange_independent_tests.rs"
+      "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri/src/drive_auth/exchange_independent_tests.rs"
     ],
-    "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
+    "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri",
     "environment_overrides": {
       "CARGO_TARGET_DIR": "/private/tmp/rapidraw-integration-20261015/target",
       "CARGO_PROFILE_DEV_DEBUG": "0",
@@ -267,7 +268,7 @@
   },
   "owned_child": {
     "utc": "2026-10-15T15:16:09.668677+00:00",
-    "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri/src/drive_auth/exchange_independent_tests.rs",
+    "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri/src/drive_auth/exchange_independent_tests.rs",
     "record": {
       "bytes": 24729,
       "sha256": "ca224e53c259aa1efd7c3ee71f15c9919a79a35792311db7683ba3682f91d434"
@@ -340,10 +341,10 @@
     "cargo-clippy": "clippy 0.1.98 (48a229ceae 2026-09-01)"
   },
   "runtime": {
-    "destination": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri/resources/libonnxruntime.dylib",
+    "destination": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-exchange-review/src-tauri/resources/libonnxruntime.dylib",
     "existed_before": false,
     "download": false,
-    "copied_from": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri/resources/libonnxruntime.dylib",
+    "copied_from": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/src-tauri/resources/libonnxruntime.dylib",
     "record": {
       "bytes": 33481272,
       "sha256": "2b885992d3d6fa4130d39ec84a80d7504ff52750027c547bb22c86165f19406a"

@@ -1,6 +1,6 @@
 # C3 lexical scope validation — all current gates Pass
 
-Model `gpt-6.1-sol`, task `01a14134-47b9-71a2-a057-022edc06b2e6`. Read-only `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-connected-lifecycle-review`, detached `52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0`. Astra authored production; root authored the three cfg(test) scope corrections; Sol authored the original independent probes/migration and executed these gates. No source or expectation was edited under this validation grant.
+Model `gpt-6.1-sol`, task `01a14134-47b9-71a2-a057-022edc06b2e6`. Read-only `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-connected-lifecycle-review`, detached `52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0`. Astra authored production; root authored the three cfg(test) scope corrections; Sol authored the original independent probes/migration and executed these gates. No source or expectation was edited under this validation grant.
 
 | Exactly one invocation each, cwd src-tauri | Result | Wall time |
 | --- | --- | --- |
@@ -29,3 +29,7 @@ Pass establishes the bounded synthetic/local runtime and lint gates only. Raw-St
 **Pass:** current focused68, format, strict all-target Clippy, scope/token/prefix/custody checks. **Fail:** none in this grant; all historical failures preserved. **Not exercised:** canonical/full suite/integration, provider/full OAuth chain, C4/config/browser/IPC/store/refresh/lease, Android/UI/editor/Drive/sync/product/security acceptance.
 
 Cache **RELEASED** `2026-10-15T20:18:40.713736+00:00`; no cargo/rustc/clippy-driver, 18304860160B free. No more gates. Stop frozen; root alone accepts/imports/commits. Final report/receipt/seal hashes are in Team handoff.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `59196ff451ed2b1e3b9a61fce6abef009f7d1bc09ccdc257a167228e69bfff74` (5497 bytes).

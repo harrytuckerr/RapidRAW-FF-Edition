@@ -2,7 +2,7 @@
 
 **Decision for independent review:** implement H2b as one manifest-driven CPU-profile/reference comparator. It renders the existing real RAW/profile path, decodes a deliberately limited ICC-tagged TIFF reference, measures in one Lab space and fails closed. Preview/export/thumbnail automation and upstream equivalence are subsequent slices. H2b is not all of H2 and cannot close D2/D6/D7 by itself.
 
-Author/model: Codex CLI - Astra / `gpt-6-astra` (Team roster). Snapshot: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/harness-design`. Frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`, tree `9f36c891f35d9310a7977bda7d851178ad92039d`; identical source tree to tested `8e6318814d42e155d88a1d0efd485f9d571b4ffb`. Environment: macOS 26.5.2 / 25F84, arm64. This task writes only this document; no implementation, build, dependency resolution, device or Git mutation.
+Author/model: Codex CLI - Astra / `gpt-6-astra` (Team roster). Snapshot: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/harness-design`. Frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`, tree `9f36c891f35d9310a7977bda7d851178ad92039d`; identical source tree to tested `8e6318814d42e155d88a1d0efd485f9d571b4ffb`. Environment: macOS 26.5.2 / 25F84, arm64. This task writes only this document; no implementation, build, dependency resolution, device or Git mutation.
 
 ## 1. Evidence and boundaries
 
@@ -22,7 +22,7 @@ Paths below are relative to the frozen snapshot; line numbers refer to that base
 | [Thumbnail](../../src-tauri/src/file_management.rs), lines 1584–1592, 1745–1762, 1816–1821 | Fast RAW path, resize, JPEG quality 75; GPU failure can return cropped base. Must observe actual route and fallback, not assume equivalent pixels or transfer. |
 | [Output shader](../../src-tauri/src/shaders/shader.wgsl), lines 1929–1950, 2013 | Additional tone processing and final clamp occur downstream of CLI output. “All adjustments zero” is not proof that app export equals CLI. |
 
-Full handover read: `/Users/harrisontucker/Documents/CoWork/RapidRaw/ORCHESTRATOR_HANDOVER_2026-10-15.md`, especially §§6–7, H2/H3, §§12–13. Authority/ownership: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/TEAM-LEDGER-2026-10-15.md`, “Ownership before dispatch”. Flat must not substitute for Modular; preserve CPU oracle and no-profile pristine input. No CCT, DCP matrix, Look-blob, GPU or production-route changes are assigned.
+Full handover read: `<HOME>/Documents/CoWork/RapidRaw/ORCHESTRATOR_HANDOVER_2026-10-15.md`, especially §§6–7, H2/H3, §§12–13. Authority/ownership: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/TEAM-LEDGER-2026-10-15.md`, “Ownership before dispatch”. Flat must not substitute for Modular; preserve CPU oracle and no-profile pristine input. No CCT, DCP matrix, Look-blob, GPU or production-route changes are assigned.
 
 ## 2. H2b interface and execution
 
@@ -115,7 +115,7 @@ No `Cargo.toml`, lock, `lib.rs`, `dcp/mod.rs`, production renderer/pipeline, sha
 After implementation, proposed commands (not executed by H2a):
 
 ```sh
-cd /Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/<lead-assigned-H2b-snapshot>/src-tauri
+cd <HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/<lead-assigned-H2b-snapshot>/src-tauri
 cargo fmt --all -- --check
 cargo test --locked --lib dcp::delta_e -- --nocapture
 cargo test --locked --lib dcp::validation -- --nocapture
@@ -153,3 +153,7 @@ Read-only commands: `git rev-parse HEAD HEAD^{tree}`, `git status --short`, `rg`
 | `src-tauri/Cargo.lock` | `7ddd491af60c07c0d0a0983ab77c6f81409961831ed679b7b444103a6d765def` |
 
 Document SHA-256 is sent in the delivery message (cannot embed its own final hash). Diff is one new documentation file. Next consumer is independent design reviewer, then lead-issued H2b to Opus; implementation prerequisite is review acceptance, not this author's delivery alone.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `a17b2e45277f1a7480952a964dfcf3d4c590569e7c941ba2075f317ce3ffd0fe` (31488 bytes).

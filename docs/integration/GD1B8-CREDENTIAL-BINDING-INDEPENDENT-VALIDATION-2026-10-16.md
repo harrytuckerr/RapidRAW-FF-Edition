@@ -1,6 +1,6 @@
 # GD1b8-A credential-binding validation — stopped before runtime
 
-Validator **gpt-6.1-sol**, task `01a1433e-2175-72d2-92be-9bd97fa7e9a4`; production author **gpt-6-astra**. Detached base `eadcc985455d33deaa8f5677b641d511342c2f17` in `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-credential-binding-review`. **Fail: required free-space preflight. No runtime command launched.**
+Validator **gpt-6.1-sol**, task `01a1433e-2175-72d2-92be-9bd97fa7e9a4`; production author **gpt-6-astra**. Detached base `eadcc985455d33deaa8f5677b641d511342c2f17` in `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-credential-binding-review`. **Fail: required free-space preflight. No runtime command launched.**
 
 At `2026-10-16T05:51:30.621598+00:00`, the completed5s-bounded full-width process check found no competing compiler/test/fixture, but free bytes `12135378944` were below the binding12GiB requirement `12884901888` by `749522944`. The initial observation was13654450176B; the decrease has no established cause. Per first-failure contract, no retry, cleanup, signal, build, gate-selection change or later check occurred.
 
@@ -26,3 +26,7 @@ Rust/Cargo actual1.98.1 and pinned rustfmt1.9.0 identity/bytes, explicit offline
 **Cache RELEASED `2026-10-16T05:53:24.564099+00:00`**, unused for compilation/tests. Fresh full-width process proof shows no compiler/test/fixture and owned formatter PIDs absent; observed free bytes `12110974976`, reserve-floor-met `False`. Release does not relabel the failed launch preflight or authorize a retry. No native command after release.
 
 **Not exercised:** new/retained runtime cases, full canonical suite, actual provider/Google/default browser/positive public OAuth, account/project attestation, session adoption/retention/storage/backend/renewal/offline consent/configuration, app/IPC/mobile/device/sync/release. Existing TypeScriptFail70/ESLintFail49 and historical failures remain literal; earlier canonical552Pass/14ignored applies to its old source only. Stop frozen for root decision/new grant; no downstream authority.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `2b4809d80cb45cbf0dbb473f0f151c9ff23355be5e2f7031228d4a91090991c2` (5185 bytes).

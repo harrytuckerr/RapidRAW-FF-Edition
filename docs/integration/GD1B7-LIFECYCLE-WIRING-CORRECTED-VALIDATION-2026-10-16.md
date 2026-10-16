@@ -1,6 +1,6 @@
 # GD1b7-B corrected frozen-probe validation
 
-Validator/model **gpt-6.1-sol**, task01a142d8-db91-7892-abe1-94472f388384, isolated `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-corrected-review`, detached `abf1ed796246cb952691d287451b843c61985c43`. Production author gpt-6-astra; corrected independent fixture author gpt-6.1-sol. **Fail: types**. No source/oracle/expectation/probe/helper/formatter write or Git process occurred in this task. Original static F1 Fail, original24Pass/1Fail/Cargo101 and separate raw-index custody Fail remain immutable, not relabelled.
+Validator/model **gpt-6.1-sol**, task01a142d8-db91-7892-abe1-94472f388384, isolated `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-lifecycle-corrected-review`, detached `abf1ed796246cb952691d287451b843c61985c43`. Production author gpt-6-astra; corrected independent fixture author gpt-6.1-sol. **Fail: types**. No source/oracle/expectation/probe/helper/formatter write or Git process occurred in this task. Original static F1 Fail, original24Pass/1Fail/Cargo101 and separate raw-index custody Fail remain immutable, not relabelled.
 
 | Gate (fixed order, at most once) | Outcome | Exit | Seconds |
 |---|---|---|---|
@@ -28,3 +28,7 @@ Preserved ACTUAL executed binary: `[{"executed_path": "/private/tmp/rapidraw-int
 **Cache RELEASED `2026-10-16T04:13:34.401619+00:00`**: fresh5s-bounded full-width PID/parent/executable/argv check no compiler/test/task fixture conflict; all actual gate PIDs absent; free bytes `14376660992` (>=12GiB). No native command after release; no unrelated signals or hard OS cleanup scheduling guarantee.
 
 Native real empty-A shutdown and separate public SessionController held-ticket+runner cleanup fence remain separate; no held-ticket A integration claim. Command guard/JSON/capability/source checks are not actual remote IPC denial, app/event-loop/OS quit/restart/mobile/device/provider evidence. Extracted frontend callback tests are not mounted React/Tauri IPC. **Not exercised:** actual default browser/provider/Google/positive Code handoff/fullOAuth/account mapping/app/platform operator/Android/config/credentials/store/refresh/transfer/sync/main/push/deploy and ignored/full suites. Root alone decides further correction/integration/canonical gates. Stop frozen.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `9fc66c0ff3469f559a6ff2b8987b4abccfb924cc451b050184893d9c1ae58b19` (5203 bytes).

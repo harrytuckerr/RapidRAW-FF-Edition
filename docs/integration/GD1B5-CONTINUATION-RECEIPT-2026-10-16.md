@@ -2,7 +2,7 @@
 
 Source-only delivery, 2026-10-16 Melbourne; actual model `gpt-6-astra`. Task `01a140ab-45a9-7fa1-9ff9-894a423cab98`.
 
-Worktree: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-continuation`, detached `1dbeadf0ba2d0dee4ac4bd0467f6c5cabc3ae7cd`. Initial tracked status clean. Approved slicing63341048 and review8924eb5c read; full hashes in private dependencies.json. Historical A canonical404Pass/14ignored/fmt/strict is baseline evidence, not validation of this extraction.
+Worktree: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-continuation`, detached `1dbeadf0ba2d0dee4ac4bd0467f6c5cabc3ae7cd`. Initial tracked status clean. Approved slicing63341048 and review8924eb5c read; full hashes in private dependencies.json. Historical A canonical404Pass/14ignored/fmt/strict is baseline evidence, not validation of this extraction.
 
 ## Exact change
 
@@ -52,3 +52,7 @@ Private evidence: `/private/tmp/rapidraw-gd1b5-continuation-implementation-20261
 Frozen for independent source review, then separately granted isolated runtime validation. Future validator commands from src-tauri under root's pinned/offline cache ownership: `cargo test --locked --offline --lib drive_auth::session -- --test-threads=1`, `cargo fmt --all -- --check`, `cargo clippy --locked --offline --all-targets -- -D warnings`, followed by root combined canonical validation. Any concrete failure stops import and requires a separately bounded correction; this source-only delivery is not runtime acceptance.
 
 B catalog and C2/C3/C4 remain excluded. Root alone imports reviewed paths. No downstream work or cache wait is authorized.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `1373705fab02834c424113ef78ee32ca057d18f91cfbac563ddd21e7c07276c9` (5091 bytes).

@@ -1,10 +1,11 @@
 {
+  "_public_redaction": {"original_document_sha256": "05d63dce2e6c289e2df198b64db0d4a25ba5232d33477992f8f1928b44182648", "original_document_bytes": 1578189, "notice": "Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies."},
   "schema_version": 1,
   "task_id": "01a14243-4641-7e20-b61a-e856a19faa8e",
   "generated_utc": "2026-10-16T01:20:43.090277+00:00",
   "actual_model": "gpt-6.1-sol",
   "role": "Team canonical runtime validator",
-  "source_worktree": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration",
+  "source_worktree": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration",
   "branch": "refs/heads/codex/drive-sync-foundation-2026-10-15",
   "base_head": "6932d49ba6f989baf5b9ca2ae450b4846fec6512",
   "source_state": "Intentional root-owned 3 existing modifications and12new paths; all700bytes read-only. No Git/source/test/oracle mutations.",
@@ -3546,8 +3547,8 @@
         "cargo",
         "--version"
       ],
-      "resolved_program": "/Users/harrisontucker/.cargo/bin/cargo",
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "resolved_program": "<HOME>/.cargo/bin/cargo",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
       "env": {
         "RUSTUP_TOOLCHAIN": "1.98",
         "RUSTUP_AUTO_INSTALL": "0",
@@ -3575,8 +3576,8 @@
         "rustc",
         "-Vv"
       ],
-      "resolved_program": "/Users/harrisontucker/.cargo/bin/rustc",
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "resolved_program": "<HOME>/.cargo/bin/rustc",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
       "env": {
         "RUSTUP_TOOLCHAIN": "1.98",
         "RUSTUP_AUTO_INSTALL": "0",
@@ -6454,22 +6455,22 @@
         "input_count": 700,
         "metadata": {
           "HEAD": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
             "bytes": 55,
             "sha256": "0f87aa8de72b4312f0e9ed1d90e367abd6bd49ce06c4f1f971e2b00d687c94af"
           },
           "index": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
             "bytes": 78453,
             "sha256": "a11c8d6af5361d90945b592d7c0ea8002eb47ef5456d8af89e9c3a6f6413aad8"
           },
           "pointer": {
-            "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
+            "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
             "bytes": 100,
             "sha256": "8e32a461084a4ae11928e73d5394bb7bd57d75a02183884184b2425998cb4c90"
           },
           "branch_ref": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
             "bytes": 41,
             "sha256": "dc804dbbbefa8308e99b5bf904ed1cf9d75e66668f90a9eefef1ac3350d79edc"
           }
@@ -10047,22 +10048,22 @@
         "input_count": 700,
         "metadata": {
           "HEAD": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
             "bytes": 55,
             "sha256": "0f87aa8de72b4312f0e9ed1d90e367abd6bd49ce06c4f1f971e2b00d687c94af"
           },
           "index": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
             "bytes": 78453,
             "sha256": "a11c8d6af5361d90945b592d7c0ea8002eb47ef5456d8af89e9c3a6f6413aad8"
           },
           "pointer": {
-            "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
+            "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
             "bytes": 100,
             "sha256": "8e32a461084a4ae11928e73d5394bb7bd57d75a02183884184b2425998cb4c90"
           },
           "branch_ref": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
             "bytes": 41,
             "sha256": "dc804dbbbefa8308e99b5bf904ed1cf9d75e66668f90a9eefef1ac3350d79edc"
           }
@@ -13640,22 +13641,22 @@
         "input_count": 700,
         "metadata": {
           "HEAD": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
             "bytes": 55,
             "sha256": "0f87aa8de72b4312f0e9ed1d90e367abd6bd49ce06c4f1f971e2b00d687c94af"
           },
           "index": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
             "bytes": 78453,
             "sha256": "a11c8d6af5361d90945b592d7c0ea8002eb47ef5456d8af89e9c3a6f6413aad8"
           },
           "pointer": {
-            "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
+            "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
             "bytes": 100,
             "sha256": "8e32a461084a4ae11928e73d5394bb7bd57d75a02183884184b2425998cb4c90"
           },
           "branch_ref": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
             "bytes": 41,
             "sha256": "dc804dbbbefa8308e99b5bf904ed1cf9d75e66668f90a9eefef1ac3350d79edc"
           }
@@ -17233,22 +17234,22 @@
         "input_count": 700,
         "metadata": {
           "HEAD": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
             "bytes": 55,
             "sha256": "0f87aa8de72b4312f0e9ed1d90e367abd6bd49ce06c4f1f971e2b00d687c94af"
           },
           "index": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
             "bytes": 78453,
             "sha256": "a11c8d6af5361d90945b592d7c0ea8002eb47ef5456d8af89e9c3a6f6413aad8"
           },
           "pointer": {
-            "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
+            "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
             "bytes": 100,
             "sha256": "8e32a461084a4ae11928e73d5394bb7bd57d75a02183884184b2425998cb4c90"
           },
           "branch_ref": {
-            "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
+            "path": "<HOME>/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
             "bytes": 41,
             "sha256": "dc804dbbbefa8308e99b5bf904ed1cf9d75e66668f90a9eefef1ac3350d79edc"
           }
@@ -18020,8 +18021,8 @@
         "--nocapture",
         "--test-threads=1"
       ],
-      "resolved_executable": "/Users/harrisontucker/.cargo/bin/cargo",
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "resolved_executable": "<HOME>/.cargo/bin/cargo",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
       "environment_overrides": {
         "RUSTUP_TOOLCHAIN": "1.98",
         "RUSTUP_AUTO_INSTALL": "0",
@@ -18063,8 +18064,8 @@
         "--all",
         "--check"
       ],
-      "resolved_executable": "/Users/harrisontucker/.cargo/bin/cargo",
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "resolved_executable": "<HOME>/.cargo/bin/cargo",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
       "environment_overrides": {
         "RUSTUP_TOOLCHAIN": "1.98",
         "RUSTUP_AUTO_INSTALL": "0",
@@ -18110,8 +18111,8 @@
         "-D",
         "warnings"
       ],
-      "resolved_executable": "/Users/harrisontucker/.cargo/bin/cargo",
-      "cwd": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
+      "resolved_executable": "<HOME>/.cargo/bin/cargo",
+      "cwd": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri",
       "environment_overrides": {
         "RUSTUP_TOOLCHAIN": "1.98",
         "RUSTUP_AUTO_INSTALL": "0",
@@ -18158,7 +18159,7 @@
         "path": "/private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/combined.stderr.log",
         "bytes": 8412,
         "sha256": "ad985df482cbe6534e2573c86210977692aeb2b403ef9cd55926e858319e26a2",
-        "text_utf8": "   Compiling RapidRAW v0.0.0 (/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri)\nwarning: RapidRAW@0.0.0: ONNX Runtime library already exists and is valid. Skipping download.\n    Finished `test` profile [optimized] target(s) in 3m 07s\n     Running unittests src/lib.rs (/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-c8f324ca959c2d5c)\nSharma verification: max error 0.000049498977271467126 on pair 23 (all 34 pairs < 1e-4)\ncandidate Lab: 12 bound rows / 108 components; maximum error 4.94770890924201e-13\nnaga: production 8-bit VALID\nnaga: production 16-bit VALID\nnaga: display.wgsl VALID\nnaga: flare.wgsl VALID\nnaga: guided.wgsl VALID\nnaga: blur.wgsl VALID\nnaga: parity shader VALID\nSynthetic identity profile: 4096 px rendered, max per-channel error 1.19e-7 (< 1e-6)\nindependent account absolute bound observed: token_bound=false, elapsed_ms=163\nindependent account absolute bound observed: token_bound=true, elapsed_ms=201\n\nthread 'tokio-rt-worker' (82284241) panicked at src/drive_auth/browser.rs:265:13:\nsynthetic browser worker unwind\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\nthread 'tokio-rt-worker' (82284239) panicked at src/drive_auth/browser.rs:265:13:\nsynthetic browser worker unwind\nindependent exchange absolute deadline observed in 302ms\n\nthread 'drive_auth::session::configured_tests::lifecycle_tests::independent_epoch_generation_exhaustion_and_poison_clear_connection' (82285773) panicked at src/drive_auth/session.rs:4587:25:\nsynthetic connected poison\n\nthread 'drive_auth::session::configured_tests::lifecycle_tests::switch_tests::faults_erase_both_owners_without_wrapping_or_reopening' (82285867) panicked at src/drive_auth/session.rs:5296:33:\nsynthetic switch poison\n\nthread 'tokio-rt-worker' (82284238) panicked at src/drive_auth/session.rs:1836:17:\nsynthetic watcher loop failure\n\nthread 'tokio-rt-worker' (82284238) panicked at src/drive_auth/session.rs:1836:17:\nsynthetic watcher loop failure\n\nthread 'drive_auth::session::configured_tests::post_authorization_worker_fault_poison_and_counter_overflow_fail_closed' (82285887) panicked at src/drive_auth/session.rs:3939:25:\nsynthetic poison\n\nthread 'drive_auth::session::configured_verification_independent_tests::independent_faults_after_authorization_drop_candidates_and_keep_cleanup_fence' (82285914) panicked at src/drive_auth/configured_verification_independent_tests.rs:1168:25:\nindependent C2 synthetic poison\n\nthread 'drive_auth::session::connected_lifecycle_independent_tests::independent_current_epoch_mapping_faults_and_disconnect_commit_orders' (82285964) panicked at src/drive_auth/connected_lifecycle_independent_tests.rs:1137:25:\nindependent synthetic C3 poison\n\nthread 'tokio-rt-worker' (82284234) panicked at src/drive_auth/session.rs:1836:17:\nsynthetic watcher loop failure\n\nthread 'drive_auth::session::independent_tests::independent_counter_fault_with_real_worker_and_poisoned_pending_fail_closed' (82286048) panicked at src/drive_auth/session_independent_tests.rs:669:13:\nindependent synthetic mutex poison\n\nthread 'drive_auth::session::switch_decision_independent_tests::independent_overflow_poison_and_actual_watcher_fault_clear_both_owners' (82286108) panicked at src/drive_auth/switch_decision_independent_tests.rs:1122:25:\nsynthetic C4 mutex poison\n\nthread 'tokio-rt-worker' (82284240) panicked at src/drive_auth/session.rs:1836:17:\nsynthetic watcher loop failure\n\nthread 'tokio-rt-worker' (82284241) panicked at src/drive_auth/session.rs:3023:13:\nsynthetic blocking worker failure\n\nthread 'drive_auth::session::tests::checked_counter_exhaustion_and_poison_close_admission' (82286133) panicked at src/drive_auth/session.rs:2746:17:\nsynthetic mutex poison\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpTjft4T/a.JPG: File already exists at destination: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpTjft4T/library/a.JPG\n\nthread 'file_management::r3_terminal_tests::guard_is_released_when_the_worker_panics' (82286198) panicked at src/file_management.rs:5838:13:\ninjected worker panic\nFailed to import content://com.android.providers.media.documents/document/image%3A42: Source file not found: content://com.android.providers.media.documents/document/image%3A42\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/bad\u0007\nname.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/bad\u0007\nname.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/fourth.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/fourth.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/fifth.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/fifth.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpIYqAwC/missing.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpIYqAwC/missing.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmp2VKlV3/MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmp2VKlV3/MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmp2VKlV3/\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c.JPG: File already exists at destination: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmp2VKlV3/library/\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c.JPG\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpHx6MhW/missing.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpHx6MhW/missing.RAF\n     Running unittests src/bin/validate_dcp.rs (/private/tmp/rapidraw-integration-20261015/target/debug/deps/validate_dcp-5335a69394e21f8c)\n     Running tests/drive_auth_loopback.rs (/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_loopback-83ec51dce99a1a12)\nindependent total expiry observed in 186ms\nindependent trickled-header close observed in 2022ms\n     Running tests/drive_auth_pkce.rs (/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_pkce-cad5e513e03842ec)\n     Running tests/drive_auth_token_response.rs (/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_token_response-5b4dc1b6f2844ae3)\n"
+        "text_utf8": "   Compiling RapidRAW v0.0.0 (<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri)\nwarning: RapidRAW@0.0.0: ONNX Runtime library already exists and is valid. Skipping download.\n    Finished `test` profile [optimized] target(s) in 3m 07s\n     Running unittests src/lib.rs (/private/tmp/rapidraw-integration-20261015/target/debug/deps/rapidraw_lib-c8f324ca959c2d5c)\nSharma verification: max error 0.000049498977271467126 on pair 23 (all 34 pairs < 1e-4)\ncandidate Lab: 12 bound rows / 108 components; maximum error 4.94770890924201e-13\nnaga: production 8-bit VALID\nnaga: production 16-bit VALID\nnaga: display.wgsl VALID\nnaga: flare.wgsl VALID\nnaga: guided.wgsl VALID\nnaga: blur.wgsl VALID\nnaga: parity shader VALID\nSynthetic identity profile: 4096 px rendered, max per-channel error 1.19e-7 (< 1e-6)\nindependent account absolute bound observed: token_bound=false, elapsed_ms=163\nindependent account absolute bound observed: token_bound=true, elapsed_ms=201\n\nthread 'tokio-rt-worker' (82284241) panicked at src/drive_auth/browser.rs:265:13:\nsynthetic browser worker unwind\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\nthread 'tokio-rt-worker' (82284239) panicked at src/drive_auth/browser.rs:265:13:\nsynthetic browser worker unwind\nindependent exchange absolute deadline observed in 302ms\n\nthread 'drive_auth::session::configured_tests::lifecycle_tests::independent_epoch_generation_exhaustion_and_poison_clear_connection' (82285773) panicked at src/drive_auth/session.rs:4587:25:\nsynthetic connected poison\n\nthread 'drive_auth::session::configured_tests::lifecycle_tests::switch_tests::faults_erase_both_owners_without_wrapping_or_reopening' (82285867) panicked at src/drive_auth/session.rs:5296:33:\nsynthetic switch poison\n\nthread 'tokio-rt-worker' (82284238) panicked at src/drive_auth/session.rs:1836:17:\nsynthetic watcher loop failure\n\nthread 'tokio-rt-worker' (82284238) panicked at src/drive_auth/session.rs:1836:17:\nsynthetic watcher loop failure\n\nthread 'drive_auth::session::configured_tests::post_authorization_worker_fault_poison_and_counter_overflow_fail_closed' (82285887) panicked at src/drive_auth/session.rs:3939:25:\nsynthetic poison\n\nthread 'drive_auth::session::configured_verification_independent_tests::independent_faults_after_authorization_drop_candidates_and_keep_cleanup_fence' (82285914) panicked at src/drive_auth/configured_verification_independent_tests.rs:1168:25:\nindependent C2 synthetic poison\n\nthread 'drive_auth::session::connected_lifecycle_independent_tests::independent_current_epoch_mapping_faults_and_disconnect_commit_orders' (82285964) panicked at src/drive_auth/connected_lifecycle_independent_tests.rs:1137:25:\nindependent synthetic C3 poison\n\nthread 'tokio-rt-worker' (82284234) panicked at src/drive_auth/session.rs:1836:17:\nsynthetic watcher loop failure\n\nthread 'drive_auth::session::independent_tests::independent_counter_fault_with_real_worker_and_poisoned_pending_fail_closed' (82286048) panicked at src/drive_auth/session_independent_tests.rs:669:13:\nindependent synthetic mutex poison\n\nthread 'drive_auth::session::switch_decision_independent_tests::independent_overflow_poison_and_actual_watcher_fault_clear_both_owners' (82286108) panicked at src/drive_auth/switch_decision_independent_tests.rs:1122:25:\nsynthetic C4 mutex poison\n\nthread 'tokio-rt-worker' (82284240) panicked at src/drive_auth/session.rs:1836:17:\nsynthetic watcher loop failure\n\nthread 'tokio-rt-worker' (82284241) panicked at src/drive_auth/session.rs:3023:13:\nsynthetic blocking worker failure\n\nthread 'drive_auth::session::tests::checked_counter_exhaustion_and_poison_close_admission' (82286133) panicked at src/drive_auth/session.rs:2746:17:\nsynthetic mutex poison\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpTjft4T/a.JPG: File already exists at destination: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpTjft4T/library/a.JPG\n\nthread 'file_management::r3_terminal_tests::guard_is_released_when_the_worker_panics' (82286198) panicked at src/file_management.rs:5838:13:\ninjected worker panic\nFailed to import content://com.android.providers.media.documents/document/image%3A42: Source file not found: content://com.android.providers.media.documents/document/image%3A42\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/bad\u0007\nname.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/bad\u0007\nname.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/fourth.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/fourth.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/fifth.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpUk1WpL/fifth.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpIYqAwC/missing.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpIYqAwC/missing.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmp2VKlV3/MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmp2VKlV3/MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM.RAF\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmp2VKlV3/\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c.JPG: File already exists at destination: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmp2VKlV3/library/\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c\u754c.JPG\nFailed to import /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpHx6MhW/missing.RAF: Source file not found: /private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/tmp/.tmpHx6MhW/missing.RAF\n     Running unittests src/bin/validate_dcp.rs (/private/tmp/rapidraw-integration-20261015/target/debug/deps/validate_dcp-5335a69394e21f8c)\n     Running tests/drive_auth_loopback.rs (/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_loopback-83ec51dce99a1a12)\nindependent total expiry observed in 186ms\nindependent trickled-header close observed in 2022ms\n     Running tests/drive_auth_pkce.rs (/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_pkce-cad5e513e03842ec)\n     Running tests/drive_auth_token_response.rs (/private/tmp/rapidraw-integration-20261015/target/debug/deps/drive_auth_token_response-5b4dc1b6f2844ae3)\n"
       }
     },
     "format": {
@@ -18186,7 +18187,7 @@
         "path": "/private/tmp/rapidraw-gd1b6-browser-canonical-validation-20261016/strict.stderr.log",
         "bytes": 290,
         "sha256": "8560a3fda58debb4ba2c1dfd51330f7879424e7911797da8f27dfe25badd0f63",
-        "text_utf8": "   Compiling RapidRAW v0.0.0 (/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri)\nwarning: RapidRAW@0.0.0: ONNX Runtime library already exists and is valid. Skipping download.\n    Finished `dev` profile [optimized] target(s) in 15.92s\n"
+        "text_utf8": "   Compiling RapidRAW v0.0.0 (<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri)\nwarning: RapidRAW@0.0.0: ONNX Runtime library already exists and is valid. Skipping download.\n    Finished `dev` profile [optimized] target(s) in 15.92s\n"
       }
     }
   },
@@ -23362,7 +23363,7 @@
       }
     ],
     "previous_report": {
-      "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-C4-CANONICAL-VALIDATION-2026-10-16.json",
+      "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/docs/integration/GD1B5-C4-CANONICAL-VALIDATION-2026-10-16.json",
       "bytes": 613530,
       "sha256": "ac70c9485efaa2f9eb347f4f28340598e810e2c70302a37181468bdea363c349"
     },
@@ -23444,7 +23445,7 @@
   },
   "protected_source": {
     "browser": {
-      "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/src/drive_auth/browser.rs",
+      "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/src/drive_auth/browser.rs",
       "bytes": 40838,
       "sha256": "5277c7e4fc176b22e7941d229818b82477c736cfc7da800b24b1e1e1cc9e7e31"
     },
@@ -26984,22 +26985,22 @@
       "count": 700,
       "metadata": {
         "HEAD": {
-          "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
+          "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
           "bytes": 55,
           "sha256": "0f87aa8de72b4312f0e9ed1d90e367abd6bd49ce06c4f1f971e2b00d687c94af"
         },
         "index": {
-          "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
+          "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
           "bytes": 78453,
           "sha256": "a11c8d6af5361d90945b592d7c0ea8002eb47ef5456d8af89e9c3a6f6413aad8"
         },
         "pointer": {
-          "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
+          "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
           "bytes": 100,
           "sha256": "8e32a461084a4ae11928e73d5394bb7bd57d75a02183884184b2425998cb4c90"
         },
         "branch_ref": {
-          "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
+          "path": "<HOME>/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
           "bytes": 41,
           "sha256": "dc804dbbbefa8308e99b5bf904ed1cf9d75e66668f90a9eefef1ac3350d79edc"
         }
@@ -29834,22 +29835,22 @@
       "input_count": 700,
       "metadata": {
         "HEAD": {
-          "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
+          "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/HEAD",
           "bytes": 55,
           "sha256": "0f87aa8de72b4312f0e9ed1d90e367abd6bd49ce06c4f1f971e2b00d687c94af"
         },
         "index": {
-          "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
+          "path": "<HOME>/Documents/CoWork/RapidRaw/.git/worktrees/drive-foundation-integration/index",
           "bytes": 78453,
           "sha256": "a11c8d6af5361d90945b592d7c0ea8002eb47ef5456d8af89e9c3a6f6413aad8"
         },
         "pointer": {
-          "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
+          "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/.git",
           "bytes": 100,
           "sha256": "8e32a461084a4ae11928e73d5394bb7bd57d75a02183884184b2425998cb4c90"
         },
         "branch_ref": {
-          "path": "/Users/harrisontucker/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
+          "path": "<HOME>/Documents/CoWork/RapidRaw/.git/refs/heads/codex/drive-sync-foundation-2026-10-15",
           "bytes": 41,
           "sha256": "dc804dbbbefa8308e99b5bf904ed1cf9d75e66668f90a9eefef1ac3350d79edc"
         }
@@ -31383,7 +31384,7 @@
     },
     "runtime_reuse": {
       "utc": "2026-10-16T01:13:16.753543+00:00",
-      "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/resources/libonnxruntime.dylib",
+      "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-foundation-integration/src-tauri/resources/libonnxruntime.dylib",
       "actual": {
         "bytes": 33481272,
         "sha256": "2b885992d3d6fa4130d39ec84a80d7504ff52750027c547bb22c86165f19406a"
@@ -31816,12 +31817,12 @@
             "sha256": "a4d451ec23463726f72c43d64c710968f6b602cd653b4de8adee1b556240a829"
           },
           {
-            "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-review/src-tauri/src/drive_auth/browser_independent_tests.rs",
+            "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-review/src-tauri/src/drive_auth/browser_independent_tests.rs",
             "bytes": 26329,
             "sha256": "8a55fc706e47442d020a6ee63690e6831a4495d33c66dc288256c8f2324e8efd"
           },
           {
-            "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-review/docs/integration/GD1B6-BROWSER-RUNTIME-VALIDATION-2026-10-16.md",
+            "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-review/docs/integration/GD1B6-BROWSER-RUNTIME-VALIDATION-2026-10-16.md",
             "bytes": 8514,
             "sha256": "94cad5f2d4546e1e309564afc7a29a4362582242611e923087bda5e9d2af1184"
           }
@@ -31995,12 +31996,12 @@
             "sha256": "e560e8bd027debb1d1ed7281d31214bca0606a472fcbc451251ce59c1ad6d24f"
           },
           {
-            "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-observer-review/src-tauri/src/drive_auth/browser_independent_tests.rs",
+            "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-observer-review/src-tauri/src/drive_auth/browser_independent_tests.rs",
             "bytes": 32108,
             "sha256": "6344645bcae7878c62322e7d6a3bc816498ff5da84b77a630419b16f1d5491c6"
           },
           {
-            "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-observer-review/docs/integration/GD1B6-BROWSER-OBSERVER-SOURCE-2026-10-16.md",
+            "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-observer-review/docs/integration/GD1B6-BROWSER-OBSERVER-SOURCE-2026-10-16.md",
             "bytes": 4315,
             "sha256": "d65807961b389c24c6c628bf02a6993e9f01b4e0c9a91d84445b484c39ce4d7b"
           }
@@ -32439,7 +32440,7 @@
             "sha256": "7e7cfbcb04acbbcdf43e1edbe93525224765b334ed62fda45f45be2f43440add"
           },
           {
-            "path": "/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-observer-review/docs/integration/GD1B6-BROWSER-REVISED-VALIDATION-2026-10-16.md",
+            "path": "<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-browser-observer-review/docs/integration/GD1B6-BROWSER-REVISED-VALIDATION-2026-10-16.md",
             "bytes": 7419,
             "sha256": "01c80f573a81cd3f07928e0b0d5c23a1f1b781fc35adeae92235ebdd68637c70"
           }

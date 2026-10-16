@@ -1,6 +1,6 @@
 # GD0 — Drive workspace and portable editing contract v1
 
-Design frozen 2026-10-15 by GPT-6 Astra (`gpt-6-astra`), source `5ca276ac1dab210f11ee4cecbf904038516164f8`. **Implementable design, not provider/security/product acceptance.** Worktree: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-contract`.
+Design frozen 2026-10-15 by GPT-6 Astra (`gpt-6-astra`), source `5ca276ac1dab210f11ee4cecbf904038516164f8`. **Implementable design, not provider/security/product acceptance.** Worktree: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-contract`.
 
 **Desktop authorization clarification, 2026-10-16:** [Native OAuth scope addendum](NATIVE-OAUTH-SCOPE-ADDENDUM-2026-10-16.md) qualifies the separate-category consent wording below. Desktop requests the complete scope set needed for the selected capabilities; it must not rely on incremental authorization or assume earlier grants accumulate. The original frozen contract remains identifiable by SHA-256 `c2784483077379393c4ca4d913972ccc125e93897832568bed9e8882f5c7ca19`.
 
@@ -172,3 +172,7 @@ No implementation is authorized by this document alone. Each owner gets a frozen
 Future host commands, only in assigned snapshots with exclusive cache: `cargo test --locked --offline --manifest-path src-tauri/Cargo.toml --lib drive::`; checkpoint tests under `checkpoints::`; `cargo fmt --manifest-path src-tauri/Cargo.toml -- --check`; scoped strict clippy after runtime tests. Frontend: `node --test src/__tests__/driveWorkspace.test.mjs`, `npm run test:profiles`, baseline-compared `npm run typecheck`, scoped ESLint, `git diff --check`. Lead owns `lib.rs`, AppState/shared DTO integration, Cargo/package/Gradle locks, dependency choice and final native+frontend integration. No tests/builds were run by GD0.
 
 Acceptance layers stay distinct: pure/state fixtures → persistence fault tests → mocked HTTP/auth → real least-privilege desktop+Android → physical lifecycle/cache → profile/checkpoint render equivalence. Every operational layer currently **Not exercised**. Next worker implements only GD1a; provider registration, platform integration, UI and full E4 are subsequent explicit assignments.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `a7a171f6e5a1154439941899b0efcb99d65bb73842b94f7d750d9a65a2b6bc29` (44257 bytes).

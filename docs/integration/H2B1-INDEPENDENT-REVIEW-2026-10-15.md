@@ -2,7 +2,7 @@
 
 **Verdict: Revise before import.** Two concrete false-Pass cases remain: the new running mean can move an exact threshold-equality sample below the CPU limit, and the public-record checks accept an impossible mean/max/count combination that passes GPU parity. Both corrections fit the assigned statistics file; no colour formula, ICC, renderer, CLI or tolerance change is requested.
 
-Reviewer: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/stats-guards`, detached base `8877d7eaa14442814912a199c8de9abdfba5c8b9`. Only this report is written under `raf-review/docs/integration/`. No source edit, Cargo/build/test-binary execution, cache mutation, device operation or private photograph access. Independent small Python arithmetic/source-preservation probes ran from stdin without importing the production module or writing files.
+Reviewer: Codex CLI - Astra, actual `gpt-6-astra`, slot `01a13e02-3bb7-7100-b36a-2e591c9f54e7`. Reviewed snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/stats-guards`, detached base `8877d7eaa14442814912a199c8de9abdfba5c8b9`. Only this report is written under `raf-review/docs/integration/`. No source edit, Cargo/build/test-binary execution, cache mutation, device operation or private photograph access. Independent small Python arithmetic/source-preservation probes ran from stdin without importing the production module or writing files.
 
 ## Frozen inputs verified
 
@@ -87,3 +87,7 @@ A second probe evaluated the public-record predicates above and the necessary ma
 **Fail:** F1 exact-boundary false Pass (P1), F2 impossible-record false Pass (P2), supported by source and executed independent arithmetic. **Pass:** frozen hashes/diff identity, formula/conversion/white/Sharma preservation, specified count/mask/nonfinite/allocation guards under static inspection, existing23-test worker log. **Not exercised by reviewer:** Rust tests/builds, actual OOM, real comparator/Adobe/RAW/GPU/device acceptance. **User-reported:** no new user evidence adopted.
 
 Next consumer: lead assigns a one-file repair to the implementation owner, preserves this rejected artifact, then requests independent review of revised source/hash and a refreshed focused-test receipt. Required worker command remains `cargo test --locked --lib dcp::delta_e -- --nocapture` under lead-controlled cache scheduling. Do not import the current source as accepted H2b1 or start later colour slices on its acceptance claim. No source modifications made by this review. Final report SHA-256 is sent in Team delivery.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `852a69f9afc93ab67f60aec14fe22c55bf799ebc5ff4cc51d310cc5297c28e65` (11500 bytes).

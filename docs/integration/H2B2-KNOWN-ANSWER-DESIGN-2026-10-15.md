@@ -2,11 +2,11 @@
 
 Preparation evidence only. This file is not `bench/dcp_validation/known-answers.json`, and it does not authorize H2b2 or ICC work. Implementing candidate conversion still needs a separate assignment after the H2b1 statistics import. H2b1's API was not used. No colour-pipeline source, expected-value JSON, ICC parser, white gate, build, device, cache, dependency, or Git mutation is included.
 
-Amended after lead review of the preserved draft `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/H2B2-KNOWN-ANSWER-DRAFT-2026-10-15.md`, SHA-256 `22ab394a74f32af727e9b0058ee603c114346cbae039a3cb5d4f35b3f8a04ed2`. The amendment adds two clipping samples, a separate f32-widened input domain, and two prose corrections. The original eight analytic rows are unchanged.
+Amended after lead review of the preserved draft `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/H2B2-KNOWN-ANSWER-DRAFT-2026-10-15.md`, SHA-256 `22ab394a74f32af727e9b0058ee603c114346cbae039a3cb5d4f35b3f8a04ed2`. The amendment adds two clipping samples, a separate f32-widened input domain, and two prose corrections. The original eight analytic rows are unchanged.
 
-Author/model: Grok Build / `grok-4.7` (slot `01a13e02-3c22-7ad0-9ed3-8bab4bc7d945`). Snapshot: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/harness-review`. Frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`, tree `9f36c891f35d9310a7977bda7d851178ad92039d`. Environment: macOS 26.5.2 / 25F84, arm64. Python 3.9.6, standard-library `decimal` only.
+Author/model: Grok Build / `grok-4.7` (slot `01a13e02-3c22-7ad0-9ed3-8bab4bc7d945`). Snapshot: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/harness-review`. Frozen HEAD `4c1e965a53de9c835df920b2e3d69c2c8a864708`, tree `9f36c891f35d9310a7977bda7d851178ad92039d`. Environment: macOS 26.5.2 / 25F84, arm64. Python 3.9.6, standard-library `decimal` only.
 
-Contract read: `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/H2-COMPARISON-CONTRACT-2026-10-15.md`, SHA-256 `f29936252b3ec103a41a76961d97902c82970416ea5802f88d497ef4341a6880`, sections 3, 6, and 7. Prior review read, not modified: `docs/integration/H2A-INDEPENDENT-REVIEW-2026-10-15.md`, SHA-256 `c9be23b548446ace92365dafa17f08f1362f8237d9451c355aecd53525aede0b`. This note follows the lead contract. It does not reopen the review's ICC, threshold, or package findings. Section 6 item 2 (synthetic ICC, gamma 2, `L≈57.07542089`, PCS-D50→Wc) is not this preparation.
+Contract read: `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/lead/docs/integration/H2-COMPARISON-CONTRACT-2026-10-15.md`, SHA-256 `f29936252b3ec103a41a76961d97902c82970416ea5802f88d497ef4341a6880`, sections 3, 6, and 7. Prior review read, not modified: `docs/integration/H2A-INDEPENDENT-REVIEW-2026-10-15.md`, SHA-256 `c9be23b548446ace92365dafa17f08f1362f8237d9451c355aecd53525aede0b`. This note follows the lead contract. It does not reopen the review's ICC, threshold, or package findings. Section 6 item 2 (synthetic ICC, gamma 2, `L≈57.07542089`, PCS-D50→Wc) is not this preparation.
 
 ## 1. Path these numbers describe
 
@@ -632,3 +632,7 @@ Commands: `git rev-parse HEAD` and `git rev-parse HEAD^{tree}`; `git status --sh
 Concise diff against draft `22ab394a…`: quantum wording (`1e-12`, maximum error `5e-13`); Display P3 primaries corrected and sRGB coefficients left as they were; §4b and the two analytic samples; f32-widened chroma and extended controls; clip-witness table. The §4 script and the original eight rows are unchanged.
 
 Document SHA-256 is in the delivery message; it cannot be embedded here. The only worktree file this amendment edits is this note. The prior review remains the other untracked file and was not changed. Stop here for independent review. This amendment does not authorize H2b2 implementation or ICC work.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `3019ff22a4275b6ed18d0bbd434ea7c8482eac9c89fbb93d51d81f15569fa2b9` (34598 bytes).

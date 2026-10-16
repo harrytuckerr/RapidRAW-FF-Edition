@@ -1,6 +1,6 @@
 # GD1b5-S2 — native account candidate, source-only receipt
 
-Frozen 2026-10-16 Melbourne by actual **gpt-6-astra**, task `01a1405f-237a-7503-97e8-7e2141e4328f`. Worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account`, clean detached input **bd7f2d00a498315f48898c88ed99fbb225fa1113**. Approved S1 source commit4cbd8b5968851f7eb4b9c7219efd223d894faeb0 and its reported368Pass/14ignored/fmt/strict baseline are prerequisites, **not validation of this new module**.
+Frozen 2026-10-16 Melbourne by actual **gpt-6-astra**, task `01a1405f-237a-7503-97e8-7e2141e4328f`. Worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-desktop-account`, clean detached input **bd7f2d00a498315f48898c88ed99fbb225fa1113**. Approved S1 source commit4cbd8b5968851f7eb4b9c7219efd223d894faeb0 and its reported368Pass/14ignored/fmt/strict baseline are prerequisites, **not validation of this new module**.
 
 **Ready for independent source review and a separately granted compile/runtime assignment. ZERO tests executed.** Root alone registers account.rs. No Google/app/account feature was enabled.
 
@@ -85,3 +85,7 @@ Those commands are **not run here**. Independent adversarial transport/parser/ow
 - `src-tauri/Cargo.lock`: `7ddd491af60c07c0d0a0983ab77c6f81409961831ed679b7b444103a6d765def`.
 
 Full624-file custody is in the before/after manifests. Final receipt/source/private evidence hashes are in delivery.json. Source and receipt stop frozen for independent review.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `8b9cb169ab20b6fb633d152f851258f8e7b7d6b39047dc0e86704e8547213afc` (14194 bytes).

@@ -1,6 +1,6 @@
 # GD1a1 — strict revision-envelope source receipt
 
-**Ready for independent source review; compilation and tests Not exercised.** Task `01a13f45-885c-72b1-95b2-4ed1aef7a3e2`, actual model `gpt-6-astra`. Snapshot `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-model`, detached base `5ca276ac1dab210f11ee4cecbf904038516164f8`.
+**Ready for independent source review; compilation and tests Not exercised.** Task `01a13f45-885c-72b1-95b2-4ed1aef7a3e2`, actual model `gpt-6-astra`. Snapshot `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-model`, detached base `5ca276ac1dab210f11ee4cecbf904038516164f8`.
 
 Only two new module files, this new receipt and private `/private/tmp/rapidraw-gd1a1-model-20261015/` evidence were written. Existing production files, `lib.rs`, Cargo/package/locks and caches remain unchanged. No Cargo/rustc/test binary, dependency resolution, runtime filesystem/store, auth, network, UI, renderer, device or provider work was performed. Native cache belongs to PS1; the module deliberately remains unregistered.
 
@@ -44,3 +44,7 @@ Environment observed: Darwin25.5.0 arm64; `rustfmt 1.9.0-stable (8bab26f4f6 2026
 Envelope validation does not authenticate AccountKey, verify fetched dependency contents, validate same-object ancestry/cycles beyond immediate self-reference, infer profile identity/pairing, or validate opaque payload effects/paths/secrets. Provider IDs use conservative bounded ASCII syntax; real Google identity remains a later provider check. CreatedAt and engineContract are bounded nonblank display text, not a time parser or compatibility guarantee. DCP BLAKE3/Look semantics belong to the later portable codec; SHA-256 here never replaces them. The parser's allocation is bounded by input size/depth, but this slice does not promise recoverable allocator exhaustion.
 
 After independent review, root alone registers `pub mod drive` in `lib.rs` and assigns the native cache. Future focused command, from `src-tauri`: `cargo test --locked --offline --lib drive::model`. Run type/lint checks then report actual outcomes; rustfmt is not compilation evidence. Do not dispatch graph/conflict/ack/store/auth/UI work as incidental fixes to this slice. No source change or provider action is requested beyond that separately assigned review/runtime step.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `a1862c812e66a434b394eb3d74b55424f02d7da81dec9b2e0243d9a350de4509` (6299 bytes).

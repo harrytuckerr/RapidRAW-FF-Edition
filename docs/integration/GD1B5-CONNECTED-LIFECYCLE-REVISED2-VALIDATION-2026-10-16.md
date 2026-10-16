@@ -1,6 +1,6 @@
 # C3 corrected-probe validation — runtime Pass, strict lint Fail
 
-Actual model `gpt-6.1-sol`; task `01a1412e-1f68-7322-b9b9-4c61b0682bb7`. Read-only worktree `/Users/harrisontucker/.codex/worktrees/rapidraw-fuji-team-20261015/drive-connected-lifecycle-review`, detached `52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0`. Astra authored C3 production; Sol authored the independent probes; root owns the two subsequent test-only corrections. This grant only executed validation and wrote this report/private evidence.
+Actual model `gpt-6.1-sol`; task `01a1412e-1f68-7322-b9b9-4c61b0682bb7`. Read-only worktree `<HOME>/.codex/worktrees/rapidraw-fuji-team-20261015/drive-connected-lifecycle-review`, detached `52fe885d8b97fe7e2d0e4f6edad5d8e91befd4f0`. Astra authored C3 production; Sol authored the independent probes; root owns the two subsequent test-only corrections. This grant only executed validation and wrote this report/private evidence.
 
 | Gate (exactly once each) | Result | Wall time |
 | --- | --- | --- |
@@ -33,3 +33,7 @@ Actual scheduled raw-State expiry/replacement checks remain separate from direct
 **Pass:** focused runtime68/format/custody. **Fail:** strict all-target Clippy; overall validation gate remains incomplete. **Not exercised:** full/canonical suite/integration, Google/provider/full OAuth chain, C4/configuration/browser/IPC/store/refresh/lease/Android/device/UI/Drive/sync/product acceptance. No extra tests/commands/source/Git/device actions.
 
 Cache **RELEASED** `2026-10-15T20:11:45.942693+00:00`; no cargo/rustc/clippy-driver, 18352717824B free. Sealed machine receipt/artifact manifest accompany this report; final hashes are in Team handoff. Stop frozen; root alone owns subsequent correction/integration.
+
+---
+
+> Public redacted copy (2026-10-16). Personal home paths and physical device serials are display placeholders; embedded Git index payloads, where present, are summarized by hash/size/equality. Full original bytes are retained privately. Existing test outcomes, IDs and hashes describe the original evidence/source/artifacts, not this redacted document or placeholder paths. This forward edit does not purge history or release copies. Original document SHA-256: `6c91abe7d8dd85139c44b9b46a0767c69f4d7eed657cd655da4c535ca018e04d` (5702 bytes).

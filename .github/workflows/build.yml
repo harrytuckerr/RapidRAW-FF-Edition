@@ -35,17 +35,32 @@ on:
         required: false
         type: string
         default: ''
+      sign-android:
+        description: Sign Android only for a trusted release event
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      ANDROID_KEY_ALIAS:
+        required: false
+      ANDROID_KEY_PASSWORD:
+        required: false
+      ANDROID_KEY_BASE64:
+        required: false
 
+# Permissions are supplied by each caller: read-only for CI/PR, contents:write
+# only for the release caller that uploads assets. No inherited secret bundle.
 jobs:
   build:
     runs-on: ${{ inputs.platform }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Install Rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -162,13 +177,23 @@ jobs:
           python3 scripts/android-build.py prepare --workspace "$RUNNER_TEMP/rapidraw-android" --locks src-tauri/gen/android/dependency-locks
 
       - name: Setup Android signing
-        if: inputs.mobile == 'android' && github.event_name != 'pull_request'
+        if: inputs.mobile == 'android' && inputs.sign-android && github.event_name == 'release'
+        shell: bash
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
         run: |
+          set -euo pipefail
+          umask 077
+          if [[ -z "$ANDROID_KEY_ALIAS" || -z "$ANDROID_KEY_PASSWORD" || -z "$ANDROID_KEY_BASE64" ]]; then
+            echo 'Required release signing configuration is unavailable.' >&2
+            exit 1
+          fi
           cd "$RUNNER_TEMP/rapidraw-android/src-tauri/gen/android"
-          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" > keystore.properties
-          echo "password=${{ secrets.ANDROID_KEY_PASSWORD }}" >> keystore.properties
-          echo "${{ secrets.ANDROID_KEY_BASE64 }}" | base64 -d > $RUNNER_TEMP/keystore.jks
-          echo "storeFile=$RUNNER_TEMP/keystore.jks" >> keystore.properties
+          printf 'keyAlias=%s\npassword=%s\nstoreFile=%s\n' \
+            "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD" "$RUNNER_TEMP/keystore.jks" > keystore.properties
+          printf '%s' "$ANDROID_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/keystore.jks"
 
       - name: Build Android
         if: inputs.mobile == 'android'
@@ -178,6 +203,13 @@ jobs:
           ANDROID_BUILD_ARGS: ${{ inputs.build-args }}
         run: |
           python3 scripts/android-build.py build --workspace "$RUNNER_TEMP/rapidraw-android" --release --build-args="$ANDROID_BUILD_ARGS"
+
+      - name: Remove temporary Android signing files
+        if: always() && inputs.mobile == 'android' && inputs.sign-android && github.event_name == 'release'
+        shell: bash
+        run: |
+          rm -f -- "$RUNNER_TEMP/keystore.jks" \
+            "$RUNNER_TEMP/rapidraw-android/src-tauri/gen/android/keystore.properties"
 
       - name: Upload Android dependency receipt
         if: inputs.mobile == 'android' && always()
