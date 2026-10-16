@@ -1,0 +1,42 @@
+RapidRAW Fuji Edition development preview — supplemental attribution
+
+Application source: b75d096b4ef2001377cfc628835a6bd160601c28
+https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition
+The retained NOTICE.md has historical validation counts; the release provenance
+and release notes state this artifact revision's actual checks and limitations.
+
+Lensfun database
+Lensfun project authors and contributors — https://lensfun.github.io/
+Tom Niemann: original open-source ptlens database (upstream LENS DATA credit).
+Full supplied role-specific credits are retained verbatim in
+LENSFUN-UPSTREAM-README-2020.md and LENSFUN-UPSTREAM-README-CURRENT.md.
+This role-specific attribution does not identify Tom as sole author of every
+bundled database file.
+Source project: https://github.com/lensfun/lensfun
+The Lensfun README identifies the database under data/ as CC BY-SA 3.0.
+Full license: LENSFUN-DATABASE-CC-BY-SA-3.0.txt
+Primary-source reference: Lensfun commit bb14c99b2a239beee016109941f57b6ff9350547,
+README.md and data/COPYING.CC_BY-SA_3.0. Current upstream retains the same terms.
+The bundled database is the exact src-tauri/lensfun_db snapshot in application
+source b75d096b. Its timestamp file is not treated as an upstream revision ID.
+This snapshot is not claimed identical to current upstream: 47/58 non-timestamp
+files match the captured current upstream tree; the other files differ.
+No database editing is performed for this package. Exact source files are
+available in the accompanying application source archive; local hashes are in
+LENSFUN-SNAPSHOT.json. This is a retained upstream-derived snapshot, not a new
+Lensfun release or a claim of Lensfun endorsement.
+
+ONNX Runtime 1.22.0
+Copyright (c) Microsoft Corporation. All rights reserved.
+https://github.com/microsoft/onnxruntime/tree/v1.22.0
+MIT license and upstream third-party notices are included as
+ONNXRUNTIME-LICENSE.txt and ONNXRUNTIME-ThirdPartyNotices.txt.
+
+Film LUTs
+spektrafilm by Andrea Volpato — https://github.com/andreavolpato/spektrafilm
+CC BY-SA 4.0. The original SPEKTRAFILM_LICENSE.txt is retained in
+resources/film_luts; the six retained LUT files are not modified by this packaging.
+Existing bundled AGPL/LGPL texts under resources/licenses are retained.
+
+These notices supplement the retained project resources. They do not change
+application code or grant rights in user-supplied Adobe/Cobalt profiles.

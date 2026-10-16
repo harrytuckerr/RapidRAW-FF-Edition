@@ -1,0 +1,300 @@
+{
+  "source_commit": "b75d096b4ef2001377cfc628835a6bd160601c28",
+  "files": [
+    {
+      "name": "6x6.xml",
+      "bytes": 29550,
+      "sha256": "ca13c2756b32d728675372695c072517a0e38af5eff2ecd3e17599dee7fc58b3"
+    },
+    {
+      "name": "actioncams.xml",
+      "bytes": 17188,
+      "sha256": "79a5da0322574b95690464444c9d9ba1da0e1f827da44fd6bff120a0ec10e4b4"
+    },
+    {
+      "name": "compact-canon.xml",
+      "bytes": 246818,
+      "sha256": "c7695caadc654a7154babfa42dad7a993eec0a13d8c6a65cc706340455c2b4b8"
+    },
+    {
+      "name": "compact-casio.xml",
+      "bytes": 6889,
+      "sha256": "ab35433879c4574ef8f97cd4e3d114d7ff8db4e7279da9d502fc9e911b51ee27"
+    },
+    {
+      "name": "compact-fujifilm.xml",
+      "bytes": 67954,
+      "sha256": "58af9ebef2410c428ae2c5d01003d2247330d47d918823e63522b4d897a997d1"
+    },
+    {
+      "name": "compact-kodak.xml",
+      "bytes": 2091,
+      "sha256": "377018ccd74f58e966b37a11e5a8689be4268153bebece9f1f2a0dbfa8234845"
+    },
+    {
+      "name": "compact-konica-minolta.xml",
+      "bytes": 13349,
+      "sha256": "832a7473951ab625e10c48af6cf60f89b57280016d45729e2584cf9e41ad3cc7"
+    },
+    {
+      "name": "compact-leica.xml",
+      "bytes": 9113,
+      "sha256": "8e4676679377576dc19e7900ce86fc69b0248ea1d4538aa22ee1ee09431a3be3"
+    },
+    {
+      "name": "compact-nikon.xml",
+      "bytes": 40003,
+      "sha256": "5393bdb8223e13d21b85818e96571e97c035470b49b0452dfcedc2e1ff512d3b"
+    },
+    {
+      "name": "compact-olympus.xml",
+      "bytes": 34454,
+      "sha256": "7637d469ad54a02ebce9492a9aa9424a2ff1ec07b0398158076f762fdc08389b"
+    },
+    {
+      "name": "compact-panasonic.xml",
+      "bytes": 69980,
+      "sha256": "9826a027e913f9df2b4b663a87a0951c8be5024e15a2e2be0ab5e745a5e0af51"
+    },
+    {
+      "name": "compact-pentax.xml",
+      "bytes": 6689,
+      "sha256": "596fae3edaadcf2d90ae930fc1bec42597ca0b2bd11842e686e1b915f3736390"
+    },
+    {
+      "name": "compact-ricoh.xml",
+      "bytes": 18424,
+      "sha256": "46df96ebc367d5170cb6b7dfc3742093f0ad946264518fc5488573ba052f29d7"
+    },
+    {
+      "name": "compact-samsung.xml",
+      "bytes": 13875,
+      "sha256": "36e3a778046d56385c387d48474cd32a89a5da94d99e640b5ce716ce747f898d"
+    },
+    {
+      "name": "compact-sigma.xml",
+      "bytes": 2395,
+      "sha256": "0ddc265e3e580da05dcd4664d1b9c2464838d74dd02519c826520950c8f1759e"
+    },
+    {
+      "name": "compact-sony.xml",
+      "bytes": 126229,
+      "sha256": "be146388b4f6f7bf0d73394e20386ce6ccef3559ab39f1268ba3c14aaef03207"
+    },
+    {
+      "name": "contax.xml",
+      "bytes": 1696,
+      "sha256": "5eba12e6fd4913470afb6fe25fee47a263084b6cec830297273909872f47669a"
+    },
+    {
+      "name": "generic.xml",
+      "bytes": 5416,
+      "sha256": "cd572d4110981546b2c4cd296c2ff16755b30063fa136d8b06ad2ca13ab4c59f"
+    },
+    {
+      "name": "lensfun-database.dtd",
+      "bytes": 2423,
+      "sha256": "532bb9a7232eaf372baa70afb552712dc699dbacf8b5a408ec4b670a87ffb3e5"
+    },
+    {
+      "name": "lensfun-database.xsd",
+      "bytes": 6195,
+      "sha256": "6a0a0882ac583113fb3b2896ad89d2da9ca531ac536f1638131c7732d3d1bd7b"
+    },
+    {
+      "name": "mil-canon.xml",
+      "bytes": 247355,
+      "sha256": "4dd95ac19a3966389b4f9269e22b055e369aff507967bd6521ebf4db3063cde4"
+    },
+    {
+      "name": "mil-fujifilm.xml",
+      "bytes": 210586,
+      "sha256": "64586336153b948fe2325f6c46679149a4e3c114a70bee4bd1de88721cb4de72"
+    },
+    {
+      "name": "mil-hasselblad.xml",
+      "bytes": 1048,
+      "sha256": "13e1fa55d36c2ed7d22964c21ce6c21d887bfe4506e840e425da1ce4157c3756"
+    },
+    {
+      "name": "mil-leica.xml",
+      "bytes": 11663,
+      "sha256": "c691037e2e0743388473c2a0545e340462c412b7e3b57e451f4f9c89dde2388a"
+    },
+    {
+      "name": "mil-nikon.xml",
+      "bytes": 170820,
+      "sha256": "ea797174c49777ff023cc4f0116e1948f56eb43c1fb9a072ac6a3a45a0c5e5a0"
+    },
+    {
+      "name": "mil-olympus.xml",
+      "bytes": 147123,
+      "sha256": "989a3d88ef07a286efc2755df214792fdf71d60366932a1b369a77ad39cf2abb"
+    },
+    {
+      "name": "mil-panasonic.xml",
+      "bytes": 298804,
+      "sha256": "a760800ab71caec09334bb588ffd13ca1d95e51b938d5856900e1d70747404f0"
+    },
+    {
+      "name": "mil-pentax.xml",
+      "bytes": 1385,
+      "sha256": "675a94f52794868ad9f1d79e17b7128783c34b3db23e9eac346c5963812a16e5"
+    },
+    {
+      "name": "mil-samsung.xml",
+      "bytes": 13007,
+      "sha256": "10130e9e125e0882a16fd3033cfed0175e9c14cb7d35e630cdb94736f27e5dc3"
+    },
+    {
+      "name": "mil-samyang.xml",
+      "bytes": 25990,
+      "sha256": "ae3bf262f12facdc6f81b837cf6d36fdde2a930d2bfb0918d5abaa47fcfea3ab"
+    },
+    {
+      "name": "mil-sigma.xml",
+      "bytes": 110874,
+      "sha256": "5540dc9496ff29460fd3f925a144a81686d945f5eb5c33380a6471bb0307a163"
+    },
+    {
+      "name": "mil-sony.xml",
+      "bytes": 274523,
+      "sha256": "58da250a9bf97a3ff9c5b6a8f92bb5cd6be26e1c4a91f4f666a608a63e896a12"
+    },
+    {
+      "name": "mil-tamron.xml",
+      "bytes": 96068,
+      "sha256": "a941ea55ad052a6d300fd095c629d4319275a292ad2dc828633114ac7220a403"
+    },
+    {
+      "name": "mil-tokina.xml",
+      "bytes": 1014,
+      "sha256": "addb27bd82b0d729644b9da1342f92401f63cc5945309ed17f38f4b7af1649e3"
+    },
+    {
+      "name": "mil-zeiss.xml",
+      "bytes": 19171,
+      "sha256": "ef8a238904fc9ea6fdb6171863dfd70cd94814af19ecd8c31ee000ca1864589d"
+    },
+    {
+      "name": "misc.xml",
+      "bytes": 173617,
+      "sha256": "ae4dc00ef77b43ca84f0de8f8f5f1c8b84f476999e05c0bf15867687df3ad7c6"
+    },
+    {
+      "name": "om-system.xml",
+      "bytes": 35127,
+      "sha256": "6ef0cdaeae41e7a7699e306f735c5f9ce07c4ee828a92c9df13319cb5717f23b"
+    },
+    {
+      "name": "rf-leica.xml",
+      "bytes": 6712,
+      "sha256": "f93636e1980ad308d1873cc3ac078cdc77c0d529d777cd45c5c8d0e4781981e3"
+    },
+    {
+      "name": "slr-canon.xml",
+      "bytes": 780353,
+      "sha256": "5244e6df8f2522f829c57e2073313ce31a624e9ed9605310fe43613b9d588c99"
+    },
+    {
+      "name": "slr-hasselblad.xml",
+      "bytes": 642,
+      "sha256": "97602c467699904bf101179ea2fa24f05f3e1879250498a6ba306cd95a3b7a6b"
+    },
+    {
+      "name": "slr-konica-minolta.xml",
+      "bytes": 46664,
+      "sha256": "60347e4aec726e82ee4e0db5487a50aee80f5bfecf9e532688902f9321b74356"
+    },
+    {
+      "name": "slr-leica.xml",
+      "bytes": 432,
+      "sha256": "c5e74cb511712e99ed60a066e85c842fea58f693c5039c3819485619f5293d0e"
+    },
+    {
+      "name": "slr-nikon.xml",
+      "bytes": 550157,
+      "sha256": "5e591e8b1032203cce4c822f1da3d49524a78e7d71c594ea5a4533f2e57aacdf"
+    },
+    {
+      "name": "slr-olympus.xml",
+      "bytes": 116602,
+      "sha256": "f7693b6779edd8ed10d7dc23113669255bfa4987cea7db0e843f7f5f2bbbe615"
+    },
+    {
+      "name": "slr-panasonic.xml",
+      "bytes": 419,
+      "sha256": "cd79acb49d9ce5f2a4cecc572b3e117f03da380bed2dcbfd52327192d8ce2381"
+    },
+    {
+      "name": "slr-pentax.xml",
+      "bytes": 209552,
+      "sha256": "2fba773e41a1cfb70f0c85efdab6d78944bf80ddf89bc2035ef6db39da352f29"
+    },
+    {
+      "name": "slr-ricoh.xml",
+      "bytes": 2869,
+      "sha256": "c835798136a53535fdf4f81312ac9aad0ea3de3ef732c183d8cc4d2f432011d9"
+    },
+    {
+      "name": "slr-samsung.xml",
+      "bytes": 1110,
+      "sha256": "dc0a29e424ff96e4316ddeb76126fa6f6c73a8836905a3e1f56f0c493826148f"
+    },
+    {
+      "name": "slr-samyang.xml",
+      "bytes": 16811,
+      "sha256": "fb1585bea91f5f59e1fae8811dd76c92252ee5d52e3647df2aff4695048443b5"
+    },
+    {
+      "name": "slr-schneider.xml",
+      "bytes": 5890,
+      "sha256": "de607cfe4ba6e7debc61e282ce39b72825c07601572e14af2bc9108ba67faf81"
+    },
+    {
+      "name": "slr-sigma.xml",
+      "bytes": 444640,
+      "sha256": "f55f41c144fbb72e3c51d2dfef40e918930d37db1b4150bd02bd746406c036d2"
+    },
+    {
+      "name": "slr-soligor.xml",
+      "bytes": 573,
+      "sha256": "1aba0aab19bce87ea86175b6551cb5306a512eb54be1698b89991b86008f6a04"
+    },
+    {
+      "name": "slr-sony.xml",
+      "bytes": 88865,
+      "sha256": "e5ca7f532afe23ff380bf2f9e5458f687bed603355d73a254d85c4e692942fdc"
+    },
+    {
+      "name": "slr-tamron.xml",
+      "bytes": 201992,
+      "sha256": "c62090789cebe6bbb663111c6e97beeb1111852bb735088e29cf8782df4bab45"
+    },
+    {
+      "name": "slr-tokina.xml",
+      "bytes": 91977,
+      "sha256": "b1213eda81a613bc3976340398c6b8ce8b7dc29423476fc565d5f8e5cf612ecf"
+    },
+    {
+      "name": "slr-ussr.xml",
+      "bytes": 19024,
+      "sha256": "1fd6acc8a8f40373379bea2899ffd96fc34b22d9b044d0474dabd4c89af44efb"
+    },
+    {
+      "name": "slr-vivitar.xml",
+      "bytes": 2157,
+      "sha256": "c5c67e3fe38e8fa19044acadc7730047690435f66aac563f55ffe04997a88111"
+    },
+    {
+      "name": "slr-zeiss.xml",
+      "bytes": 14957,
+      "sha256": "49aa211a41fd5fe391d26af5fa65bdf9428d60863ffff15d3916fa1c520dc101"
+    },
+    {
+      "name": "timestamp.txt",
+      "bytes": 11,
+      "sha256": "a846300caf01e0bf1372a37e57b945579b43da6a4dead7e3fb1bfca23526a015"
+    }
+  ]
+}

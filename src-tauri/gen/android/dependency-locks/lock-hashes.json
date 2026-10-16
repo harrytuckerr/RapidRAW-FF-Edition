@@ -1,7 +1,7 @@
 {
   "source_manifest_sha256": "5815b4c6bca1330a193d3e986cf27b4912a88138b302e53741567a7a15e4268a",
   "locks": {
-    "Cargo.lock": "2958d08a0cdf5303f165ae0e9b05c2ba99aa902d428fab21db875165149c8c49",
+    "Cargo.lock": "f9d6712ff027fdcb3e0744b35fa5b3dee3f39e3aff68045975d52d719ba8bdbd",
     "package-lock.json": "1fab8b696139c37da88d1c76980799f210a4b00914cd91f717e3b100923bd37c"
   },
   "npm_root_pins": {
@@ -12,5 +12,18 @@
   "nested_http_api": "2.12.4 (HTTP plugin declares ^2.12.0)",
   "npm_store_fs": "absent from source manifest and resolved tree; not added",
   "cargo_pins_unchanged": true,
-  "status": "dependency resolution verified; APK build in progress"
+  "status": "Resolution pins retained; direct dependency declaration reconciled and ARM64 debug APK built and verified.",
+  "source_manifest_scope": "Historical dependency-resolution source manifest; retained provenance, not the current application source manifest.",
+  "cargo_declaration_amendment": {
+    "source_commit": "b75d096b4ef2001377cfc628835a6bd160601c28",
+    "change": "Add already-resolved open 5.4.1 to RapidRAW direct dependency list; all package versions and other TOML values unchanged.",
+    "original_lock_sha256": "2958d08a0cdf5303f165ae0e9b05c2ba99aa902d428fab21db875165149c8c49",
+    "amended_lock_sha256": "f9d6712ff027fdcb3e0744b35fa5b3dee3f39e3aff68045975d52d719ba8bdbd"
+  },
+  "package_verification": {
+    "release_tag": "fuji-preview-2026.10.16.1",
+    "application_version": "1.6.5",
+    "android_apk_sha256": "bcff8a7d64eb36820e64d6e02653b71314bd223e51f93b112c86614e106e4d08",
+    "scope": "Locked ARM64 debug build and package verification passed with this lock; not provider or full device feature acceptance."
+  }
 }

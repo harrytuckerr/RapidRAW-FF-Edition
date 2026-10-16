@@ -1,30 +1,38 @@
 <p align="center">
   <img src="https://raw.githubusercontent.com/CyberTimon/RapidRAW/assets/.github/assets/editor.jpg" alt="RapidRAW editor (upstream screenshot)">
   <br>
-  <sub>Editor screenshot from upstream RapidRAW. The Fujifilm Edition adds a Profile slot to this interface.</sub>
+  <sub>Editor screenshot from upstream RapidRAW. The HT Edition adds camera-profile and adjustment-preset workflows to this upstream interface.</sub>
 </p>
 
 <div align="center">
 
 [![AGPL-3.0](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=for-the-badge)](LICENSE)
-[![Fork of RapidRAW](https://img.shields.io/badge/fork_of-CyberTimon%2FRapidRAW-555?style=for-the-badge&logo=github)](https://github.com/CyberTimon/RapidRAW)
-[![Fork releases](https://img.shields.io/github/v/release/harrytuckerr/RapidRAW-Fujifilm-edition?include_prereleases&label=fork%20release&style=for-the-badge)](https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/releases)
+[![RapidRAW HT Edition](https://img.shields.io/badge/fork-RapidRAW%20HT%20Edition-555?style=for-the-badge&logo=github)](https://github.com/harrytuckerr/RapidRAW-HT-Edition)
+[![Development preview](https://img.shields.io/github/v/release/harrytuckerr/RapidRAW-HT-Edition?include_prereleases&label=preview&style=for-the-badge)](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/tag/fuji-preview-2026.10.16.1)
 
 </div>
 
-# RapidRAW — Fujifilm Edition
+# RapidRAW HT Edition — development preview 2026-10-16
 
 **Your own camera profiles and Looks, underneath a fast, modern RAW editor — on desktop and Android.**
 
-RapidRAW — Fujifilm Edition is a fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by Timon Käch. It adds a first-class **Profile** slot. In it you choose an Adobe-format camera profile (DCP) for the camera that took the photo, plus an optional Look such as a Cobalt Image XMP. Everything you already do in RapidRAW then happens on top of that rendering: presets, masks, curves, creative LUTs and export.
+RapidRAW HT Edition is a fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by Timon Käch. Its **Profile** slot separates an Adobe-format camera base profile (DCP) for the camera that took the photo from an optional compatible Look such as a Cobalt Image XMP. Presets, masks, curves, creative LUTs and export apply on top of that rendering. This preview also includes separate Camera Profile and Adjustment Presets workflows.
 
-It was built for Fujifilm shooters who rely on purchased camera profiles and Looks, but the profile slot is not Fuji-specific. It is designed for camera-native RAW files with an installed base profile made for that camera. Some formats, such as linear RAW, are not supported with profiles yet (see [status](#status-and-limitations)).
+The profile workflow is not Fuji-specific. It is intended for camera-native RAW files with an installed base profile made for that camera. Some formats, such as linear RAW, are not supported with profiles yet (see [status](#status-and-limitations)).
+
+This fork now lives at [harrytuckerr/RapidRAW-HT-Edition](https://github.com/harrytuckerr/RapidRAW-HT-Edition); previous fork URLs redirect here. The published packages retain the `fuji-preview` channel name.
 
 > **Bring your own profiles.** No commercial profiles, Looks or Adobe software are included. You install files you own.
 
 ## Download
 
-Check [Fujifilm Edition releases](https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition/releases) for available builds, and review [current status and limitations](#status-and-limitations) before use. The published preview `fuji-preview-2026.10.15.1` predates the reviewed Camera Profile / Adjustment Presets import and preservation updates described below; no newer release containing those changes is published yet. If no build is listed for your platform, [build from source](#build-from-source).
+[fuji-preview-2026.10.16.1](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/tag/fuji-preview-2026.10.16.1) is a published development preview built from source commit `b75d096b4ef2001377cfc628835a6bd160601c28`. The embedded app version remains **1.6.5**; the dated tag identifies this fork revision. This README refresh follows publication and is not part of the packaged source. The packages also contain the reviewed attribution resources and Android dependency-declaration overlay supplied with the release; those exact inputs are now retained on `main`.
+
+- **Apple Silicon / M-series Mac, ARM64:** [debug, ad-hoc signed DMG](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/download/fuji-preview-2026.10.16.1/RapidRAW-Fuji-fuji-preview-2026.10.16.1-b75d096b-macos-arm64-debug-adhoc.dmg). The package and mounted contents were verified. It is not Developer ID signed or notarized; Gatekeeper and full macOS app acceptance were not established.
+- **Android, ARM64:** [debug APK](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/download/fuji-preview-2026.10.16.1/RapidRAW-Fuji-fuji-preview-2026.10.16.1-b75d096b-android-arm64-debug.apk). Package, certificate and resources were verified. A Fold8 in-place update and normal launch were checked through package and activity metadata; this does not establish UI, photo, profile, provider or export acceptance.
+- [SHA256SUMS.txt](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/download/fuji-preview-2026.10.16.1/SHA256SUMS.txt) · [source archive](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/download/fuji-preview-2026.10.16.1/RapidRAW-Fuji-fuji-preview-2026.10.16.1-b75d096b-source.tar.gz) · [all release assets and provenance](https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/tag/fuji-preview-2026.10.16.1).
+
+The prerelease contains 14 assets. All 14 public downloads returned successfully and matched the reviewed local hashes; the checksum manifest covers the other 13 assets. This preview has no current Intel Mac, Windows or Linux packages. Assets from older previews are separate builds and are not evidence for this source revision. The in-app version checker still points upstream, so use this fork’s release page for these downloads.
 
 Installers published by upstream RapidRAW do not include anything described in the next sections.
 
@@ -34,7 +42,7 @@ Installers published by upstream RapidRAW do not include anything described in t
 - **Keep profiles and presets separate.** Switching presets doesn't silently throw away your chosen profile.
 - **No silent substitutions.** If a profile is missing, damaged or meant for a different camera, RapidRAW tells you rather than quietly rendering something else.
 - **Dial a Look in or out.** Amount runs from 0 to 200%.
-- **One repository for desktop and Android.** Profiles import on both.
+- **Profile workflows for desktop and Android.** They are present in source for both; Android picker and full import behavior remain **Not exercised**.
 
 ## The workflow
 
@@ -59,7 +67,7 @@ Installers published by upstream RapidRAW do not include anything described in t
    - **macOS and Windows:** RapidRAW looks in the usual Adobe Camera Raw settings folders.
    - In **Camera Profile**, use **Import base profile (.dcp)** for a camera base and **Import Look (.xmp)** for a compatible profile Look.
    - In **Adjustment presets**, use **Import presets** for Lightroom develop-adjustment XMP (exposure, colour or effects) and supported preset files. An `.xmp` extension alone does not identify a profile Look versus a develop-settings preset. The current mapping is incomplete, so full Lightroom preset compatibility is not promised.
-   - **Android:** import through the system file picker.
+   - **Android:** import is designed around the system file picker; the physical picker and complete Tauri import flow remain **Not exercised**.
 
    Imported base profiles and Looks are copied into RapidRAW's own profile folder.
 2. **Open a RAW** from the camera the base profile was made for.
@@ -88,7 +96,7 @@ Many Looks are built for a specific base profile. A Cobalt Look might require **
 
 User-level improvements that are in the source (see [status](#status-and-limitations) for what has been verified):
 
-- **Profile discovery and import** on desktop, and **system-picker profile import** on Android.
+- **Profile discovery and import** are in source on desktop; Android system-picker import code is present, but the actual OS chooser and full Tauri import flow remain **Not exercised**.
 - **One rendering route** for the editor preview, library thumbnails and export when a profile is selected.
 - **Saved work keeps its profile choices.** Edits and presets remember the base, Look and Amount. Older saved profile IDs still load, and invalid selections are reported instead of being silently dropped.
 - **Caches refresh** when you change profile, Look or Amount. Clearing the profile restores the normal rendering.
@@ -104,31 +112,40 @@ User-level improvements that are in the source (see [status](#status-and-limitat
 
 ## Status and limitations
 
-This is an active fork, and some important checks are still open. In brief:
+This is an active development fork. Published packages and source checks cover specific layers; they do not close all camera, rendering or provider acceptance gates.
 
 | Area | Where it stands |
 |---|---|
-| Profile workflow on desktop | Implemented. Automated checks pass with synthetic test files. Not yet confirmed with a real matched Cobalt base and Look pair. |
-| Camera Profile / Adjustment Presets UI | The separate `.dcp` base, `.xmp` Look and **Import presets** workflows have reviewed source/component checks. Those checks use mocked native boundaries; the actual OS chooser and full Tauri import flow remain **Not exercised**. The published preview `fuji-preview-2026.10.15.1` predates these UI updates. |
+| Profile use on Fujifilm images | User-reported profile application is working on X-Pro2 and X-T5 images; platform and test inputs were not specified. Switching profiles has a noticeable reported delay of about 1–3 seconds. This is field feedback, not formal decode, matched-profile rendering, Adobe or fidelity acceptance. |
+| Camera Profile / Adjustment Presets UI | The published preview includes separate `.dcp` base, `.xmp` Look and **Import presets** workflows. Source/component checks used mocked native boundaries. A user reports that Android **Import presets** returns from selecting an XMP without importing it or displaying an error; a fix is in progress and is not in this preview. Complete physical import-flow acceptance remains open. |
 | Preset profile-capture preservation | Host tests of the actual native preset serializers pass for explicit true/false and legacy-absent capture flags through JSON save/reopen and preset-file import/export, with saved profile fields preserved. Legacy intent cannot be inferred. Actual UI-to-native IPC and physical Android round-trips remain **Not exercised**. |
+| macOS package | The M-series ARM64 debug/ad-hoc package, architecture and mounted content were checked. It is not Developer ID signed or notarized. Gatekeeper and full app launch/feature acceptance were **Not exercised**. |
+| Native checks | The canonical native run completed **560 passed, 0 failed, 14 ignored** (574 named outcomes). Host native formatting and strict all-target Clippy passed. Whole-project TypeScript still has **70 inherited diagnostics** and targeted ESLint has **49 inherited diagnostics**. Scoped baseline comparisons found no new diagnostics in reviewed changes; the absolute TypeScript and ESLint gates remain failed. |
+| Google Drive and authorization | Native authorization/lifecycle groundwork is present, including bounded token-free requests, account-switch consent, launcher cleanup, shutdown coordination and a borrowed verified credential-metadata view. The desktop registration catalog is empty (`NotConfigured`). No configured Google Drive connection or full positive OAuth acceptance exists in this preview. Storage, renewal, galleries, transfers and sync are not working features. |
 | Colour match with Adobe Camera Raw | **Not yet verified.** No Adobe-backed comparison has been run, and colour comparison is not implemented yet (the developer tool's `compare` command reports itself as unavailable). |
-| Android | Builds from this repository. On a physical Samsung Fold-series phone, the app opens, the UI works and basic adjustments work (user-reported). Profile and Look use, the revised import workflows, save/reopen and export on the device have **not** yet been tested. A successful build, component check or cold launch does not establish those native/device/render results. |
+| Android package and launch | The fresh ARM64 debug APK, certificate and resources passed review. A Fold8 in-place update matched the expected APK hash; appId, first-install time, data directory and version metadata were retained, and normal launch/resumed-activity metadata passed. App-data bytes were not compared. UI, photos, profile/import/export and provider behavior are **Not exercised**. |
 | Looks | Supported Look table types render in a bounded, non-HDR way: values are clamped before the Look is applied. Unsupported or "captured" Look variants show an error rather than falling back. |
 | GPU | The profile stage runs on the CPU, before RapidRAW's GPU editing pipeline. An optional GPU version is tested for parity separately but is not used for real editing. No performance target is claimed. |
 | Preview vs thumbnail vs export | They share one profile route. A full measured comparison across all routes hasn't been done. |
 | No-profile rendering | Matches upstream byte-for-byte on one controlled synthetic test, but has not been checked across a broad set of cameras. |
 | Linear RAW | Linear RAW files (for example some ProRAW/linear DNGs) are not yet supported with a profile. Selecting a profile uses rawler decoding rather than Apple RAW. |
-| Android imports | Rejected items now produce counted failure outcomes in host-driver and frontend transport-mock tests. Real Android provider/UI behavior remains unverified. Imports from local file paths have not had the same safety pass yet. |
-| Fujifilm X-T5 | A reported Android failure turned out to be JPEG data in a file named `.RAF`. Native X-T5 RAF decoding has not been tested either way; there is no evidence that it is unsupported. |
-| Windows / Linux | Expected to build like upstream. The profile workflow has not been acceptance-tested there. |
+| Android imports | Host-driver and transport-mock tests cover counted rejection outcomes for image imports. Separately, Android adjustment-preset XMP import is **User-reported broken** after file selection; source investigation found a URI-reader mismatch and missing visible failure feedback. Its fix is not in this preview. Other provider/UI import paths remain unverified. |
+| X-Pro2 / X-T5 feedback | The earlier `.RAF` report involved JPEG data with a `.RAF` filename. Latest user feedback reports profile application working on X-Pro2 and X-T5 images; platform was not specified. Formal RAW decoding and rendering gates remain open. |
+| Windows / Linux | No packages for this source are included in the current preview, and fork-specific profile workflows have not been acceptance-tested there. |
 
 The full evidence lives in the [profile guide](docs/profiles.md), the [build guide](docs/BUILD.md) and the [team ledger](docs/integration/TEAM-LEDGER-2026-10-15.md).
 
-## Planned and in development
+## Upcoming work
 
-These workflow additions are agreed but **not available as completed features yet**. Drive foundation work has begun; the remaining additions are queued. Source, component or build checks are not device, provider or rendered-output acceptance. Some work builds on tools RapidRAW already has, such as the collage maker, JPEG editing and export.
+The items below are requested or proposed, not completed features in source revision `b75d096b`. The current authorization/lifecycle code is groundwork, not a configured provider connection. Source, component or build checks are not device, provider or rendered-output acceptance. Some ideas build on tools RapidRAW already has, such as the collage maker, JPEG editing and export.
 
-- **Priority — Google Drive workspace:** sync settings, saved edits, named checkpoints, adjustment presets and selected, legitimately user-imported profile libraries between desktop and Android for the same account. Photos are fetched on demand; original uploads remain explicit. This sync is not working yet, provider/cross-client behavior and distribution-policy fit are unverified, and this is not full automatic photo backup.
+- **Android adjustment-preset import:** read system-picker content URIs correctly and show success, partial-import and failure feedback.
+- **Compact Camera Profile import menu:** replace the two large import action cards with one dropdown, keeping base DCP and Look XMP imports separate.
+- **White-balance menu:** As Shot, Auto and Kelvin-labelled daylight, shade, cloudy, tungsten, fluorescent and flash presets.
+- **Faster profile comparisons:** investigate repeated RAW development and profile processing behind the reported 1–3 second switching delay; no measured improvement is claimed yet.
+- **Auto leveling / straighten** and **auto upright / geometry:** requested future correction tools, with design and acceptance still to be defined.
+- **Camera-matched profile defaults:** use an installed Modular base matched to the source camera by default, then offer fixed CCD/Fujifilm variants before generic Cobalt choices regardless of import order. This is a new request from user feedback and is not implemented in this preview.
+- **Google Drive workspace:** plan account setup and sync of settings, saved edits, named checkpoints, adjustment presets and user-imported profile libraries between desktop and Android. There is no configured Google Drive connection, storage, renewal, gallery, transfer or sync feature in this preview. Provider behavior and distribution-policy fit are unverified. Photos are intended to be fetched on demand; this is not automatic photo backup.
 - **Save copy & Share** for single photos and 2–4-image collages, with Android's share sheet.
 - **Android JPEG "Lite" mode:** quick edit or collage from a JPEG without setting up a library.
 - **Fujifilm shooting settings** shown alongside a photo (film simulation, white balance, dynamic range where reliably available), and side-by-side comparison with the camera's own JPEG.
@@ -136,8 +153,9 @@ These workflow additions are agreed but **not available as completed features ye
 - **Saved searches** in the library.
 - **Point Colour eyedropper:** a planned sampled hue/saturation/luminance (H/S/L) adjustment; this control set is a working assumption and its behavior is not finalized.
 - **Lens correction improvements:** build on the existing Lensfun Auto correction using camera and lens metadata; no new lens-correction engine is proposed.
+- **AI features:** a separate AI feature brief is proposed planning only; no new AI implementation is claimed for this preview.
 
-Drive's internal revision format, conflict graph, native registration catalog, desktop PKCE transaction helper, loopback callback listener, token-response parser, native code-exchange transport, authorization-attempt controller and separate account-verification helper with local credential-lifetime checks have passed local tests and independent review. Tests use synthetic/local fixtures; Google/provider compatibility is unverified. The native controller can retain a verified account result in memory with exact granted scopes, bounded credential expiry and explicit disconnect. Replacing that account requires an expiring native confirmation bound to the exact proposed account. Declining or timing out preserves the existing identity; its credentials still follow their original expiry limits. Session retention and cleanup are tested with local fixtures, not a live Google sign-in. These foundations are not connected to the editor or a Google account. Google sign-in, photo transfers and cross-device sync remain unavailable; see the [Drive contract](docs/drive/contract.md) for the implementation and acceptance gates.
+The current build contains native authorization and lifecycle groundwork, including bounded token-free requests, exact account-switch consent, launcher cleanup, shutdown coordination and a borrowed verified credential-metadata view. The desktop registration catalog is empty (`NotConfigured`), and the groundwork is not connected to a configured Google Drive provider. Positive OAuth, secure provider storage, renewal, galleries, transfers and cross-device sync remain unavailable. See the [Drive contract](docs/drive/contract.md) for planned integration and acceptance gates.
 
 Full Lightroom preset compatibility and exact reproduction of Fujifilm film simulations or recipes are not promised. Full automatic photo backup is not planned.
 
@@ -145,11 +163,11 @@ Full Lightroom preset compatibility and exact reproduction of Fujifilm film simu
 
 You'll need [Node.js](https://nodejs.org/) 22 and Rust. The Rust toolchain is pinned in `src-tauri/rust-toolchain.toml`. You'll also need the usual [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your system.
 
-The **`main`** branch contains the Fujifilm Edition integration and reviewed continuation updates.
+The **`main`** branch contains the current HT Edition integration, this later README refresh and the exact attribution resources/Android lock declaration used for the published packages. The packages were built from commit `b75d096b4ef2001377cfc628835a6bd160601c28` with the release’s recorded packaging overlays; this later documentation commit was not rebuilt or retagged.
 
 ```bash
-git clone https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition.git
-cd RapidRAW-Fujifilm-edition
+git clone https://github.com/harrytuckerr/RapidRAW-HT-Edition.git
+cd RapidRAW-HT-Edition
 git checkout main
 
 npm ci
