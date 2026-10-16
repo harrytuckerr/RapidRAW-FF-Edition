@@ -1,0 +1,24 @@
+RapidRAW HT Edition 1.6.6 — development test checkpoint
+
+Corresponding source and build inputs:
+https://github.com/harrytuckerr/RapidRAW-HT-Edition/releases/tag/ht-preview-2026.10.16.2
+
+This checkpoint contains the reviewed d14eb143 workflow and security source
+plus the 1.6.6 version and this packaging notice. No commercial camera
+profiles, Looks, Adobe software or user photos are supplied.
+
+The retained licenses/fuji-preview notices contain historical b75d096b
+source/validation references. They remain license/credit records, not this
+artifact's build provenance. The source archive accompanying this test APK
+contains its actual source, current locked dependencies and Android build
+helper. The release provenance identifies the exact source commit and inputs.
+
+Lensfun database, film LUTs and ONNX Runtime attribution/license texts are
+retained from that reviewed snapshot. The database and LUT bytes are unchanged.
+Security updates include source-map-js 1.2.2 in the build dependency graph and
+Rustls 0.23.45; the supplied GLib backport applies to the desktop GTK source
+graph. This notice is not a complete transitive dependency/legal audit.
+
+This APK is an ARM64 Android development/debug build, not Play/production
+signing. Physical photo editing, profile fidelity, export and performance
+acceptance remain separate from package/install/normal-launch checks.
