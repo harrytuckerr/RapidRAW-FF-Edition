@@ -17,13 +17,23 @@
 
 </div>
 
-# RapidRAW — Cobalt DCP Fork
+# RapidRAW FF — Fujifilm-focused edition
 
-> **This is a fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by [Timon Käch](https://github.com/CyberTimon) (AGPL-3.0).** The upstream project is a beautiful, fast RAW editor. This fork adds Adobe DNG Camera Profile (DCP) support — a first-class profile slot holding a base camera profile plus an optional Cobalt Look, sitting underneath every other adjustment.
+> **FF means Fujifilm-focused.** This is an independent fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by [Timon Käch](https://github.com/CyberTimon), focused on Fujifilm RAF/X-Trans processing alongside the existing camera-matched Adobe DNG Camera Profile (DCP) and optional Cobalt Look support. It is not an official Fujifilm product.
 
-## What this fork adds
+## What this edition adds
 
-**Camera profiles in RapidRAW.** The profile slot holds a camera-matched base DCP and an optional native RGB Look. Ordinary adjustments, presets, masks and creative LUTs follow it. The integration branch uses a shared CPU profile stage before GPU editing; the optional DCP shader is separately parity-tested.
+### Fujifilm X-Trans engine
+
+The current X-Trans RAF path uses CPU one-pass Markesteijn demosaicing followed by false-colour filtering. Progressive previews can appear while full-resolution processing continues, and the selected RAW path is wired through editing and export for a consistent result.
+
+The Rust kernel is a floating-point adaptation of Frank Markesteijn's X-Trans method as implemented in LibRaw 0.22.2, under LGPL-2.1-only. See the bundled [LGPL-2.1 license](src-tauri/resources/licenses/LGPL-2.1.txt) and the [LibRaw project](https://www.libraw.org/).
+
+**1.6.8 milestone:** the APK was installed on the Fold. User testing reports better image quality, but full-resolution loads take 15+ seconds and editing is very laggy, with “Request cancelled” errors; device editing is not accepted. Desktop records list 98 native and 54 frontend checks passing, plus one fixed Fuji-frame comparison against LibRaw—limited evidence, not broad camera-quality validation or a speed comparison. GPU demosaicing and measured Capture One performance parity remain in progress, not shipped.
+
+### Camera profiles and Looks
+
+The profile slot holds a camera-matched base DCP and an optional native RGB Look. Ordinary adjustments, presets, masks and creative LUTs follow it. The integration branch uses a shared CPU profile stage before GPU editing; the optional DCP shader is separately parity-tested.
 
 **Integration status — 15 October 2026:** see [the acceptance report](docs/integration/STATUS-2026-10-15.md) for exact source and platform coverage.
 
@@ -53,11 +63,11 @@ See [`docs/BUILD.md`](docs/BUILD.md) for desktop and Android build instructions.
 
 ## Licensing
 
-This fork remains **AGPL-3.0**, identical to upstream. No commercial Cobalt profile assets or Adobe SDK binaries are distributed. The native evaluator cites the reference SDK sources it uses. Users install their own lawfully-purchased profile files. A profile's `ProfileEmbedPolicy` (e.g. `EmbedNever`) is honoured on export. See [`NOTICE.md`](NOTICE.md).
+The application source remains **AGPL-3.0**, matching upstream. The X-Trans kernel retains its separate LGPL-2.1-only notice. No commercial Cobalt profile assets or Adobe SDK binaries are distributed. The native evaluator cites the reference SDK sources it uses. Users install their own lawfully-purchased profile files. A profile's `ProfileEmbedPolicy` (e.g. `EmbedNever`) is honoured on export. See [`NOTICE.md`](NOTICE.md).
 
-## Branch
+## FF edition scope
 
-All Cobalt development happens on `cobalt/main`. The `main` branch tracks upstream `CyberTimon/RapidRAW:main` so upstream changes can be merged without conflict archaeology.
+This edition focuses on Fujifilm RAF/X-Trans processing while retaining the separate camera-matched DCP and Cobalt Look features described above.
 
 ## Upstream
 

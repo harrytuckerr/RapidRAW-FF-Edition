@@ -221,16 +221,39 @@ pub fn truncate_large_exif(value: &str) -> String {
     value.to_string()
 }
 
+/// What the one sidecar read established. Only `Missing` (the path provably
+/// does not exist, including no dangling link) may admit a fresh-RAW default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SidecarState {
+    Missing,
+    Present,
+    Unreadable,
+    Malformed,
+}
+
 pub fn load_sidecar(sidecar_path: &Path) -> ImageMetadata {
-    if !sidecar_path.exists() {
-        return ImageMetadata::default();
+    load_sidecar_with_state(sidecar_path).0
+}
+
+/// Same single read, defaults and EXIF healing as `load_sidecar`; the state is
+/// additional evidence only. Any uncertain filesystem answer is not `Missing`.
+pub fn load_sidecar_with_state(sidecar_path: &Path) -> (ImageMetadata, SidecarState) {
+    match fs::symlink_metadata(sidecar_path) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return (ImageMetadata::default(), SidecarState::Missing);
+        }
+        Err(_) => return (ImageMetadata::default(), SidecarState::Unreadable),
+        Ok(_) => {}
     }
 
     let Ok(content) = fs::read_to_string(sidecar_path) else {
-        return ImageMetadata::default();
+        return (ImageMetadata::default(), SidecarState::Unreadable);
     };
 
-    let mut meta = serde_json::from_str::<ImageMetadata>(&content).unwrap_or_default();
+    let (mut meta, state) = match serde_json::from_str::<ImageMetadata>(&content) {
+        Ok(meta) => (meta, SidecarState::Present),
+        Err(_) => (ImageMetadata::default(), SidecarState::Malformed),
+    };
     let mut healed = false;
 
     if let Some(ref mut exif_map) = meta.exif {
@@ -250,7 +273,28 @@ pub fn load_sidecar(sidecar_path: &Path) -> ImageMetadata {
         );
     }
 
-    meta
+    (meta, state)
+}
+
+/// Conservative associated-XMP evidence for an optional default: true only when
+/// every conventional XMP name provably does not exist. Present, dangling or
+/// unreadable entries all count as an XMP state the default must not override.
+pub fn associated_xmp_provably_absent(source_path: &Path) -> bool {
+    let mut candidates = vec![
+        source_path.with_extension("xmp"),
+        source_path.with_extension("XMP"),
+    ];
+    for suffix in [".xmp", ".XMP"] {
+        let mut appended = source_path.as_os_str().to_owned();
+        appended.push(suffix);
+        candidates.push(PathBuf::from(appended));
+    }
+    candidates.iter().all(|path| {
+        matches!(
+            fs::symlink_metadata(path),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound
+        )
+    })
 }
 
 pub fn load_sidecar_with_exif(sidecar_path: &Path, source_path: &Path) -> ImageMetadata {
@@ -2029,4 +2073,89 @@ pub fn write_rrexif_sidecar(source_path_str: &str, target_image_path: &Path) -> 
     metadata.exif = Some(exif_data);
     save_primary_metadata(target_image_path, &metadata)
         .map_err(|e| format!("Failed to write sidecar: {}", e))
+}
+
+#[cfg(test)]
+mod sidecar_state_tests {
+    use super::*;
+
+    fn private_directory() -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("sidecar-state-{}", uuid::Uuid::new_v4()));
+        fs::create_dir(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn sidecar_state_is_missing_only_when_absence_is_proven() {
+        let dir = private_directory();
+        let missing = dir.join("a.raf.rrdata");
+        let (meta, state) = load_sidecar_with_state(&missing);
+        assert_eq!(state, SidecarState::Missing);
+        assert!(meta.adjustments.is_null());
+        assert!(!missing.exists(), "reading never creates a sidecar");
+
+        let present = dir.join("b.raf.rrdata");
+        let saved = ImageMetadata {
+            rating: 2,
+            adjustments: serde_json::json!({"profile": {"base": null, "look": null, "amount": 100}}),
+            ..Default::default()
+        };
+        fs::write(&present, serde_json::to_string(&saved).unwrap()).unwrap();
+        let (meta, state) = load_sidecar_with_state(&present);
+        assert_eq!(state, SidecarState::Present);
+        assert_eq!(meta.adjustments, saved.adjustments);
+        assert_eq!(load_sidecar(&present).adjustments, saved.adjustments);
+
+        let malformed = dir.join("c.raf.rrdata");
+        fs::write(&malformed, b"{not-json").unwrap();
+        assert_eq!(
+            load_sidecar_with_state(&malformed).1,
+            SidecarState::Malformed
+        );
+        assert!(load_sidecar(&malformed).adjustments.is_null());
+        assert_eq!(
+            fs::read(&malformed).unwrap(),
+            b"{not-json",
+            "no repair write"
+        );
+
+        let directory = dir.join("d.raf.rrdata");
+        fs::create_dir(&directory).unwrap();
+        assert_eq!(
+            load_sidecar_with_state(&directory).1,
+            SidecarState::Unreadable
+        );
+        assert!(load_sidecar(&directory).adjustments.is_null());
+
+        #[cfg(unix)]
+        {
+            let dangling = dir.join("e.raf.rrdata");
+            std::os::unix::fs::symlink(dir.join("nowhere"), &dangling).unwrap();
+            assert_eq!(
+                load_sidecar_with_state(&dangling).1,
+                SidecarState::Unreadable
+            );
+            assert!(load_sidecar(&dangling).adjustments.is_null());
+        }
+    }
+
+    #[test]
+    fn associated_xmp_must_be_provably_absent() {
+        let dir = private_directory();
+        let source = dir.join("DSCF0001.RAF");
+        fs::write(&source, b"raw").unwrap();
+        assert!(associated_xmp_provably_absent(&source));
+        for name in [
+            "DSCF0001.xmp",
+            "DSCF0001.XMP",
+            "DSCF0001.RAF.xmp",
+            "DSCF0001.RAF.XMP",
+        ] {
+            let xmp = dir.join(name);
+            fs::write(&xmp, b"<x:xmpmeta/>").unwrap();
+            assert!(!associated_xmp_provably_absent(&source), "{name}");
+            fs::remove_file(&xmp).unwrap();
+        }
+        assert!(associated_xmp_provably_absent(&source));
+    }
 }

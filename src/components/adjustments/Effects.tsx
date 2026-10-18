@@ -29,6 +29,7 @@ import { DepthRangePicker } from '../ui/DepthRangePicker';
 import { useProcessStore } from '../../store/useProcessStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useEditorStore } from '../../store/useEditorStore';
+import { currentAccurateOpenKey, isCurrentOpenKey, isProgressiveMutationBlocked } from '../../utils/progressiveOpen';
 
 interface EffectsPanelProps {
   adjustments: Adjustments;
@@ -169,16 +170,27 @@ export default function EffectsPanel({
   const isRelightPickerActive = useEditorStore((state) => state.isRelightPickerActive);
   const activeRelightLightId = useEditorStore((state) => state.activeRelightLightId);
   const setEditor = useEditorStore((state) => state.setEditor);
+  const progressiveLocked = useEditorStore((state) => isProgressiveMutationBlocked(state));
 
   const handleGenerateLensBlurDepthMap = async () => {
+    const source = useEditorStore.getState();
+    const openKey = currentAccurateOpenKey(source);
+    if (!source.selectedImage?.isReady || source.pendingOpenIntent || (source.selectedImage.openTicket && !openKey)) return;
+    const sourcePath = source.selectedImage.path;
     setIsGeneratingDepth(true);
     try {
-      const b64: string = await invoke('generate_full_image_depth_map');
+      const b64: string = await invoke('generate_full_image_depth_map', openKey ? { expectedOpenKey: openKey } : undefined);
+      const current = useEditorStore.getState();
+      if (current.pendingOpenIntent || current.selectedImage?.path !== sourcePath ||
+        (openKey ? !isCurrentOpenKey(openKey, current, sourcePath, true) : Boolean(current.selectedImage?.openTicket))) return;
       setAdjustments((prev: Partial<Adjustments>) => ({
         ...prev,
         lensBlurDepthMap: b64,
       }));
     } catch (e: any) {
+      const current = useEditorStore.getState();
+      if (current.pendingOpenIntent || current.selectedImage?.path !== sourcePath ||
+        (openKey ? !isCurrentOpenKey(openKey, current, sourcePath, true) : Boolean(current.selectedImage?.openTicket))) return;
       toast.error(`Failed to generate depth map: ${e}`);
       setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, lensBlurEnabled: false }));
     } finally {
@@ -187,14 +199,24 @@ export default function EffectsPanel({
   };
 
   const handleGenerateRelightNormalMap = async () => {
+    const source = useEditorStore.getState();
+    const openKey = currentAccurateOpenKey(source);
+    if (!source.selectedImage?.isReady || source.pendingOpenIntent || (source.selectedImage.openTicket && !openKey)) return;
+    const sourcePath = source.selectedImage.path;
     setIsGeneratingNormals(true);
     try {
-      const b64: string = await invoke('generate_relight_normal_map');
+      const b64: string = await invoke('generate_relight_normal_map', openKey ? { expectedOpenKey: openKey } : undefined);
+      const current = useEditorStore.getState();
+      if (current.pendingOpenIntent || current.selectedImage?.path !== sourcePath ||
+        (openKey ? !isCurrentOpenKey(openKey, current, sourcePath, true) : Boolean(current.selectedImage?.openTicket))) return;
       setAdjustments((prev: Partial<Adjustments>) => ({
         ...prev,
         relightNormalMap: b64,
       }));
     } catch (e: any) {
+      const current = useEditorStore.getState();
+      if (current.pendingOpenIntent || current.selectedImage?.path !== sourcePath ||
+        (openKey ? !isCurrentOpenKey(openKey, current, sourcePath, true) : Boolean(current.selectedImage?.openTicket))) return;
       toast.error(`Failed to generate normal map: ${e}`);
       setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, relightEnabled: false }));
     } finally {
@@ -203,14 +225,24 @@ export default function EffectsPanel({
   };
 
   const handleGenerateFogDepthMap = async () => {
+    const source = useEditorStore.getState();
+    const openKey = currentAccurateOpenKey(source);
+    if (!source.selectedImage?.isReady || source.pendingOpenIntent || (source.selectedImage.openTicket && !openKey)) return;
+    const sourcePath = source.selectedImage.path;
     setIsGeneratingFogDepth(true);
     try {
-      const b64: string = await invoke('generate_full_image_depth_map');
+      const b64: string = await invoke('generate_full_image_depth_map', openKey ? { expectedOpenKey: openKey } : undefined);
+      const current = useEditorStore.getState();
+      if (current.pendingOpenIntent || current.selectedImage?.path !== sourcePath ||
+        (openKey ? !isCurrentOpenKey(openKey, current, sourcePath, true) : Boolean(current.selectedImage?.openTicket))) return;
       setAdjustments((prev: Partial<Adjustments>) => ({
         ...prev,
         fogDepthMap: b64,
       }));
     } catch (e: any) {
+      const current = useEditorStore.getState();
+      if (current.pendingOpenIntent || current.selectedImage?.path !== sourcePath ||
+        (openKey ? !isCurrentOpenKey(openKey, current, sourcePath, true) : Boolean(current.selectedImage?.openTicket))) return;
       toast.error(`Failed to generate depth map: ${e}`);
       setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, fogEnabled: false }));
     } finally {
@@ -313,6 +345,7 @@ export default function EffectsPanel({
   const toolOrder = getAdjustmentToolOrder('effects', appSettings?.adjustmentLayout?.toolOrder);
 
   return (
+    <fieldset disabled={progressiveLocked} className="m-0 min-w-0 border-0 p-0">
     <div className="flex flex-col gap-4">
       {!hiddenTools.includes('creative') && (
         <AdjustmentSubSection
@@ -987,5 +1020,6 @@ export default function EffectsPanel({
         </>
       )}
     </div>
+    </fieldset>
   );
 }

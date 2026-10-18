@@ -21,6 +21,7 @@ interface DropdownProps<T extends React.Key> {
   value: T | null;
   disabled?: boolean;
   triggerClassName?: string;
+  dropUp?: boolean;
 }
 
 const Dropdown = <T extends React.Key>({
@@ -32,6 +33,7 @@ const Dropdown = <T extends React.Key>({
   value,
   disabled = false,
   triggerClassName = '',
+  dropUp = false,
 }: DropdownProps<T>) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -129,7 +131,11 @@ const Dropdown = <T extends React.Key>({
         {isOpen && (
           <motion.div
             animate={{ opacity: 1, scale: 1 }}
-            className="absolute right-0 mt-2 w-full origin-top-right z-20"
+            className={
+              dropUp
+                ? 'absolute right-0 bottom-full mb-2 w-full origin-bottom-right z-20'
+                : 'absolute right-0 mt-2 w-full origin-top-right z-20'
+            }
             exit={{ opacity: 0, scale: 0.95 }}
             initial={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.1, ease: 'easeOut' }}

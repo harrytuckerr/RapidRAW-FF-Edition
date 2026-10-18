@@ -15,6 +15,24 @@ pub fn apply_lens_blur<'a>(
     image: Cow<'a, DynamicImage>,
     adjustments: &serde_json::Value,
 ) -> Cow<'a, DynamicImage> {
+    apply_lens_blur_with_map(image, adjustments, None)
+}
+
+/// Captured map only; no global map lookup or decoding. Arithmetic is shared
+/// with the normal wrapper below, whose tolerant policy is unchanged.
+pub(crate) fn apply_lens_blur_captured<'a>(
+    image: Cow<'a, DynamicImage>,
+    adjustments: &serde_json::Value,
+    map: &std::sync::Arc<image::GrayImage>,
+) -> Cow<'a, DynamicImage> {
+    apply_lens_blur_with_map(image, adjustments, Some(map))
+}
+
+fn apply_lens_blur_with_map<'a>(
+    image: Cow<'a, DynamicImage>,
+    adjustments: &serde_json::Value,
+    captured: Option<&std::sync::Arc<image::GrayImage>>,
+) -> Cow<'a, DynamicImage> {
     let effects_visible = adjustments
         .get("sectionVisibility")
         .and_then(|v| v.get("effects"))
@@ -35,7 +53,10 @@ pub fn apply_lens_blur<'a>(
         return image;
     }
 
-    let depth_map = match crate::effect_maps::resolve_luma_map(depth_b64, adjustments) {
+    let depth_map = match captured
+        .cloned()
+        .or_else(|| crate::effect_maps::resolve_luma_map(depth_b64, adjustments))
+    {
         Some(map) => map,
         None => return image,
     };

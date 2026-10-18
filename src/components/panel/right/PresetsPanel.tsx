@@ -38,6 +38,13 @@ import ConfigurePresetModal from '../../modals/ConfigurePresetModal';
 import CreateFolderModal from '../../modals/CreateFolderModal';
 import RenameFolderModal from '../../modals/RenameFolderModal';
 import Button from '../../ui/Button';
+import { currentAccurateOpenKey, isCurrentOpenKey } from '../../../utils/progressiveOpen';
+
+async function decodePresetUrl(url: string): Promise<void> {
+  const image = new Image();
+  image.src = url;
+  await image.decode();
+}
 import Text from '../../ui/Text';
 import Slider from '../../ui/Slider';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
@@ -692,6 +699,12 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
 
     while (previewQueue.current.length > 0) {
       const itemPath = currentImagePathRef.current;
+      const sourceAtStart = useEditorStore.getState();
+      const openKey = currentAccurateOpenKey(sourceAtStart);
+      if (sourceAtStart.pendingOpenIntent || (sourceAtStart.selectedImage?.openTicket && !openKey)) {
+        previewQueue.current = [];
+        break;
+      }
       const itemProfile = JSON.stringify(useEditorStore.getState().adjustments.profile);
 
       const item = previewQueue.current.shift();
@@ -714,17 +727,31 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
         };
         const imageData: Uint8Array = await invoke(Invokes.GeneratePresetPreview, {
           jsAdjustments: fullPresetAdjustments,
+          ...(openKey ? { expectedOpenKey: openKey } : {}),
         });
 
         if (
           itemPath !== currentImagePathRef.current ||
-          itemProfile !== JSON.stringify(useEditorStore.getState().adjustments.profile)
+          itemProfile !== JSON.stringify(useEditorStore.getState().adjustments.profile) ||
+          (openKey && !isCurrentOpenKey(openKey, useEditorStore.getState(), itemPath, true)) ||
+          (!openKey &&
+            (useEditorStore.getState().selectedImage?.openTicket || useEditorStore.getState().pendingOpenIntent))
         ) {
           continue;
         }
 
         const blob = new Blob([new Uint8Array(imageData)], { type: 'image/jpeg' });
         const url = URL.createObjectURL(blob);
+        try {
+          if (openKey) await decodePresetUrl(url);
+        } catch {
+          URL.revokeObjectURL(url);
+          continue;
+        }
+        if (openKey && !isCurrentOpenKey(openKey, useEditorStore.getState(), itemPath, true)) {
+          URL.revokeObjectURL(url);
+          continue;
+        }
         setPreviews((prev: Record<string, string | null>) => {
           const oldUrl = prev[preset.id];
           if (oldUrl && oldUrl.startsWith('blob:')) {
@@ -737,7 +764,10 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
         if (errStr.includes('No original image loaded') || errStr.includes('cancelled')) {
           if (
             itemPath !== currentImagePathRef.current ||
-            itemProfile !== JSON.stringify(useEditorStore.getState().adjustments.profile)
+            itemProfile !== JSON.stringify(useEditorStore.getState().adjustments.profile) ||
+            (openKey && !isCurrentOpenKey(openKey, useEditorStore.getState(), itemPath, true)) ||
+            (!openKey &&
+              (useEditorStore.getState().selectedImage?.openTicket || useEditorStore.getState().pendingOpenIntent))
           ) {
             continue;
           }
@@ -748,7 +778,10 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
         console.error(`Failed to generate preview for preset ${preset.name}:`, error);
         if (
           itemPath === currentImagePathRef.current &&
-          itemProfile === JSON.stringify(useEditorStore.getState().adjustments.profile)
+          itemProfile === JSON.stringify(useEditorStore.getState().adjustments.profile) &&
+          (!openKey || isCurrentOpenKey(openKey, useEditorStore.getState(), itemPath, true)) &&
+          (openKey ||
+            (!useEditorStore.getState().selectedImage?.openTicket && !useEditorStore.getState().pendingOpenIntent))
         ) {
           setPreviews((prev: Record<string, string | null>) => ({ ...prev, [preset.id]: null }));
         }
@@ -795,6 +828,9 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
 
       setIsGeneratingPreviews(true);
       const pathAtStart = currentImagePathRef.current;
+      const sourceAtStart = useEditorStore.getState();
+      const openKey = currentAccurateOpenKey(sourceAtStart);
+      if (sourceAtStart.pendingOpenIntent || (sourceAtStart.selectedImage?.openTicket && !openKey)) return;
       const profileAtStart = JSON.stringify(useEditorStore.getState().adjustments.profile);
 
       try {
@@ -805,17 +841,31 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
         };
         const imageData: Uint8Array = await invoke(Invokes.GeneratePresetPreview, {
           jsAdjustments: fullPresetAdjustments,
+          ...(openKey ? { expectedOpenKey: openKey } : {}),
         });
 
         if (
           pathAtStart !== currentImagePathRef.current ||
-          profileAtStart !== JSON.stringify(useEditorStore.getState().adjustments.profile)
+          profileAtStart !== JSON.stringify(useEditorStore.getState().adjustments.profile) ||
+          (openKey && !isCurrentOpenKey(openKey, useEditorStore.getState(), pathAtStart, true)) ||
+          (!openKey &&
+            (useEditorStore.getState().selectedImage?.openTicket || useEditorStore.getState().pendingOpenIntent))
         ) {
           return;
         }
 
         const blob = new Blob([new Uint8Array(imageData)], { type: 'image/jpeg' });
         const url = URL.createObjectURL(blob);
+        try {
+          if (openKey) await decodePresetUrl(url);
+        } catch {
+          URL.revokeObjectURL(url);
+          return;
+        }
+        if (openKey && !isCurrentOpenKey(openKey, useEditorStore.getState(), pathAtStart, true)) {
+          URL.revokeObjectURL(url);
+          return;
+        }
 
         setPreviews((prev: Record<string, string | null>) => {
           const oldUrl = prev[preset.id];
@@ -830,7 +880,10 @@ export default function PresetsPanel({ onNavigateToCommunity }: PresetsPanelProp
           console.error(`Failed to generate preview for preset ${preset.name}:`, error);
           if (
             pathAtStart === currentImagePathRef.current &&
-            profileAtStart === JSON.stringify(useEditorStore.getState().adjustments.profile)
+            profileAtStart === JSON.stringify(useEditorStore.getState().adjustments.profile) &&
+            (!openKey || isCurrentOpenKey(openKey, useEditorStore.getState(), pathAtStart, true)) &&
+            (openKey ||
+              (!useEditorStore.getState().selectedImage?.openTicket && !useEditorStore.getState().pendingOpenIntent))
           ) {
             setPreviews((prev: Record<string, string | null>) => ({ ...prev, [preset.id]: null }));
           }

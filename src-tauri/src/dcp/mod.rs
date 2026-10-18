@@ -17,6 +17,7 @@
 pub mod camera_aliases;
 pub mod capture;
 pub mod commands;
+pub mod defaults;
 pub mod delta_e;
 pub mod interpolate;
 pub mod look_xmp;

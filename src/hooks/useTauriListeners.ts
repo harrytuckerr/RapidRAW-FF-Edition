@@ -6,6 +6,7 @@ import { useProcessStore } from '../store/useProcessStore';
 import { useEditorStore } from '../store/useEditorStore';
 import { useUIStore } from '../store/useUIStore';
 import { useLibraryStore } from '../store/useLibraryStore';
+import { currentAccurateOpenKey, parseOpenKey, sameOpenKey, sourceRenderPolicy } from '../utils/progressiveOpen';
 
 interface TauriListenerProps {
   refreshAllFolderTrees: () => void;
@@ -76,15 +77,34 @@ export function useTauriListeners({
 
     const listeners = [
       listen('preview-update-uncropped', (event: any) => {
-        if (isEffectActive) useEditorStore.getState().setEditor({ uncroppedAdjustedPreviewUrl: event.payload });
+        if (!isEffectActive) return;
+        const state = useEditorStore.getState();
+        if (
+          state.selectedImage?.openTicket ||
+          state.progressiveOpen?.phase === 'Pending' ||
+          state.progressiveOpen?.phase === 'Refining'
+        )
+          return;
+        if (sourceRenderPolicy(state) !== 'legacy-native') return;
+        if (state.selectedImage?.isReady) state.setEditor({ uncroppedAdjustedPreviewUrl: event.payload });
       }),
       listen('analytics-update', (event: any) => {
-        if (isEffectActive && event.payload.path === useEditorStore.getState().selectedImage?.path) {
-          const update: { histogram?: any; waveform?: any } = {};
-          if (event.payload.histogram != null) update.histogram = event.payload.histogram;
-          if (event.payload.waveform != null) update.waveform = event.payload.waveform;
-          useEditorStore.getState().setEditor(update);
+        if (!isEffectActive) return;
+        const state = useEditorStore.getState();
+        const payload = event.payload;
+        if (!payload || payload.path !== state.selectedImage?.path) return;
+        if (payload.openKey != null) {
+          if (sourceRenderPolicy(state) !== 'encoded') return;
+          const currentKey = currentAccurateOpenKey(state);
+          const eventKey = parseOpenKey(payload.openKey);
+          if (!currentKey || !eventKey || !sameOpenKey(currentKey, eventKey)) return;
+        } else if (sourceRenderPolicy(state) !== 'legacy-native') {
+          return;
         }
+        const update: { histogram?: any; waveform?: any } = {};
+        if (payload.histogram != null) update.histogram = payload.histogram;
+        if (payload.waveform != null) update.waveform = payload.waveform;
+        state.setEditor(update);
       }),
       listen('open-with-file', (event: any) => {
         if (isEffectActive) useProcessStore.getState().setProcess({ initialFileToOpen: event.payload as string });
@@ -243,9 +263,12 @@ export function useTauriListeners({
         }
       }),
       listen('wgpu-frame-ready', (event: any) => {
-        if (isEffectActive && event.payload?.path === useEditorStore.getState().selectedImage?.path) {
-          useEditorStore.getState().setEditor({ hasRenderedFirstFrame: true });
-        }
+        if (!isEffectActive) return;
+        const state = useEditorStore.getState();
+        const payload = event.payload;
+        if (!payload || payload.path !== state.selectedImage?.path || payload.openKey != null) return;
+        if (sourceRenderPolicy(state) !== 'legacy-native') return;
+        state.setEditor({ hasRenderedFirstFrame: true });
       }),
       listen('panorama-progress', (event: any) => {
         if (isEffectActive) {

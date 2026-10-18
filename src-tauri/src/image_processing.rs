@@ -1525,6 +1525,116 @@ impl Default for GpuMat3 {
     }
 }
 
+/// Point Colour v1 uses the existing HSL colour space and slider scales.
+/// state: 0 bypass, 1 validated v1, 2 unsupported/malformed (render must fail).
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Pod, Zeroable, Default)]
+#[repr(C)]
+pub struct PointColourUniform {
+    pub center: f32,
+    pub width: f32,
+    pub hue: f32,
+    pub saturation: f32,
+    pub luminance: f32,
+    pub state: u32,
+    pub _pad: [u32; 2],
+}
+
+impl PointColourUniform {
+    pub(crate) fn validate(self) -> Result<(), String> {
+        if self.state == 0 {
+            return Ok(());
+        }
+        if self.state != 1
+            || ![
+                self.center,
+                self.width,
+                self.hue,
+                self.saturation,
+                self.luminance,
+            ]
+            .iter()
+            .all(|v| v.is_finite())
+            || !(0.0..360.0).contains(&self.center)
+            || !(1.0..=180.0).contains(&self.width)
+            || self.hue.abs() > 100.0 * SCALES.hsl_hue_multiplier
+            || self.saturation.abs() > 1.0
+            || self.luminance.abs() > 1.0
+        {
+            return Err(
+                "Unsupported or invalid Point Colour adjustment; remove or disable it explicitly"
+                    .into(),
+            );
+        }
+        Ok(())
+    }
+}
+
+fn parse_point_colour(value: &Value) -> PointColourUniform {
+    if value.is_null() || value.get("enabled") == Some(&Value::Bool(false)) {
+        return PointColourUniform::default();
+    }
+    let invalid = PointColourUniform {
+        state: 2,
+        ..Default::default()
+    };
+    let Some(object) = value.as_object() else {
+        return invalid;
+    };
+    if object.keys().any(|k| {
+        ![
+            "v",
+            "enabled",
+            "centerHue",
+            "widthDegrees",
+            "hue",
+            "saturation",
+            "luminance",
+        ]
+        .contains(&k.as_str())
+    }) || value["v"].as_u64() != Some(1)
+        || value.get("enabled").is_some_and(|v| !v.is_boolean())
+    {
+        return invalid;
+    }
+    let get = |key: &str, min: f64, max: f64| {
+        value[key]
+            .as_f64()
+            .filter(|v| v.is_finite() && *v >= min && *v <= max)
+    };
+    let (Some(center), Some(width), Some(hue), Some(saturation), Some(luminance)) = (
+        get("centerHue", 0.0, 360.0),
+        get("widthDegrees", 1.0, 180.0),
+        get("hue", -100.0, 100.0),
+        get("saturation", -100.0, 100.0),
+        get("luminance", -100.0, 100.0),
+    ) else {
+        return invalid;
+    };
+    let point = PointColourUniform {
+        center: center as f32,
+        width: width as f32,
+        hue: hue as f32 * SCALES.hsl_hue_multiplier,
+        saturation: saturation as f32 / SCALES.hsl_saturation,
+        luminance: luminance as f32 / SCALES.hsl_luminance,
+        state: 1,
+        _pad: [0; 2],
+    };
+    if point.validate().is_err() {
+        invalid
+    } else {
+        point
+    }
+}
+
+#[derive(Serialize, Debug, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub struct PointColourSample {
+    pub linear_rgb: [f32; 3],
+    pub hue: f32,
+    pub saturation: f32,
+    pub value: f32,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Pod, Zeroable, Default)]
 #[repr(C)]
 pub struct GlobalAdjustments {
@@ -1596,6 +1706,9 @@ pub struct GlobalAdjustments {
 
     pub color_calibration: ColorCalibrationSettings,
 
+    pub point_colour: PointColourUniform,
+    /// x/y/enable/reserved; set only by the private same-shader sampler.
+    pub point_probe: [u32; 4],
     pub hsl: [HslColor; 8],
     pub luma_curve: [Point; 16],
     pub red_curve: [Point; 16],
@@ -2455,7 +2568,12 @@ fn get_global_adjustments_from_json(
         _pad3: 0.0,
 
         color_calibration: color_cal_settings,
-
+        point_colour: if is_visible("color") {
+            parse_point_colour(&js_adjustments["pointColour"])
+        } else {
+            PointColourUniform::default()
+        },
+        point_probe: [0; 4],
         hsl: if is_visible("color") {
             parse_hsl_adjustments(&js_adjustments.get("hsl").cloned().unwrap_or_default())
         } else {
@@ -3704,21 +3822,25 @@ pub fn auto_results_to_json(results: &AutoAdjustmentResults) -> serde_json::Valu
 #[tauri::command]
 pub fn calculate_auto_adjustments(
     js_adjustments: serde_json::Value,
+    expected_open_key: Option<crate::progressive_open::OpenKey>,
     state: tauri::State<AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
-    let loaded_image = state
-        .original_image
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or("No image loaded for auto adjustments")?;
+    let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
+    let request = state.capture_consumer_request(
+        expected_open_key.as_ref(),
+        None,
+        Some(js_adjustments.clone()),
+        settings,
+    )?;
+    let loaded_image = request.loaded();
 
-    let render = resolve_render_options_from_handle(&app_handle, loaded_image.is_raw);
+    let render = resolve_render_options(request.settings(), loaded_image.is_raw);
     let exposure =
         effective_baseline_exposure(&js_adjustments, loaded_image.as_shot, render.baseline);
     let results = perform_auto_analysis(&loaded_image.image, exposure);
 
+    request.check()?;
     Ok(auto_results_to_json(&results))
 }
 
@@ -3872,23 +3994,715 @@ fn compute_white_balance_sample(
 #[tauri::command]
 pub async fn sample_white_balance(
     corners: Vec<UvPoint>,
+    expected_open_key: Option<crate::progressive_open::OpenKey>,
     state: tauri::State<'_, AppState>,
 ) -> Result<WhiteBalanceSample, String> {
-    let loaded_image = state
-        .original_image
-        .lock()
-        .unwrap()
-        .clone()
-        .ok_or("No original image loaded")?;
+    let request = state.capture_consumer_request(
+        expected_open_key.as_ref(),
+        None,
+        None,
+        crate::app_settings::AppSettings::default(),
+    )?;
+    let held = std::sync::Arc::clone(&request);
 
-    tokio::task::spawn_blocking(move || {
-        compute_white_balance_sample(
-            &loaded_image.image,
-            loaded_image.is_raw,
-            loaded_image.as_shot.white_balance,
-            &corners,
-        )
+    let result = tokio::task::spawn_blocking(move || {
+        held.stage(|| {
+            let loaded_image = held.loaded();
+            compute_white_balance_sample(
+                &loaded_image.image,
+                loaded_image.is_raw,
+                loaded_image.as_shot.white_balance,
+                &corners,
+            )
+        })
     })
     .await
-    .map_err(|e| format!("Task execution failed: {}", e))?
+    .map_err(|e| format!("Task execution failed: {}", e));
+    request.check()?;
+    result?
+}
+
+#[cfg(test)]
+mod point_colour_codec_tests {
+    use super::*;
+    #[test]
+    fn pc04_native_codec_preserves_unsupported_and_exact_off() {
+        let valid = serde_json::json!({"v":1,"centerHue":358,"widthDegrees":40,"hue":100,"saturation":-100,"luminance":100});
+        let copy = valid.clone();
+        let parsed = parse_point_colour(&valid);
+        assert!(parsed.validate().is_ok());
+        assert_eq!(parsed.hue, 100.0 * 0.3);
+        assert_eq!(parsed.saturation, -1.0);
+        assert_eq!(parsed.luminance, 1.0);
+        assert_eq!(valid, copy);
+        for bad in [
+            serde_json::json!({"v":2,"payload":"preserve"}),
+            serde_json::json!([]),
+            serde_json::json!({"v":1,"centerHue":360}),
+            serde_json::json!({"v":1,"enabled":"false"}),
+        ] {
+            let saved = bad.clone();
+            assert!(parse_point_colour(&bad).validate().is_err());
+            assert_eq!(bad, saved);
+        }
+        let off = serde_json::json!({"v":99,"enabled":false,"future":"preserved"});
+        assert_eq!(
+            bytemuck::bytes_of(&parse_point_colour(&off)),
+            bytemuck::bytes_of(&PointColourUniform::default())
+        );
+        assert_eq!(parse_point_colour(&Value::Null).state, 0);
+        let raw = serde_json::json!({"pointColour":valid,"sectionVisibility":{"color":false}});
+        let all = get_all_adjustments_from_json(
+            &raw,
+            false,
+            crate::as_shot::AsShot::reference(),
+            RenderOptions::default(),
+        );
+        assert_eq!(all.global.point_colour.state, 0);
+        assert_eq!(all.global.point_probe, [0; 4]);
+    }
+}
+
+/// A deterministic support heuristic, not a calibrated probability of a level horizon.
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoStraightenEstimate {
+    pub correction_degrees: f64,
+    pub confidence: f64,
+}
+
+fn canonical_hough_line(line: imageproc::hough::PolarLine) -> (i32, f32) {
+    let half_turns = line.angle_in_degrees / 180;
+    let angle = (line.angle_in_degrees % 180) as i32;
+    let r = if half_turns % 2 == 0 { line.r } else { -line.r };
+    (angle, r)
+}
+
+fn has_separated_parallel_lines(
+    a: imageproc::hough::PolarLine,
+    b: imageproc::hough::PolarLine,
+    minimum_separation: f64,
+) -> bool {
+    let (a_angle, a_r) = canonical_hough_line(a);
+    let (mut b_angle, mut b_r) = canonical_hough_line(b);
+    let angle_delta = b_angle - a_angle;
+    if angle_delta > 90 {
+        b_angle -= 180;
+        b_r = -b_r;
+    } else if angle_delta < -90 {
+        b_angle += 180;
+        b_r = -b_r;
+    }
+
+    (b_angle - a_angle).abs() <= 1 && f64::from((a_r - b_r).abs()) >= minimum_separation
+}
+
+// Hough-stage v2: complete only neighbors omitted by imageproc's rectangular NMS.
+// This per-call owner stores eight raw-vote rows, not a second full accumulator.
+struct HoughSeamVotes {
+    rmax: i32,
+    row_width: usize,
+    bins: Vec<u32>,
+}
+
+impl HoughSeamVotes {
+    fn row(angle: u32) -> Option<usize> {
+        match angle {
+            0..=3 => Some(angle as usize),
+            176..=179 => Some((angle - 172) as usize),
+            _ => None,
+        }
+    }
+
+    fn from_points(points: &[(f64, f64)], width: u32, height: u32) -> Result<Self, String> {
+        if width == 0 || height == 0 || width > 512 || height > 512 || points.len() > 8192 {
+            return Err("Invalid bounded Hough seam input".into());
+        }
+        if points.iter().any(|&(x, y)| {
+            !x.is_finite()
+                || !y.is_finite()
+                || x < 0.0
+                || y < 0.0
+                || x >= f64::from(width)
+                || y >= f64::from(height)
+                || x.fract() != 0.0
+                || y.fract() != 0.0
+        }) {
+            return Err("Hough seam points must be integer image coordinates".into());
+        }
+        let squared = width
+            .checked_mul(width)
+            .and_then(|w| height.checked_mul(height).and_then(|h| w.checked_add(h)))
+            .ok_or("Hough seam dimension overflow")?;
+        let rmax = (f64::from(squared)).sqrt() as i32;
+        let radial_max = rmax.checked_mul(2).ok_or("Hough seam radius overflow")?;
+        let row_width =
+            usize::try_from(radial_max.checked_add(1).ok_or("Hough seam row overflow")?)
+                .map_err(|_| "Invalid Hough seam row width")?;
+        let cells = row_width.checked_mul(8).ok_or("Hough seam cell overflow")?;
+        let bytes = cells
+            .checked_mul(std::mem::size_of::<u32>())
+            .ok_or("Hough seam byte overflow")?;
+        if bytes > 46_368 {
+            return Err("Hough seam scratch exceeds the fixed bound".into());
+        }
+        let mut bins = Vec::<u32>::new();
+        bins.try_reserve_exact(cells)
+            .map_err(|_| "Cannot allocate bounded Hough seam scratch")?;
+        bins.resize(cells, 0);
+        let lut =
+            [0u32, 1, 2, 3, 176, 177, 178, 179].map(|deg| (deg as f32).to_radians().sin_cos());
+        for &(x, y) in points {
+            for (row, &(s, c)) in lut.iter().enumerate() {
+                // Match imageproc 0.27 hough.rs: f32 products/add, then truncation.
+                let r = (x as f32) * c + (y as f32) * s;
+                let d = r as i32 + rmax;
+                if d <= radial_max && d >= 0 {
+                    // row<8, d<row_width, and at most8192 unit votes per cell.
+                    bins[row * row_width + d as usize] += 1;
+                }
+            }
+        }
+        Ok(Self {
+            rmax,
+            row_width,
+            bins,
+        })
+    }
+
+    fn keep(&self, line: &imageproc::hough::PolarLine) -> bool {
+        let Some(row) = Self::row(line.angle_in_degrees) else {
+            return true;
+        };
+        // retain_lines validates canonical integer radii/angles before any lookup.
+        let angle = line.angle_in_degrees as i32;
+        let d = line.r as i32 + self.rmax;
+        let score = self.bins[row * self.row_width + d as usize];
+        let radial_max = self.row_width as i32 - 1;
+        for delta_angle in -4..=4 {
+            let unwrapped_angle = angle + delta_angle;
+            if (0..180).contains(&unwrapped_angle) {
+                continue;
+            }
+            let wrapped_angle = unwrapped_angle.rem_euclid(180) as u32;
+            // A missing radius4 neighbor is necessarily in one of these eight rows.
+            let wrapped_row = if wrapped_angle < 4 {
+                wrapped_angle as usize
+            } else {
+                (wrapped_angle - 172) as usize
+            };
+            for delta_radius in -4..=4 {
+                let unwrapped_d = d + delta_radius;
+                if unwrapped_d < 0 || unwrapped_d > radial_max {
+                    continue;
+                }
+                let reflected_d = radial_max - unwrapped_d;
+                let neighbor = self.bins[wrapped_row * self.row_width + reflected_d as usize];
+                // Original canonical (radial index, angle row) tie order, also for zero.
+                if neighbor > score
+                    || (neighbor == score
+                        && (reflected_d, wrapped_angle) < (d, line.angle_in_degrees))
+                {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    fn retain_lines(&self, lines: &mut Vec<imageproc::hough::PolarLine>) -> Result<(), String> {
+        if lines.len() > 128
+            || lines.iter().any(|line| {
+                line.angle_in_degrees >= 180
+                    || !line.r.is_finite()
+                    || line.r.fract() != 0.0
+                    || line.r.abs() > self.rmax as f32
+            })
+        {
+            return Err("Invalid bounded Hough seam candidates".into());
+        }
+        // All comparisons read immutable raw bins, including non-returned neighbors.
+        lines.retain(|line| self.keep(line));
+        Ok(())
+    }
+}
+
+fn suppress_hough_seam_peaks(
+    mut lines: Vec<imageproc::hough::PolarLine>,
+    points: &[(f64, f64)],
+    width: u32,
+    height: u32,
+) -> Result<Vec<imageproc::hough::PolarLine>, String> {
+    if width == 0
+        || height == 0
+        || width > 512
+        || height > 512
+        || points.len() > 8192
+        || lines.len() > 128
+        || lines.iter().any(|line| line.angle_in_degrees >= 180)
+    {
+        return Err("Invalid bounded Hough seam input".into());
+    }
+    if !lines
+        .iter()
+        .any(|line| HoughSeamVotes::row(line.angle_in_degrees).is_some())
+    {
+        return Ok(lines);
+    }
+    let votes = HoughSeamVotes::from_points(points, width, height)?;
+    votes.retain_lines(&mut lines)?;
+    Ok(lines)
+}
+
+fn estimate_straighten_rgba(
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+) -> Result<Option<AutoStraightenEstimate>, String> {
+    let length = width.checked_mul(height).and_then(|n| n.checked_mul(4));
+    if width == 0
+        || height == 0
+        || width > 512
+        || height > 512
+        || length.map(|n| n as usize) != Some(rgba.len())
+    {
+        return Err(
+            "Auto straighten requires an exact RGBA preview of at most 512 pixels per side".into(),
+        );
+    }
+    if width.min(height) < 32 || rgba.chunks_exact(4).any(|p| p[3] != 255) {
+        return Ok(None);
+    }
+    let image = image::RgbaImage::from_raw(width, height, rgba.to_vec())
+        .ok_or("Invalid auto straighten preview")?;
+    let gray = DynamicImage::ImageRgba8(image).to_luma8();
+    let mut edges = imageproc::edges::canny(&gray, 40.0, 100.0);
+    let mut points = Vec::with_capacity(8192);
+    for (x, y, pixel) in edges.enumerate_pixels_mut() {
+        if x < 8 || y < 8 || x >= width - 8 || y >= height - 8 {
+            pixel[0] = 0;
+        } else if pixel[0] != 0 {
+            if points.len() == 8192 {
+                return Ok(None);
+            }
+            points.push((f64::from(x), f64::from(y)));
+        }
+    }
+    if points.len() < 48 || points.len() * 5 > (width * height) as usize {
+        return Ok(None);
+    }
+    let dimension = f64::from(width.max(height));
+    let threshold = (0.30 * dimension).ceil().max(24.0) as u32;
+    // At most 8192*180 votes and a threshold >=24 bound the returned list
+    // by 61440; the fixed <=512 input also bounds the accumulator allocation.
+    let lines = imageproc::hough::detect_lines(
+        &edges,
+        imageproc::hough::LineDetectionOptions {
+            vote_threshold: threshold,
+            suppression_radius: 4,
+        },
+    );
+    if lines.len() > 128 {
+        return Ok(None);
+    }
+    let lines = suppress_hough_seam_peaks(lines, &points, width, height)?;
+    let mut qualified = Vec::with_capacity(lines.len());
+    let mut histogram = [0u64; 90];
+    for line in lines {
+        let theta = f64::from(line.angle_in_degrees).to_radians();
+        let (sin, cos) = theta.sin_cos();
+        let mut count = 0u32;
+        let mut lo = f64::INFINITY;
+        let mut hi = f64::NEG_INFINITY;
+        for &(x, y) in &points {
+            if (x * cos + y * sin - f64::from(line.r)).abs() <= 1.5 {
+                count += 1;
+                let along = -x * sin + y * cos;
+                lo = lo.min(along);
+                hi = hi.max(along);
+            }
+        }
+        if count < threshold || !lo.is_finite() || !hi.is_finite() || hi - lo < 0.40 * dimension {
+            continue;
+        }
+        let residue = ((line.angle_in_degrees as i32 + 45) % 90) - 45;
+        histogram[(residue + 45) as usize] += u64::from(count);
+        qualified.push((line, residue));
+    }
+    let total: u64 = histogram.iter().sum();
+    if total == 0 {
+        return Ok(None);
+    }
+    let mut winner = 0usize;
+    for i in 1..histogram.len() {
+        if histogram[i] > histogram[winner] {
+            winner = i;
+        }
+    }
+    let residue = winner as i32 - 45;
+    if residue.abs() > 10 {
+        return Ok(None);
+    }
+    let family: u64 = histogram
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| (*i as i32 - winner as i32).abs() <= 1)
+        .map(|(_, n)| *n)
+        .sum();
+    if family * 100 < total * 85
+        || histogram
+            .iter()
+            .enumerate()
+            .any(|(i, &n)| (i as i32 - winner as i32).abs() > 1 && n * 10 >= family)
+    {
+        return Ok(None);
+    }
+    let separation = (0.10 * f64::from(width.min(height))).max(8.0);
+    let mut separated = false;
+    for (i, (a, ar)) in qualified.iter().enumerate() {
+        if (ar - residue).abs() > 1 {
+            continue;
+        }
+        for (b, br) in &qualified[i + 1..] {
+            if (br - residue).abs() <= 1 && has_separated_parallel_lines(*a, *b, separation) {
+                separated = true;
+            }
+        }
+    }
+    if !separated {
+        return Ok(None);
+    }
+    let correction = if residue == 0 {
+        0.0
+    } else {
+        -f64::from(residue)
+    };
+    let confidence = family as f64 / total as f64;
+    if !correction.is_finite() || !confidence.is_finite() {
+        return Ok(None);
+    }
+    Ok(Some(AutoStraightenEstimate {
+        correction_degrees: correction,
+        confidence,
+    }))
+}
+
+#[tauri::command]
+pub fn calculate_auto_straighten(
+    path: String,
+    rgba: Vec<u8>,
+    width: u32,
+    height: u32,
+    expected_open_key: Option<crate::progressive_open::OpenKey>,
+    state: tauri::State<'_, AppState>,
+) -> Result<Option<AutoStraightenEstimate>, String> {
+    // Capture only a source lease: no ConsumerRequest, profile capture, development or renderer.
+    let source = state
+        .capture_consumer_source(expected_open_key.as_ref(), Some(&path))
+        .map_err(|e| e.to_string())?;
+    source.check().map_err(|e| e.to_string())?;
+    let result = estimate_straighten_rgba(width, height, &rgba);
+    source.check().map_err(|e| e.to_string())?;
+    result
+}
+
+#[cfg(test)]
+mod auto_straighten_tests {
+    use super::*;
+
+    fn bars(degrees: f64) -> image::RgbaImage {
+        let (sin, cos) = degrees.to_radians().sin_cos();
+        image::RgbaImage::from_fn(256, 192, |x, y| {
+            let distance = (f64::from(y) - 96.0) * cos - (f64::from(x) - 128.0) * sin;
+            let white = [-48.0, -16.0, 16.0, 48.0]
+                .iter()
+                .any(|offset| (distance - offset).abs() <= 1.5);
+            image::Rgba([
+                if white { 255 } else { 0 },
+                if white { 255 } else { 0 },
+                if white { 255 } else { 0 },
+                255,
+            ])
+        })
+    }
+    fn estimate(image: &image::RgbaImage) -> Option<AutoStraightenEstimate> {
+        estimate_straighten_rgba(image.width(), image.height(), image.as_raw()).unwrap()
+    }
+    #[test]
+    fn as01_signed_lines_phases_flips_and_determinism() {
+        for angle in [0.0f64, -2.0, 2.0, -5.0, 5.0, -10.0, 10.0] {
+            for reverse in [false, true] {
+                for quarter in 0..4 {
+                    for horizontal in [false, true] {
+                        for vertical in [false, true] {
+                            let base = bars(angle + if reverse { 180.0 } else { 0.0 });
+                            let mut image = match quarter {
+                                1 => image::imageops::rotate90(&base),
+                                2 => image::imageops::rotate180(&base),
+                                3 => image::imageops::rotate270(&base),
+                                _ => base,
+                            };
+                            if horizontal {
+                                image = image::imageops::flip_horizontal(&image);
+                            }
+                            if vertical {
+                                image = image::imageops::flip_vertical(&image);
+                            }
+                            let expected = if horizontal ^ vertical { angle } else { -angle };
+                            let actual = estimate(&image)
+                                .expect("independently angled parallel bars must be supported");
+                            assert!(
+                                (actual.correction_degrees - expected).abs() <= 0.5,
+                                "angle={angle} quarter={quarter} h={horizontal} v={vertical} reverse={reverse}: {actual:?}"
+                            );
+                            let repeated = estimate(&image).unwrap();
+                            assert_eq!(
+                                actual.correction_degrees.to_bits(),
+                                repeated.correction_degrees.to_bits()
+                            );
+                            assert_eq!(actual.confidence.to_bits(), repeated.confidence.to_bits());
+                            assert!((0.85..=1.0).contains(&actual.confidence));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn as03_flat_conflict_convergence_and_excess_tilt_refuse() {
+        for value in [0, 128, 255] {
+            assert!(
+                estimate(&image::RgbaImage::from_pixel(
+                    256,
+                    192,
+                    image::Rgba([value, value, value, 255])
+                ))
+                .is_none()
+            );
+        }
+        let positive = bars(5.0);
+        let negative = bars(-5.0);
+        let conflict = image::RgbaImage::from_fn(256, 192, |x, y| {
+            let value = positive.get_pixel(x, y)[0].max(negative.get_pixel(x, y)[0]);
+            image::Rgba([value, value, value, 255])
+        });
+        let convergence = image::RgbaImage::from_fn(256, 192, |x, y| {
+            if x < 128 {
+                *positive.get_pixel(x, y)
+            } else {
+                *negative.get_pixel(x, y)
+            }
+        });
+        assert!(estimate(&conflict).is_none());
+        assert!(estimate(&convergence).is_none());
+        assert!(estimate(&bars(20.0)).is_none());
+        let dense = image::RgbaImage::from_fn(256, 192, |x, y| {
+            let value = if (x / 3 + y / 3) % 2 == 0 { 255 } else { 0 };
+            image::Rgba([value, value, value, 255])
+        });
+        assert!(estimate(&dense).is_none());
+    }
+    #[test]
+    fn as06_checked_rgba_dimensions_density_and_bounds() {
+        for (w, h, n) in [
+            (0, 1, 0),
+            (513, 1, 2052),
+            (1, 513, 2052),
+            (32, 32, 4095),
+            (32, 32, 4097),
+        ] {
+            assert!(estimate_straighten_rgba(w, h, &vec![255; n]).is_err());
+        }
+        assert!(
+            estimate_straighten_rgba(31, 31, &vec![255; 31 * 31 * 4])
+                .unwrap()
+                .is_none()
+        );
+        let mut transparent = bars(0.0);
+        transparent.get_pixel_mut(128, 96)[3] = 0;
+        assert!(estimate(&transparent).is_none());
+        let valid = bars(-5.0);
+        let value = estimate(&valid).unwrap();
+        assert!(value.correction_degrees.is_finite() && value.correction_degrees.abs() <= 10.0);
+        assert!(value.confidence.is_finite() && (0.85..=1.0).contains(&value.confidence));
+    }
+
+    #[test]
+    fn as07_unoriented_normal_seam_and_preview() {
+        use imageproc::hough::PolarLine;
+
+        let seam_a = PolarLine {
+            r: -20.0,
+            angle_in_degrees: 179,
+        };
+        let seam_b = PolarLine {
+            r: 30.0,
+            angle_in_degrees: 0,
+        };
+        assert!(has_separated_parallel_lines(seam_a, seam_b, 8.0));
+        assert!(has_separated_parallel_lines(seam_b, seam_a, 8.0));
+
+        let same_line_across_seam = PolarLine {
+            r: 20.0,
+            angle_in_degrees: 0,
+        };
+        assert!(!has_separated_parallel_lines(
+            seam_a,
+            same_line_across_seam,
+            8.0
+        ));
+        let equivalent_180_normal = PolarLine {
+            r: -30.0,
+            angle_in_degrees: 180,
+        };
+        assert!(!has_separated_parallel_lines(
+            seam_b,
+            equivalent_180_normal,
+            8.0
+        ));
+        let same_angle_unseparated = PolarLine {
+            r: 19.0,
+            angle_in_degrees: 45,
+        };
+        assert!(!has_separated_parallel_lines(
+            PolarLine {
+                r: 12.0,
+                angle_in_degrees: 45,
+            },
+            same_angle_unseparated,
+            8.0
+        ));
+        assert!(!has_separated_parallel_lines(
+            PolarLine {
+                r: -20.0,
+                angle_in_degrees: 178,
+            },
+            seam_b,
+            8.0
+        ));
+
+        let actual = estimate(&bars(89.25))
+            .expect("generated near-seam RGBA line family should be supported");
+        assert!(
+            (actual.correction_degrees - 0.75).abs() <= 0.5,
+            "near-seam correction must retain the original 0.5-degree oracle: {actual:?}"
+        );
+    }
+
+    #[test]
+    fn as08_cyclic_hough_suppression_raw_votes_and_quality_controls() {
+        use imageproc::hough::PolarLine;
+
+        fn line(angle: u32, r: i32) -> PolarLine {
+            PolarLine {
+                angle_in_degrees: angle,
+                r: r as f32,
+            }
+        }
+        fn raw_votes(bins: &[(u32, i32, u32)]) -> HoughSeamVotes {
+            let mut votes = HoughSeamVotes::from_points(&[], 256, 192).unwrap();
+            for &(angle, r, count) in bins {
+                let row = HoughSeamVotes::row(angle).unwrap();
+                votes.bins[row * votes.row_width + (r + votes.rmax) as usize] = count;
+            }
+            votes
+        }
+        let a = line(1, 81);
+        let b = line(179, -80);
+        let votes = raw_votes(&[(1, 81, 80), (179, -80, 100)]);
+        let mut candidates = vec![a, b];
+        let pointer = candidates.as_ptr();
+        let capacity = candidates.capacity();
+        votes.retain_lines(&mut candidates).unwrap();
+        assert_eq!(candidates, vec![b]);
+        assert_eq!(candidates.as_ptr(), pointer);
+        assert_eq!(candidates.capacity(), capacity);
+        let mut reversed = vec![b, a];
+        votes.retain_lines(&mut reversed).unwrap();
+        assert_eq!(reversed, vec![b]);
+        let mut nonreturned_neighbor = vec![a];
+        votes.retain_lines(&mut nonreturned_neighbor).unwrap();
+        assert!(nonreturned_neighbor.is_empty());
+
+        let mut tie = vec![a, b];
+        raw_votes(&[(1, 81, 100), (179, -80, 100)])
+            .retain_lines(&mut tie)
+            .unwrap();
+        assert_eq!(tie, vec![b]);
+        let mut reversed_strength = vec![b, a];
+        raw_votes(&[(1, 81, 100), (179, -80, 80)])
+            .retain_lines(&mut reversed_strength)
+            .unwrap();
+        assert_eq!(reversed_strength, vec![a]);
+        let mut zero_neighbor = vec![a];
+        raw_votes(&[(1, 81, 1)])
+            .retain_lines(&mut zero_neighbor)
+            .unwrap();
+        assert_eq!(zero_neighbor, vec![a]);
+        let mut zero_tie = vec![a];
+        raw_votes(&[]).retain_lines(&mut zero_tie).unwrap();
+        assert!(zero_tie.is_empty());
+
+        let mut inclusive = vec![a, line(179, -85)];
+        raw_votes(&[(1, 81, 80), (179, -85, 100)])
+            .retain_lines(&mut inclusive)
+            .unwrap();
+        assert_eq!(inclusive, vec![line(179, -85)]);
+        let mut outside = vec![a, line(179, -86)];
+        raw_votes(&[(1, 81, 80), (179, -86, 100)])
+            .retain_lines(&mut outside)
+            .unwrap();
+        assert_eq!(outside, vec![a, line(179, -86)]);
+
+        let genuine = vec![line(5, 20), line(175, -19)];
+        let pointer = genuine.as_ptr();
+        let capacity = genuine.capacity();
+        let bypassed = suppress_hough_seam_peaks(genuine, &[], 32, 32).unwrap();
+        assert_eq!(bypassed, vec![line(5, 20), line(175, -19)]);
+        assert_eq!(bypassed.as_ptr(), pointer);
+        assert_eq!(bypassed.capacity(), capacity);
+        let mut order = vec![line(175, -80), b, line(5, 81), a];
+        votes.retain_lines(&mut order).unwrap();
+        assert_eq!(order, vec![line(175, -80), b, line(5, 81)]);
+
+        let tiny =
+            HoughSeamVotes::from_points(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], 32, 32).unwrap();
+        let at = |angle, r: i32| {
+            tiny.bins
+                [HoughSeamVotes::row(angle).unwrap() * tiny.row_width + (r + tiny.rmax) as usize]
+        };
+        assert_eq!(at(0, 0), 2);
+        assert_eq!(at(0, 1), 1);
+        assert_eq!(at(1, 0), 3);
+        assert_eq!(at(179, 0), 3);
+        assert_eq!(at(179, -1), 0);
+        for (w, h) in [(0, 32), (513, 32), (32, 513)] {
+            assert!(HoughSeamVotes::from_points(&[], w, h).is_err());
+        }
+        assert!(HoughSeamVotes::from_points(&vec![(0.0, 0.0); 8193], 32, 32).is_err());
+        assert!(suppress_hough_seam_peaks(vec![a; 129], &[], 256, 192).is_err());
+        let largest = HoughSeamVotes::from_points(&[], 512, 512).unwrap();
+        assert_eq!(largest.bins.len(), 11_592);
+        assert_eq!(largest.bins.len() * std::mem::size_of::<u32>(), 46_368);
+
+        let actual =
+            estimate(&bars(89.25)).expect("the original seam family must remain supported");
+        assert_eq!(actual.correction_degrees, 1.0);
+        assert!((actual.correction_degrees - 0.75).abs() <= 0.5);
+        let positive = bars(5.0);
+        let negative = bars(-5.0);
+        let conflict = image::RgbaImage::from_fn(256, 192, |x, y| {
+            let value = positive.get_pixel(x, y)[0].max(negative.get_pixel(x, y)[0]);
+            image::Rgba([value, value, value, 255])
+        });
+        let convergence = image::RgbaImage::from_fn(256, 192, |x, y| {
+            if x < 128 {
+                *positive.get_pixel(x, y)
+            } else {
+                *negative.get_pixel(x, y)
+            }
+        });
+        assert!(estimate(&image::imageops::rotate90(&conflict)).is_none());
+        assert!(estimate(&image::imageops::rotate90(&convergence)).is_none());
+    }
 }

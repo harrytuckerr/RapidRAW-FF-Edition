@@ -2,6 +2,7 @@ import { ExportPreset } from './ExportImportProperties';
 import { Adjustments, CopyPasteSettings } from '../../utils/adjustments';
 import { ToolType } from '../panel/right/Masks';
 import type { WhiteBalance, WhiteBalanceMode } from '../../utils/whiteBalance';
+import type { OpenKey } from '../../utils/progressiveOpen';
 
 export const GLOBAL_KEYS = [
   ' ',
@@ -31,13 +32,17 @@ export const GLOBAL_KEYS = [
 export const OPTION_SEPARATOR = 'separator';
 
 export enum Invokes {
+  BeginImageOpen = 'begin_image_open',
+  CancelImageOpen = 'cancel_image_open',
   AddTagForPaths = 'add_tag_for_paths',
   ApplyAdjustments = 'apply_adjustments',
   ApplyAdjustmentsToPaths = 'apply_adjustments_to_paths',
   ApplyAutoAdjustmentsToPaths = 'apply_auto_adjustments_to_paths',
   ApplyDenoising = 'apply_denoising',
   CalculateAutoAdjustments = 'calculate_auto_adjustments',
+  CalculateAutoStraighten = 'calculate_auto_straighten',
   SampleWhiteBalance = 'sample_white_balance',
+  SamplePointColour = 'sample_point_colour',
   CancelAiTask = 'cancel_ai_task',
   CancelExport = 'cancel_export',
   CheckAIConnectorStatus = 'check_ai_connector_status',
@@ -399,6 +404,8 @@ export interface SelectedImage {
   isReady: boolean;
   metadata?: any;
   original_base64?: string;
+  openKey?: OpenKey;
+  openTicket?: string;
   path: string;
   thumbnailUrl: string;
   width: number;

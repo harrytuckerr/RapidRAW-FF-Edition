@@ -44,6 +44,7 @@ export enum BasicAdjustment {
 export enum ColorAdjustment {
   ColorGrading = 'colorGrading',
   Hsl = 'hsl',
+  PointColour = 'pointColour',
   Hue = 'hue',
   Luminance = 'luminance',
   Saturation = 'saturation',
@@ -239,7 +240,41 @@ export interface ParametricCurve {
   red: ParametricCurveSettings;
 }
 
+export interface PointColourV1 {
+  v: 1;
+  enabled?: boolean;
+  centerHue: number;
+  widthDegrees: number;
+  hue: number;
+  saturation: number;
+  luminance: number;
+}
+
+// Unknown saved payloads stay in adjustments; this view never rewrites them.
+export const pointColourV1 = (input: unknown): PointColourV1 | null => {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const p = input as Record<string, unknown>;
+  const keys = ['v', 'enabled', 'centerHue', 'widthDegrees', 'hue', 'saturation', 'luminance'];
+  if (
+    Object.keys(p).some((key) => !keys.includes(key)) ||
+    p.v !== 1 ||
+    (p.enabled !== undefined && typeof p.enabled !== 'boolean')
+  )
+    return null;
+  const range = (key: string, min: number, max: number) =>
+    typeof p[key] === 'number' && Number.isFinite(p[key]) && (p[key] as number) >= min && (p[key] as number) <= max;
+  if (
+    !range('centerHue', 0, 360) ||
+    Math.fround(p.centerHue as number) >= 360 ||
+    !range('widthDegrees', 1, 180) ||
+    !['hue', 'saturation', 'luminance'].every((key) => range(key, -100, 100))
+  )
+    return null;
+  return input as PointColourV1;
+};
+
 export interface Adjustments {
+  pointColour?: PointColourV1 | Record<string, unknown> | null;
   [index: string]: any;
   aiPatches: Array<AiPatch>;
   aspectRatio: number | null;
@@ -634,6 +669,7 @@ export const INITIAL_MASK_CONTAINER: MaskContainer = {
 };
 
 export const INITIAL_ADJUSTMENTS: Adjustments = {
+  pointColour: null,
   aiPatches: [],
   aspectRatio: null,
   baselineExposure: true,
@@ -979,7 +1015,7 @@ export const ADJUSTMENT_GROUPS: Record<string, AdjustmentGroup[]> = {
       keys: [ColorAdjustment.Hue],
     },
     { label: 'modals.copyPaste.groups.colorGrading', keys: [ColorAdjustment.ColorGrading] },
-    { label: 'modals.copyPaste.groups.colorMixer', keys: [ColorAdjustment.Hsl] },
+    { label: 'modals.copyPaste.groups.colorMixer', keys: [ColorAdjustment.Hsl, ColorAdjustment.PointColour] },
     { label: 'modals.copyPaste.groups.colorCalibration', keys: ['colorCalibration'] },
   ],
   details: [
@@ -1091,6 +1127,7 @@ export const ADJUSTMENT_SECTIONS: Sections = {
     ColorAdjustment.WhiteBalance,
     ColorAdjustment.Vibrance,
     ColorAdjustment.Hsl,
+    ColorAdjustment.PointColour,
     ColorAdjustment.ColorGrading,
     'colorCalibration',
     ColorAdjustment.Hue,

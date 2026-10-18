@@ -230,7 +230,7 @@ fn required_processing_limits(supported: &wgpu::Limits) -> Result<wgpu::Limits, 
     // Main BGL includes input, masks, LUT, effects, guided filters and DCP.
     require!(max_sampled_textures_per_shader_stage, 13);
     require!(max_samplers_per_shader_stage, 2);
-    require!(max_bindings_per_bind_group, 17);
+    require!(max_bindings_per_bind_group, 18);
     require!(
         max_storage_buffer_binding_size,
         std::mem::size_of::<AllAdjustments>() as u64
@@ -618,6 +618,12 @@ fn read_texture_data_roi(
     );
 
     gpu_diag!("readback/submit", queue.submit(Some(encoder.finish())));
+    struct UnmapOnDrop<'a>(&'a wgpu::Buffer);
+    impl Drop for UnmapOnDrop<'_> {
+        fn drop(&mut self) {
+            self.0.unmap();
+        }
+    }
     let buffer_slice = output_buffer.slice(..);
     let (tx, rx) = std::sync::mpsc::channel();
     gpu_diag!(
@@ -643,9 +649,9 @@ fn read_texture_data_roi(
     let map_result = gpu_diag!("readback/callback_recv", rx.recv())
         .map_err(|e| format!("Failed receiving GPU map result: {}", e))?;
     map_result.map_err(|e| e.to_string())?;
+    let _unmap = UnmapOnDrop(&output_buffer);
 
     let padded_data = buffer_slice.get_mapped_range().to_vec();
-    output_buffer.unmap();
 
     if padded_bytes_per_row == unpadded_bytes_per_row {
         Ok(padded_data)
@@ -1293,6 +1299,16 @@ impl GpuProcessor {
             count: None,
         });
 
+        bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 17,
+            visibility: wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::StorageTexture {
+                access: wgpu::StorageTextureAccess::WriteOnly,
+                format: wgpu::TextureFormat::Rgba32Float,
+                view_dimension: wgpu::TextureViewDimension::D2,
+            },
+            count: None,
+        });
         let main_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Main BGL"),
             entries: &bind_group_layout_entries,
@@ -1809,10 +1825,62 @@ impl GpuProcessor {
         output_to_display: bool,
         output_precision: RenderOutputPrecision,
     ) -> Result<(RenderedPixels, u32, u32, u32, u32), String> {
+        self.run_with_point_sample(
+            input_texture_view,
+            gf_coeffs_view,
+            gf_dehaze_view,
+            width,
+            height,
+            request,
+            output_to_display,
+            output_precision,
+            None,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_with_point_sample(
+        &self,
+        input_texture_view: &wgpu::TextureView,
+        gf_coeffs_view: &wgpu::TextureView,
+        gf_dehaze_view: &wgpu::TextureView,
+        width: u32,
+        height: u32,
+        request: RenderRequest,
+        output_to_display: bool,
+        output_precision: RenderOutputPrecision,
+        sample_out: Option<&mut Option<crate::image_processing::PointColourSample>>,
+    ) -> Result<(RenderedPixels, u32, u32, u32, u32), String> {
         #[cfg(debug_assertions)]
         let _gpu_diag_span = GpuDiagnosticSpan::new("GpuProcessor::run");
         let device = &self.context.device;
         let queue = &self.context.queue;
+        request.adjustments.global.point_colour.validate()?;
+        let sampling = sample_out.is_some();
+        let probe = request.adjustments.global.point_probe;
+        if sampling
+            && (probe[2] != 1 || probe[0] >= width || probe[1] >= height || output_to_display)
+        {
+            return Err("Invalid Point Colour sample target".into());
+        }
+        if !sampling && probe != [0; 4] {
+            return Err("Point Colour probe is private to sampling".into());
+        }
+        let sample_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("One Point Colour pixel: linear RGB and HSV"),
+            size: wgpu::Extent3d {
+                width: 2,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba32Float,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let sample_view = sample_texture.create_view(&Default::default());
         let scale = (width.min(height) as f32) / 1080.0;
         const MAX_MASK_BINDINGS: u32 = 1;
 
@@ -2039,7 +2107,7 @@ impl GpuProcessor {
         const TILE_SIZE: u32 = 2048;
         const TILE_OVERLAP: u32 = 128;
 
-        let output_len = if output_to_display {
+        let output_len = if output_to_display || sampling {
             0
         } else {
             (out_width * out_height * 4) as usize
@@ -2380,6 +2448,10 @@ impl GpuProcessor {
                     resource: wgpu::BindingResource::TextureView(&dcp_tc_view),
                 });
 
+                bind_group_entries.push(wgpu::BindGroupEntry {
+                    binding: 17,
+                    resource: wgpu::BindingResource::TextureView(&sample_view),
+                });
                 let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                     label: Some("Tile Bind Group"),
                     layout: output_bgl,
@@ -2432,7 +2504,7 @@ impl GpuProcessor {
 
                 gpu_diag!("run/main_submit", queue.submit(Some(main_encoder.finish())));
 
-                if !output_to_display {
+                if !output_to_display && !sampling {
                     let processed_tile_data = read_texture_data_roi(
                         device,
                         queue,
@@ -2489,6 +2561,21 @@ impl GpuProcessor {
             }
         }
 
+        if let Some(destination) = sample_out {
+            let bytes = read_texture_data_roi(
+                device,
+                queue,
+                &sample_texture,
+                wgpu::Origin3d::ZERO,
+                wgpu::Extent3d {
+                    width: 2,
+                    height: 1,
+                    depth_or_array_layers: 1,
+                },
+                16,
+            )?;
+            *destination = Some(decode_point_colour_sample(&bytes)?);
+        }
         Ok((final_pixels, out_width, out_height, bounds.x, bounds.y))
     }
 }
@@ -2831,7 +2918,9 @@ fn process_and_get_dynamic_image_inner(
                 let buffer_slice = output_buffer.slice(..);
                 let (tx, rx) = std::sync::mpsc::channel::<Result<(), wgpu::BufferAsyncError>>();
 
+                let callback_request = analytics.request.clone();
                 buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
+                    let _held_request = callback_request;
                     let _ = tx.send(result);
                 });
 
@@ -2862,7 +2951,15 @@ fn process_and_get_dynamic_image_inner(
                         ImageBuffer::<Rgba<u8>, _>::from_raw(out_w, out_h, unpadded_data)
                     {
                         let dynamic_img = DynamicImage::ImageRgba8(img_buf);
+                        if analytics
+                            .request
+                            .as_ref()
+                            .is_some_and(|r| r.check().is_err())
+                        {
+                            return;
+                        }
                         let _ = analytics.sender.send(crate::AnalyticsJob {
+                            request: analytics.request,
                             path: analytics.path,
                             image: std::sync::Arc::new(dynamic_img),
                             compute_waveform: analytics.compute_waveform,
@@ -2879,7 +2976,15 @@ fn process_and_get_dynamic_image_inner(
                         ImageBuffer::<Rgba<u8>, _>::from_raw(out_w, out_h, pixels_clone)
                     {
                         let dynamic_img = DynamicImage::ImageRgba8(img_buf);
+                        if analytics
+                            .request
+                            .as_ref()
+                            .is_some_and(|r| r.check().is_err())
+                        {
+                            return;
+                        }
                         let _ = analytics.sender.send(crate::AnalyticsJob {
+                            request: analytics.request,
                             path: analytics.path,
                             image: std::sync::Arc::new(dynamic_img),
                             compute_waveform: analytics.compute_waveform,
@@ -3126,4 +3231,1724 @@ mod processing_limits_tests {
         );
         eprintln!("Full GPU processor + 8/16-bit pipelines VALID: {info:?}");
     }
+}
+
+// BEGIN ISOLATED CREATIVE OWNER (inactive, no normal cache/display caller).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct IsolatedCreativeLayout {
+    width: u32,
+    height: u32,
+    padded_width: u32,
+    padded_height: u32,
+    pixels: usize,
+    rgba_samples: usize,
+    upload_bytes: usize,
+}
+
+impl IsolatedCreativeLayout {
+    fn checked(width: u32, height: u32, max_dimension: u32) -> Result<Self, String> {
+        if width == 0 || height == 0 {
+            return Err("Isolated creative input must have nonzero dimensions".into());
+        }
+        let pad = |n: u32| n.checked_add(255).map(|v| v & !255);
+        let padded_width = pad(width).ok_or("Isolated creative width padding overflow")?;
+        let padded_height = pad(height).ok_or("Isolated creative height padding overflow")?;
+        if padded_width > max_dimension || padded_height > max_dimension {
+            return Err("Isolated creative padded dimensions exceed the device limit".into());
+        }
+        // run() indexes output samples with u32 products before conversion to
+        // usize. Check that exact existing arithmetic, not only host capacity.
+        let rgba = width
+            .checked_mul(height)
+            .and_then(|v| v.checked_mul(4))
+            .ok_or("Isolated creative RGBA indexing overflow")?;
+        padded_width
+            .checked_mul(padded_height)
+            .and_then(|v| v.checked_mul(4))
+            .ok_or("Isolated creative padded allocation overflow")?;
+        let rgba_samples =
+            usize::try_from(rgba).map_err(|_| "Isolated creative host length overflow")?;
+        let upload_bytes = isolated_checked_bytes(rgba_samples, std::mem::size_of::<f16>())?;
+        Ok(Self {
+            width,
+            height,
+            padded_width,
+            padded_height,
+            pixels: rgba_samples / 4,
+            rgba_samples,
+            upload_bytes,
+        })
+    }
+}
+
+fn isolated_checked_bytes(elements: usize, element_size: usize) -> Result<usize, String> {
+    let bytes = elements
+        .checked_mul(element_size)
+        .filter(|v| *v <= isize::MAX as usize)
+        .ok_or("Isolated creative byte length overflow")?;
+    Ok(bytes)
+}
+
+fn isolated_validate_source_bytes(
+    layout: IsolatedCreativeLayout,
+    bytes_per_pixel: u8,
+    source_bytes: usize,
+) -> Result<(), String> {
+    let expected = isolated_checked_bytes(layout.pixels, bytes_per_pixel as usize)?;
+    // The unchanged fallback conversion first creates RGBA32F before f16.
+    isolated_checked_bytes(layout.rgba_samples, std::mem::size_of::<f32>())?;
+    if bytes_per_pixel == 0 || source_bytes != expected {
+        return Err("Isolated creative source storage does not match its dimensions".into());
+    }
+    Ok(())
+}
+
+fn isolated_validate_request(
+    layout: IsolatedCreativeLayout,
+    limits: &wgpu::Limits,
+    request: &RenderRequest<'_>,
+) -> Result<(), String> {
+    // Existing constructor resources: fixed512 flare maps, fixed4096 tone LUT.
+    if limits.max_texture_dimension_2d < FLARE_MAP_SIZE
+        || limits.max_texture_dimension_1d < 4096
+        || limits.max_texture_dimension_3d == 0
+        || layout.width.max(layout.height) > limits.max_compute_workgroups_per_dimension
+    {
+        return Err("Isolated creative device cannot hold the existing engine resources".into());
+    }
+    let roi = request.roi.unwrap_or(Roi {
+        x: 0,
+        y: 0,
+        width: layout.width,
+        height: layout.height,
+    });
+    if roi.width == 0
+        || roi.height == 0
+        || roi
+            .x
+            .checked_add(roi.width)
+            .is_none_or(|v| v > layout.width)
+        || roi
+            .y
+            .checked_add(roi.height)
+            .is_none_or(|v| v > layout.height)
+    {
+        return Err("Isolated creative ROI must be a nonempty input rectangle".into());
+    }
+    let output_samples = roi
+        .width
+        .checked_mul(roi.height)
+        .and_then(|v| v.checked_mul(4))
+        .ok_or("Isolated creative ROI output overflow")?;
+    isolated_checked_bytes(output_samples as usize, std::mem::size_of::<u16>())?;
+    let layers = request.mask_bitmaps.len().clamp(2, MAX_MASKS);
+    if request.mask_bitmaps.len() > MAX_MASKS
+        || request.adjustments.mask_count as usize > MAX_MASKS
+        || request.adjustments.mask_count as usize > layers
+        || layers as u32 > limits.max_texture_array_layers
+    {
+        return Err("Isolated creative mask count exceeds the existing array".into());
+    }
+    isolated_checked_bytes(layout.pixels, layers)?;
+    for mask in request.mask_bitmaps {
+        if mask.dimensions() != (layout.width, layout.height)
+            || mask.as_raw().len() != layout.pixels
+        {
+            return Err("Isolated creative masks must match the complete input dimensions".into());
+        }
+    }
+    // Preserve run()'s existing two zero-padded mask layers for absent bitmaps.
+    // No mask is truncated and no out-of-range adjustment can sample a layer.
+    if request.adjustments.global.has_lut == 1 && request.lut.is_none() {
+        return Err("Isolated creative active LUT requires its captured payload".into());
+    }
+    if let Some(lut) = &request.lut {
+        if lut.size == 0 || lut.size > limits.max_texture_dimension_3d {
+            return Err("Isolated creative LUT dimensions exceed the device limit".into());
+        }
+        let samples = (lut.size as usize)
+            .checked_pow(3)
+            .and_then(|v| v.checked_mul(3))
+            .ok_or("Isolated creative LUT length overflow")?;
+        isolated_checked_bytes(samples / 3, 4 * std::mem::size_of::<f16>())?;
+        if lut.data.len() != samples || !lut.data.iter().all(|v| v.is_finite()) {
+            return Err("Isolated creative LUT must contain exact finite RGB texels".into());
+        }
+    }
+    if request.adjustments.global.has_dcp != 0 {
+        let dcp = request
+            .dcp_textures
+            .as_ref()
+            .ok_or("Isolated creative active DCP requires its captured textures")?;
+        for (dims, values, uniform) in [
+            (
+                dcp.huesat_dims,
+                &dcp.huesat,
+                request.adjustments.global.dcp_huesat_dims,
+            ),
+            (
+                dcp.look_dims,
+                &dcp.look,
+                request.adjustments.global.dcp_look_dims,
+            ),
+        ] {
+            if dims
+                .iter()
+                .any(|n| *n == 0 || *n > limits.max_texture_dimension_3d)
+            {
+                return Err(
+                    "Isolated creative DCP texture dimensions exceed the device limit".into(),
+                );
+            }
+            let texels = dims
+                .into_iter()
+                .try_fold(1usize, |a, n| a.checked_mul(n as usize))
+                .ok_or("Isolated creative DCP length overflow")?;
+            let samples = texels
+                .checked_mul(4)
+                .ok_or("Isolated creative DCP RGBA overflow")?;
+            isolated_checked_bytes(samples, std::mem::size_of::<f32>())?;
+            if values.len() != samples
+                || !values.iter().all(|v| v.is_finite())
+                || (uniform[0] != 0 && uniform[..3] != dims)
+            {
+                return Err(
+                    "Isolated creative DCP table/active uniform dimensions do not match".into(),
+                );
+            }
+        }
+        // dcp_eval_tone_curve uses the literal4096, including endpoint loads.
+        if dcp.tone_curve.len() != 4096 || !dcp.tone_curve.iter().all(|v| v.is_finite()) {
+            return Err("Isolated creative DCP tone curve requires4096 finite samples".into());
+        }
+    }
+    Ok(())
+}
+
+fn isolated_required_readback_bytes(
+    layout: IsolatedCreativeLayout,
+    roi: Option<Roi>,
+    precision: RenderOutputPrecision,
+) -> Result<u64, String> {
+    let bounds = roi.unwrap_or(Roi {
+        x: 0,
+        y: 0,
+        width: layout.width,
+        height: layout.height,
+    });
+    let axis = |full: u32, offset: u32, size: u32| -> Result<u64, String> {
+        let end = offset
+            .checked_add(size)
+            .filter(|n| size != 0 && *n <= full)
+            .ok_or("Invalid isolated readback rectangle")? as u64;
+        let first = offset as u64 / 2048;
+        let last = (end - 1) / 2048;
+        let mut maximum = 0;
+        // Only the first/last tiles can be ROI-partial. The first interior
+        // tile represents every full interior tile, without iterating a grid.
+        for tile in [first, last, (first + 1).min(last)] {
+            let start = (tile * 2048).max(offset as u64);
+            let stop = ((tile + 1) * 2048).min(end);
+            let span = (stop + 128).min(full as u64) - start.saturating_sub(128);
+            maximum = maximum.max(span);
+        }
+        Ok(maximum)
+    };
+    let width = axis(layout.width, bounds.x, bounds.width)?;
+    let height = axis(layout.height, bounds.y, bounds.height)?;
+    let bpp = match precision {
+        RenderOutputPrecision::EightBit => 4,
+        RenderOutputPrecision::SixteenBit => 8,
+    };
+    let row = width
+        .checked_mul(bpp)
+        .and_then(|v| v.checked_add(255))
+        .map(|v| v & !255)
+        .ok_or("Isolated readback row overflow")?;
+    let bytes = row
+        .checked_mul(height)
+        .filter(|v| *v <= u32::MAX as u64)
+        .ok_or("Isolated readback buffer arithmetic overflow")?;
+    Ok(bytes)
+}
+
+fn isolated_readback_image(
+    pixels: RenderedPixels,
+    width: u32,
+    height: u32,
+    precision: RenderOutputPrecision,
+) -> Result<DynamicImage, String> {
+    if width == 0 || height == 0 {
+        return Err("Isolated creative readback must have nonzero dimensions".into());
+    }
+    let samples = width
+        .checked_mul(height)
+        .and_then(|v| v.checked_mul(4))
+        .ok_or("Isolated creative readback length overflow")? as usize;
+    match (pixels, precision) {
+        (RenderedPixels::U8(v), RenderOutputPrecision::EightBit) if v.len() == samples => {
+            ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(width, height, v)
+                .map(DynamicImage::ImageRgba8)
+                .ok_or_else(|| "Invalid isolated8-bit readback".into())
+        }
+        (RenderedPixels::U16(v), RenderOutputPrecision::SixteenBit) if v.len() == samples => {
+            isolated_checked_bytes(samples, std::mem::size_of::<u16>())?;
+            ImageBuffer::<Rgba<u16>, Vec<u16>>::from_raw(width, height, v)
+                .map(DynamicImage::ImageRgba16)
+                .ok_or_else(|| "Invalid isolated16-bit readback".into())
+        }
+        _ => Err("Isolated creative precision or exact readback length mismatch".into()),
+    }
+}
+
+/// Inactive, explicit-input creative engine owner. No AppState, source keys,
+/// normal caches, hydration, analytics or display is accepted by this API.
+///
+/// Call construction/render/drop outside application/owner/cache locks. render
+/// blocks in the unchanged run/readback path; callers must fence a future job
+/// through its real return. There is no cancellation, background task, driver
+/// scheduling, total-memory/RSS or GPU-completion-on-error claim here.
+/// A mutable borrow admits only one render through this owner at a time.
+pub(crate) struct IsolatedCreativeRenderer {
+    context: GpuContext,
+    processor: Option<GpuProcessor>,
+    capacity: [u32; 2],
+    #[cfg(test)]
+    processor_builds: usize,
+}
+
+impl IsolatedCreativeRenderer {
+    pub(crate) fn new(context: &GpuContext) -> Self {
+        // Borrow the context and clone only device/queue/limits: no native
+        // display Arc is taken, retained, locked, replaced or retired here.
+        let isolated_context = GpuContext {
+            device: Arc::clone(&context.device),
+            queue: Arc::clone(&context.queue),
+            limits: context.limits.clone(),
+            display: Arc::new(std::sync::Mutex::new(None)),
+        };
+        Self {
+            context: isolated_context,
+            processor: None,
+            capacity: [0, 0],
+            #[cfg(test)]
+            processor_builds: 0,
+        }
+    }
+
+    pub(crate) fn matches_context(&self, context: &GpuContext) -> bool {
+        Arc::ptr_eq(&self.context.device, &context.device)
+            && Arc::ptr_eq(&self.context.queue, &context.queue)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn processor_build_count(&self) -> usize {
+        self.processor_builds
+    }
+
+    pub(crate) fn render(
+        &mut self,
+        base_image: &DynamicImage,
+        request: RenderRequest<'_>,
+        precision: RenderOutputPrecision,
+    ) -> Result<DynamicImage, String> {
+        let (pixels, width, height) = self.render_inner(base_image, request, precision, None)?;
+        isolated_readback_image(pixels, width, height, precision)
+    }
+
+    pub(crate) fn sample_point_colour(
+        &mut self,
+        base_image: &DynamicImage,
+        mut request: RenderRequest<'_>,
+        uv: [f32; 2],
+    ) -> Result<crate::image_processing::PointColourSample, String> {
+        let (x, y) = point_colour_pixel(uv, base_image.dimensions())?;
+        // Use exactly the full-render tile and halo, not a reduced one-pixel
+        // tile whose blur edges would change the upstream sampled value.
+        let tx = x / 2048 * 2048;
+        let ty = y / 2048 * 2048;
+        request.roi = Some(Roi {
+            x: tx,
+            y: ty,
+            width: 2048.min(base_image.width() - tx),
+            height: 2048.min(base_image.height() - ty),
+        });
+        request.adjustments.global.point_probe = [x, y, 1, 0];
+        let mut sample = None;
+        self.render_inner(
+            base_image,
+            request,
+            RenderOutputPrecision::EightBit,
+            Some(&mut sample),
+        )?;
+        let sample =
+            sample.ok_or_else(|| "Point Colour stage did not produce a sample".to_string())?;
+        if sample.saturation <= 0.05 {
+            return Err("Choose a coloured area; this sample is neutral".into());
+        }
+        Ok(sample)
+    }
+
+    fn render_inner(
+        &mut self,
+        base_image: &DynamicImage,
+        request: RenderRequest<'_>,
+        precision: RenderOutputPrecision,
+        sample: Option<&mut Option<crate::image_processing::PointColourSample>>,
+    ) -> Result<(RenderedPixels, u32, u32), String> {
+        let (width, height) = base_image.dimensions();
+        let limits = self.context.device.limits();
+        let layout =
+            IsolatedCreativeLayout::checked(width, height, limits.max_texture_dimension_2d)?;
+        isolated_validate_source_bytes(
+            layout,
+            base_image.color().bytes_per_pixel(),
+            base_image.as_bytes().len(),
+        )?;
+        isolated_validate_request(layout, &limits, &request)?;
+        request.adjustments.global.point_colour.validate()?;
+        let readback_bytes = if sample.is_some() {
+            256
+        } else {
+            isolated_required_readback_bytes(layout, request.roi, precision)?
+        };
+        if readback_bytes > limits.max_buffer_size
+            || std::mem::size_of::<AllAdjustments>() as u64 > limits.max_buffer_size
+        {
+            return Err("Isolated creative buffers exceed the actual device buffer limit".into());
+        }
+
+        if self.processor.is_none()
+            || self.capacity[0] < layout.padded_width
+            || self.capacity[1] < layout.padded_height
+        {
+            // Only this owner's processor is retired, outside all app locks.
+            drop(self.processor.take());
+            self.capacity = [0, 0];
+            let start = std::time::Instant::now();
+            let created = GpuProcessor::new(
+                self.context.clone(),
+                layout.padded_width,
+                layout.padded_height,
+            );
+            log::info!(
+                "[preview-stage] stage=gpu_processor_construct elapsed={:?} width={} height={} outcome={}",
+                start.elapsed(),
+                layout.padded_width,
+                layout.padded_height,
+                if created.is_ok() {
+                    "completed"
+                } else {
+                    "error"
+                }
+            );
+            let processor = created?;
+            self.processor = Some(processor);
+            #[cfg(test)]
+            {
+                self.processor_builds += 1;
+            }
+            self.capacity = [layout.padded_width, layout.padded_height];
+        }
+        let processor = self
+            .processor
+            .as_ref()
+            .ok_or("Isolated creative processor unavailable")?;
+        // Deliberately unconditional: content and guided data are uploaded anew
+        // even when dimensions/precision/request bytes equal a previous render.
+        let rgba = to_rgba_f16(base_image);
+        if rgba.len() != layout.rgba_samples
+            || bytemuck::cast_slice::<f16, u8>(&rgba).len() != layout.upload_bytes
+        {
+            return Err("Isolated creative input conversion length mismatch".into());
+        }
+        let texture = self.context.device.create_texture_with_data(
+            &self.context.queue,
+            &wgpu::TextureDescriptor {
+                label: Some("Isolated creative fresh input"),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            },
+            TextureDataOrder::MipMajor,
+            bytemuck::cast_slice(&rgba),
+        );
+        drop(rgba);
+        let view = texture.create_view(&Default::default());
+        let (guided, dehaze) = processor.build_guided_coeffs(
+            &view,
+            width,
+            height,
+            request.adjustments.global.is_raw_image,
+        );
+        let (pixels, out_w, out_h, _, _) = processor.run_with_point_sample(
+            &view, &guided, &dehaze, width, height, request, false, precision, sample,
+        )?;
+        // The fresh upload and guided views stay alive through actual blocking
+        // readback. No normal wrapper/final-display/analytics path is entered.
+        drop((texture, view, guided, dehaze));
+        Ok((pixels, out_w, out_h))
+    }
+}
+
+#[cfg(test)]
+mod isolated_creative_tests {
+    use super::*;
+
+    fn request<'a>(masks: &'a [ImageBuffer<Luma<u8>, Vec<u8>>]) -> RenderRequest<'a> {
+        RenderRequest {
+            adjustments: AllAdjustments::default(),
+            mask_bitmaps: masks,
+            lut: None,
+            roi: None,
+            dcp_textures: None,
+        }
+    }
+
+    fn identity_dcp() -> DcpTextureData {
+        DcpTextureData {
+            huesat: vec![0.0, 1.0, 1.0, 1.0],
+            huesat_dims: [1; 3],
+            look: vec![0.0, 1.0, 1.0, 1.0],
+            look_dims: [1; 3],
+            tone_curve: (0..4096).map(|n| n as f32 / 4095.0).collect(),
+        }
+    }
+
+    fn identity_lut() -> Arc<Lut> {
+        let mut data = Vec::new();
+        for b in 0..2 {
+            for g in 0..2 {
+                for r in 0..2 {
+                    data.extend_from_slice(&[r as f32, g as f32, b as f32]);
+                }
+            }
+        }
+        Arc::new(Lut { size: 2, data })
+    }
+
+    #[test]
+    fn isolated_padding_and_nonzero_known_answers() {
+        for (width, expected) in [(1, 256), (255, 256), (256, 256), (257, 512)] {
+            let layout = IsolatedCreativeLayout::checked(width, 1, 1024).unwrap();
+            assert_eq!((layout.padded_width, layout.padded_height), (expected, 256));
+            assert_eq!(layout.pixels, width as usize);
+            assert_eq!(layout.rgba_samples, width as usize * 4);
+            assert_eq!(layout.upload_bytes, width as usize * 8);
+        }
+        assert!(IsolatedCreativeLayout::checked(0, 1, 1024).is_err());
+        assert!(IsolatedCreativeLayout::checked(1, 0, 1024).is_err());
+    }
+
+    #[test]
+    fn isolated_gpu_limit_and_checked_lengths() {
+        assert!(IsolatedCreativeLayout::checked(257, 1, 300).is_err());
+        assert_eq!(
+            IsolatedCreativeLayout::checked(257, 1, 512)
+                .unwrap()
+                .padded_width,
+            512
+        );
+        assert!(IsolatedCreativeLayout::checked(u32::MAX, 1, u32::MAX).is_err());
+        assert!(IsolatedCreativeLayout::checked(65536, 65536, u32::MAX).is_err());
+        assert!(IsolatedCreativeLayout::checked(32768, 32768, u32::MAX).is_err());
+        let row = IsolatedCreativeLayout::checked(257, 1, 512).unwrap();
+        assert_eq!(
+            isolated_required_readback_bytes(row, None, RenderOutputPrecision::EightBit).unwrap(),
+            1280
+        );
+        assert_eq!(
+            isolated_required_readback_bytes(row, None, RenderOutputPrecision::SixteenBit).unwrap(),
+            2304
+        );
+        assert_eq!(
+            isolated_required_readback_bytes(
+                row,
+                Some(Roi {
+                    x: 256,
+                    y: 0,
+                    width: 1,
+                    height: 1
+                }),
+                RenderOutputPrecision::SixteenBit
+            )
+            .unwrap(),
+            1280
+        );
+        assert!(isolated_checked_bytes(usize::MAX, 2).is_err());
+        assert!(isolated_checked_bytes(isize::MAX as usize, 2).is_err());
+        let layout = IsolatedCreativeLayout::checked(6, 4, 512).unwrap();
+        let limits = wgpu::Limits {
+            max_texture_dimension_2d: 256,
+            ..Default::default()
+        };
+        assert!(isolated_validate_request(layout, &limits, &request(&[])).is_err());
+    }
+
+    #[test]
+    fn isolated_u8_readback_exact_alpha_and_errors() {
+        let values = vec![0, 17, 255, 7, 128, 64, 32, 255];
+        let image = isolated_readback_image(
+            RenderedPixels::U8(values.clone()),
+            2,
+            1,
+            RenderOutputPrecision::EightBit,
+        )
+        .unwrap();
+        assert!(matches!(image, DynamicImage::ImageRgba8(_)));
+        assert_eq!(image.as_rgba8().unwrap().as_raw(), &values);
+        for v in [vec![0; 7], vec![0; 9]] {
+            assert!(
+                isolated_readback_image(
+                    RenderedPixels::U8(v),
+                    2,
+                    1,
+                    RenderOutputPrecision::EightBit
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            isolated_readback_image(
+                RenderedPixels::U8(vec![]),
+                0,
+                1,
+                RenderOutputPrecision::EightBit
+            )
+            .is_err()
+        );
+        assert!(
+            isolated_readback_image(
+                RenderedPixels::U8(values),
+                2,
+                1,
+                RenderOutputPrecision::SixteenBit
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn isolated_u16_readback_exact_alpha_and_errors() {
+        let values = vec![0, 17, 65535, 12345, 32768, 16384, 8192, 65535];
+        let image = isolated_readback_image(
+            RenderedPixels::U16(values.clone()),
+            2,
+            1,
+            RenderOutputPrecision::SixteenBit,
+        )
+        .unwrap();
+        assert!(matches!(image, DynamicImage::ImageRgba16(_)));
+        assert_eq!(image.as_rgba16().unwrap().as_raw(), &values);
+        for v in [vec![0; 7], vec![0; 9]] {
+            assert!(
+                isolated_readback_image(
+                    RenderedPixels::U16(v),
+                    2,
+                    1,
+                    RenderOutputPrecision::SixteenBit
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            isolated_readback_image(
+                RenderedPixels::U16(vec![]),
+                1,
+                0,
+                RenderOutputPrecision::SixteenBit
+            )
+            .is_err()
+        );
+        assert!(
+            isolated_readback_image(
+                RenderedPixels::U16(values),
+                2,
+                1,
+                RenderOutputPrecision::EightBit
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn isolated_request_preserves_roi_and_validates_masks() {
+        let limits = wgpu::Limits::default();
+        let layout =
+            IsolatedCreativeLayout::checked(6, 4, limits.max_texture_dimension_2d).unwrap();
+        let masks = [ImageBuffer::from_pixel(6, 4, Luma([127]))];
+        let mut req = request(&masks);
+        req.roi = Some(Roi {
+            x: 1,
+            y: 1,
+            width: 3,
+            height: 2,
+        });
+        req.adjustments.mask_count = 1;
+        isolated_validate_request(layout, &limits, &req).unwrap();
+        let roi = req.roi.unwrap();
+        assert_eq!((roi.x, roi.y, roi.width, roi.height), (1, 1, 3, 2));
+        assert_eq!(req.mask_bitmaps[0].as_raw(), &vec![127; 24]);
+        for roi in [
+            Roi {
+                x: 0,
+                y: 0,
+                width: 0,
+                height: 1,
+            },
+            Roi {
+                x: 5,
+                y: 0,
+                width: 2,
+                height: 1,
+            },
+            Roi {
+                x: 0,
+                y: 4,
+                width: 1,
+                height: 1,
+            },
+            Roi {
+                x: u32::MAX,
+                y: 0,
+                width: 1,
+                height: 1,
+            },
+        ] {
+            req.roi = Some(roi);
+            assert!(isolated_validate_request(layout, &limits, &req).is_err());
+        }
+        let wrong = [ImageBuffer::from_pixel(5, 4, Luma([0]))];
+        assert!(isolated_validate_request(layout, &limits, &request(&wrong)).is_err());
+        let mut req = request(&[]);
+        req.adjustments.mask_count = 2; // unchanged engine's two padded zero layers
+        isolated_validate_request(layout, &limits, &req).unwrap();
+        req.adjustments.mask_count = 3;
+        assert!(isolated_validate_request(layout, &limits, &req).is_err());
+        let too_many = vec![ImageBuffer::from_pixel(6, 4, Luma([0])); MAX_MASKS + 1];
+        assert!(isolated_validate_request(layout, &limits, &request(&too_many)).is_err());
+    }
+
+    #[test]
+    fn isolated_captured_lut_and_dcp_shape_validation() {
+        let limits = wgpu::Limits::default();
+        let layout =
+            IsolatedCreativeLayout::checked(6, 4, limits.max_texture_dimension_2d).unwrap();
+        let mut req = request(&[]);
+        req.adjustments.global.has_lut = 1;
+        assert!(isolated_validate_request(layout, &limits, &req).is_err());
+        req.lut = Some(identity_lut());
+        isolated_validate_request(layout, &limits, &req).unwrap();
+        for lut in [
+            Lut {
+                size: 2,
+                data: vec![0.0; 23],
+            },
+            Lut {
+                size: 0,
+                data: vec![],
+            },
+            Lut {
+                size: u32::MAX,
+                data: vec![],
+            },
+            Lut {
+                size: 2,
+                data: vec![f32::NAN; 24],
+            },
+        ] {
+            req.lut = Some(Arc::new(lut));
+            assert!(isolated_validate_request(layout, &limits, &req).is_err());
+        }
+        req.lut = Some(identity_lut());
+        req.adjustments.global.has_dcp = 1;
+        assert!(isolated_validate_request(layout, &limits, &req).is_err());
+        req.dcp_textures = Some(identity_dcp());
+        isolated_validate_request(layout, &limits, &req).unwrap();
+        req.adjustments.global.dcp_huesat_dims = [2, 1, 1, 0];
+        assert!(isolated_validate_request(layout, &limits, &req).is_err());
+        req.adjustments.global.dcp_huesat_dims = [1, 1, 1, 0];
+        for mutation in 0..4 {
+            let mut dcp = identity_dcp();
+            match mutation {
+                0 => {
+                    dcp.huesat.pop();
+                }
+                1 => dcp.look_dims = [0, 1, 1],
+                2 => {
+                    dcp.tone_curve.pop();
+                }
+                _ => dcp.tone_curve[10] = f32::INFINITY,
+            }
+            req.dcp_textures = Some(dcp);
+            assert!(isolated_validate_request(layout, &limits, &req).is_err());
+        }
+        req.dcp_textures = Some(identity_dcp());
+        isolated_validate_request(layout, &limits, &req).unwrap();
+        let limited = wgpu::Limits {
+            max_texture_dimension_1d: 2048,
+            ..limits
+        };
+        assert!(isolated_validate_request(layout, &limited, &req).is_err());
+    }
+
+    #[test]
+    fn isolated_upload_retains_existing_f16_values() {
+        let input = DynamicImage::ImageRgb32F(
+            image::Rgb32FImage::from_raw(1, 1, vec![-0.5, 1.0, 2.0]).unwrap(),
+        );
+        let layout = IsolatedCreativeLayout::checked(1, 1, 256).unwrap();
+        isolated_validate_source_bytes(
+            layout,
+            input.color().bytes_per_pixel(),
+            input.as_bytes().len(),
+        )
+        .unwrap();
+        assert!(isolated_validate_source_bytes(layout, 12, 11).is_err());
+        assert!(isolated_validate_source_bytes(layout, 12, 13).is_err());
+        assert!(isolated_validate_source_bytes(layout, 0, 0).is_err());
+        let before = input.as_bytes().to_vec();
+        assert_eq!(
+            to_rgba_f16(&input)
+                .iter()
+                .map(|v| v.to_bits())
+                .collect::<Vec<_>>(),
+            vec![0xb800, 0x3c00, 0x4000, 0x3c00]
+        );
+        assert_eq!(input.as_bytes(), before);
+        let rgba = DynamicImage::ImageRgba32F(
+            image::Rgba32FImage::from_raw(1, 1, vec![0.0, 0.5, 1.0, 0.25]).unwrap(),
+        );
+        assert_eq!(
+            to_rgba_f16(&rgba)
+                .iter()
+                .map(|v| v.to_bits())
+                .collect::<Vec<_>>(),
+            vec![0, 0x3800, 0x3c00, 0x3400]
+        );
+    }
+
+    // Real, dedicated hardware context: explicit ignored runs fail on missing
+    // hardware rather than manufacturing a pass or using an AppState mock.
+    pub(super) fn hardware_context() -> (GpuContext, Arc<std::sync::Mutex<Vec<String>>>) {
+        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+        if cfg!(target_os = "android") && std::env::var_os("WGPU_BACKEND").is_none() {
+            descriptor.backends = wgpu::Backends::VULKAN;
+        }
+        let instance = wgpu::Instance::new(descriptor);
+        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::HighPerformance,
+            ..Default::default()
+        }))
+        .expect("isolated creative test requires an actual adapter");
+        assert_ne!(adapter.get_info().device_type, wgpu::DeviceType::Cpu);
+        assert!(
+            adapter
+                .get_downlevel_capabilities()
+                .flags
+                .contains(wgpu::DownlevelFlags::COMPUTE_SHADERS)
+        );
+        let limits = required_processing_limits(&adapter.limits()).unwrap();
+        let features =
+            adapter.features() & wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
+        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            label: Some("Isolated creative test device"),
+            required_features: features,
+            required_limits: limits.clone(),
+            ..Default::default()
+        }))
+        .expect("request real isolated creative device");
+        let errors = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let recorded = Arc::clone(&errors);
+        device.on_uncaptured_error(Arc::new(move |e| {
+            recorded.lock().unwrap().push(e.to_string())
+        }));
+        (
+            GpuContext {
+                device: Arc::new(device),
+                queue: Arc::new(queue),
+                limits,
+                display: Arc::new(std::sync::Mutex::new(None)),
+            },
+            errors,
+        )
+    }
+
+    fn finish_hardware(context: &GpuContext, errors: &std::sync::Mutex<Vec<String>>) {
+        context
+            .device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(60)),
+            })
+            .expect("finish real creative submissions");
+        let recorded = errors.lock().unwrap();
+        assert!(recorded.is_empty(), "uncaptured GPU errors: {recorded:?}");
+    }
+
+    fn pattern_image(phase: u32) -> DynamicImage {
+        DynamicImage::ImageRgb32F(image::Rgb32FImage::from_fn(33, 19, |x, y| {
+            image::Rgb([
+                0.05 + ((x + phase) % 33) as f32 / 45.0,
+                0.08 + y as f32 / 30.0,
+                0.12 + phase as f32 / 40.0,
+            ])
+        }))
+    }
+
+    fn actual_request<'a>(
+        masks: &'a [ImageBuffer<Luma<u8>, Vec<u8>>],
+        creative: bool,
+    ) -> RenderRequest<'a> {
+        let json = if creative {
+            serde_json::json!({"exposure": 0.35, "contrast": 12,
+            "saturation": -8, "sharpness": 18})
+        } else {
+            serde_json::json!({})
+        };
+        let mut adjustments = crate::image_processing::get_all_adjustments_from_json(
+            &json,
+            false,
+            crate::as_shot::AsShot::reference(),
+            crate::image_processing::RenderOptions::default(),
+        );
+        if creative {
+            adjustments.mask_count = masks.len() as u32;
+            adjustments.mask_adjustments[0].exposure = 0.2;
+            adjustments.global.has_lut = 1;
+            adjustments.global.lut_intensity = 0.5;
+            adjustments.global.has_dcp = 1;
+            adjustments.global.dcp_amount = 1.0;
+        }
+        RenderRequest {
+            adjustments,
+            mask_bitmaps: masks,
+            lut: creative.then(identity_lut),
+            roi: creative.then_some(Roi {
+                x: 3,
+                y: 5,
+                width: 13,
+                height: 9,
+            }),
+            dcp_textures: creative.then(identity_dcp),
+        }
+    }
+
+    // Existing wrapper's direct upload/new/guided/run(false)/conversion route,
+    // without AppState/caches/display. Fixed small fixtures make old padding
+    // arithmetic valid; this does not call the new owner or readback helper.
+    fn reference_engine(
+        context: &GpuContext,
+        image: &DynamicImage,
+        request: RenderRequest<'_>,
+        precision: RenderOutputPrecision,
+    ) -> DynamicImage {
+        let (w, h) = image.dimensions();
+        let processor =
+            GpuProcessor::new(context.clone(), (w + 255) & !255, (h + 255) & !255).unwrap();
+        let rgba = to_rgba_f16(image);
+        let texture = context.device.create_texture_with_data(
+            &context.queue,
+            &wgpu::TextureDescriptor {
+                label: Some("Reference existing-engine upload"),
+                size: wgpu::Extent3d {
+                    width: w,
+                    height: h,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            },
+            TextureDataOrder::MipMajor,
+            bytemuck::cast_slice(&rgba),
+        );
+        let view = texture.create_view(&Default::default());
+        let (guided, dehaze) =
+            processor.build_guided_coeffs(&view, w, h, request.adjustments.global.is_raw_image);
+        let (pixels, width, height, _, _) = processor
+            .run(&view, &guided, &dehaze, w, h, request, false, precision)
+            .unwrap();
+        match pixels {
+            RenderedPixels::U8(v) => {
+                DynamicImage::ImageRgba8(ImageBuffer::from_raw(width, height, v).unwrap())
+            }
+            RenderedPixels::U16(v) => {
+                DynamicImage::ImageRgba16(ImageBuffer::from_raw(width, height, v).unwrap())
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "requires explicit real hardware creative engine run; not executed by CPU checks"]
+    fn isolated_matches_existing_engine_whole_output_both_precisions() {
+        let (context, errors) = hardware_context();
+        let image = pattern_image(0);
+        let original = image.as_bytes().to_vec();
+        let mut owner = IsolatedCreativeRenderer::new(&context);
+        for precision in [
+            RenderOutputPrecision::EightBit,
+            RenderOutputPrecision::SixteenBit,
+        ] {
+            let scope = context
+                .device
+                .push_error_scope(wgpu::ErrorFilter::Validation);
+            let expected =
+                reference_engine(&context, &image, actual_request(&[], false), precision);
+            let actual = owner
+                .render(&image, actual_request(&[], false), precision)
+                .unwrap();
+            assert_eq!(actual.color(), expected.color());
+            assert_eq!(actual.dimensions(), expected.dimensions());
+            assert_eq!(actual.as_bytes(), expected.as_bytes());
+            assert_eq!(image.as_bytes(), original);
+            assert!(pollster::block_on(scope.pop()).is_none());
+        }
+        finish_hardware(&context, &errors);
+    }
+
+    #[test]
+    #[ignore = "requires explicit actual GPU allocation/reuse/changed-input gate; source-only definition"]
+    fn isolated_processor_reuse_updates_curve_mask_lut_and_grows() {
+        let (context, errors) = hardware_context();
+        let (other, other_errors) = hardware_context();
+        let mut reused = IsolatedCreativeRenderer::new(&context);
+        assert!(reused.matches_context(&context));
+        assert!(!reused.matches_context(&other));
+        assert_eq!(reused.processor_build_count(), 0);
+        let image = pattern_image(0);
+        let masks = [ImageBuffer::from_fn(33, 19, |x, y| {
+            Luma([((x * 19 + y * 7) % 256) as u8])
+        })];
+        let changed = |creative: bool| {
+            let mut req = actual_request(&masks, creative);
+            if creative {
+                let curves = crate::image_processing::get_all_adjustments_from_json(
+                    &serde_json::json!({"curves":{"luma":[{"x":0.0,"y":0.0},{"x":128.0,"y":166.0},{"x":255.0,"y":255.0}]}}),
+                    false,
+                    crate::as_shot::AsShot::reference(),
+                    crate::image_processing::RenderOptions::default(),
+                );
+                req.adjustments.global.luma_curve = curves.global.luma_curve;
+                req.adjustments.global.luma_curve_count = curves.global.luma_curve_count;
+                let mut lut = (*identity_lut()).clone();
+                for rgb in lut.data.chunks_mut(3) {
+                    rgb.swap(0, 2);
+                }
+                req.lut = Some(Arc::new(lut));
+            }
+            req
+        };
+        let zero_masks = [ImageBuffer::from_pixel(33, 19, Luma([0_u8]))];
+        let initial = reused
+            .render(
+                &image,
+                actual_request(&zero_masks, true),
+                RenderOutputPrecision::EightBit,
+            )
+            .unwrap();
+        assert_eq!(reused.processor_build_count(), 1);
+        let actual = reused
+            .render(&image, changed(true), RenderOutputPrecision::EightBit)
+            .unwrap();
+        let mut fresh = IsolatedCreativeRenderer::new(&context);
+        let expected = fresh
+            .render(&image, changed(true), RenderOutputPrecision::EightBit)
+            .unwrap();
+        assert_eq!(reused.processor_build_count(), 1);
+        assert_eq!(actual.as_bytes(), expected.as_bytes());
+        assert_eq!(initial.dimensions(), actual.dimensions());
+        assert_ne!(initial.as_bytes(), actual.as_bytes());
+        let bigger = DynamicImage::ImageRgb32F(image::Rgb32FImage::from_pixel(
+            300,
+            19,
+            image::Rgb([0.2, 0.3, 0.4]),
+        ));
+        reused
+            .render(
+                &bigger,
+                actual_request(&[], false),
+                RenderOutputPrecision::EightBit,
+            )
+            .unwrap();
+        assert_eq!(reused.processor_build_count(), 2);
+        reused
+            .render(
+                &image,
+                actual_request(&[], false),
+                RenderOutputPrecision::EightBit,
+            )
+            .unwrap();
+        assert_eq!(reused.processor_build_count(), 2);
+        finish_hardware(&context, &errors);
+        finish_hardware(&other, &other_errors);
+    }
+
+    #[test]
+    #[ignore = "requires explicit real hardware same-size replacement run; not executed by CPU checks"]
+    fn isolated_equal_size_replacement_matches_fresh_owner() {
+        let (context, errors) = hardware_context();
+        let a = pattern_image(0);
+        let b = pattern_image(9);
+        let mut reused = IsolatedCreativeRenderer::new(&context);
+        for precision in [
+            RenderOutputPrecision::EightBit,
+            RenderOutputPrecision::SixteenBit,
+        ] {
+            let scope = context
+                .device
+                .push_error_scope(wgpu::ErrorFilter::Validation);
+            let first = reused
+                .render(&a, actual_request(&[], false), precision)
+                .unwrap();
+            let replaced = reused
+                .render(&b, actual_request(&[], false), precision)
+                .unwrap();
+            let mut fresh = IsolatedCreativeRenderer::new(&context);
+            let expected = fresh
+                .render(&b, actual_request(&[], false), precision)
+                .unwrap();
+            assert_ne!(first.as_bytes(), replaced.as_bytes());
+            assert_eq!(replaced.as_bytes(), expected.as_bytes());
+            assert!(pollster::block_on(scope.pop()).is_none());
+        }
+        finish_hardware(&context, &errors);
+    }
+
+    // Fixed nonlinear hardware fixture: third case only, never a CPU oracle.
+    fn edge_creative_image() -> DynamicImage {
+        let palette = [
+            [0.7, 0.25, 0.125],
+            [0.125, 0.65, 0.3],
+            [0.35, 0.125, 0.7],
+            [0.6, 0.55, 0.2],
+        ];
+        DynamicImage::ImageRgb32F(image::Rgb32FImage::from_fn(33, 19, |x, y| {
+            let edge = if x >= 10 { 2 } else { 0 };
+            let index = ((x / 2 + y / 3 + edge) % 4) as usize;
+            image::Rgb(palette[index])
+        }))
+    }
+
+    fn active_table_request<'a>(masks: &'a [ImageBuffer<Luma<u8>, Vec<u8>>]) -> RenderRequest<'a> {
+        let mut request = actual_request(masks, true);
+        let mut dcp = identity_dcp();
+        dcp.huesat_dims = [2, 2, 2];
+        dcp.look_dims = [2, 2, 2];
+        dcp.huesat = [24.0_f32, 0.75, 0.875, 1.0].repeat(8);
+        dcp.look = [-12.0_f32, 0.875, 1.125, 1.0].repeat(8);
+        request.adjustments.global.dcp_huesat_dims = [2, 2, 2, 0];
+        request.adjustments.global.dcp_look_dims = [2, 2, 2, 0];
+        request.dcp_textures = Some(dcp);
+        request
+    }
+
+    #[test]
+    #[ignore = "requires explicit real hardware captured assets/ROI/display isolation run; not executed by CPU checks"]
+    fn isolated_roi_creative_and_display_state_are_isolated() {
+        let (context, errors) = hardware_context();
+        let shared_display = Arc::clone(&context.display);
+        let image = edge_creative_image();
+        let original_image = image.as_bytes().to_vec();
+        let DynamicImage::ImageRgb32F(pixels) = &image else {
+            panic!("fixed creative input must be RGB32F");
+        };
+        for (x, y, expected) in [
+            (0, 0, [0.7, 0.25, 0.125]),
+            (2, 0, [0.125, 0.65, 0.3]),
+            (0, 3, [0.125, 0.65, 0.3]),
+            (9, 6, [0.35, 0.125, 0.7]),
+            (10, 6, [0.125, 0.65, 0.3]),
+        ] {
+            assert_eq!(pixels.get_pixel(x, y).0, expected);
+        }
+        let masks = [ImageBuffer::from_fn(33, 19, |x, y| {
+            Luma([((x * 11 + y * 7) % 256) as u8])
+        })];
+        let original_mask = masks[0].as_raw().clone();
+        let mut owner = IsolatedCreativeRenderer::new(&context);
+        assert!(!Arc::ptr_eq(&owner.context.display, &shared_display));
+        for precision in [
+            RenderOutputPrecision::EightBit,
+            RenderOutputPrecision::SixteenBit,
+        ] {
+            let scope = context
+                .device
+                .push_error_scope(wgpu::ErrorFilter::Validation);
+            let req = active_table_request(&masks);
+            assert_eq!(req.adjustments.global.sharpness, 0.36_f32);
+            assert!(req.adjustments.global.sharpness > 0.0);
+            assert_eq!(req.adjustments.global.has_lut, 1);
+            assert_eq!(req.adjustments.global.has_dcp, 1);
+            assert_eq!(req.adjustments.global.dcp_amount, 1.0);
+            assert_eq!(req.adjustments.global.dcp_huesat_encoding, 0);
+            assert_eq!(req.adjustments.global.dcp_look_encoding, 0);
+            assert_eq!(req.adjustments.global.dcp_baseline_exposure_offset, 0.0);
+            assert_eq!(req.adjustments.global.dcp_huesat_dims, [2, 2, 2, 0]);
+            assert_eq!(req.adjustments.global.dcp_look_dims, [2, 2, 2, 0]);
+            let identity_matrix = crate::image_processing::GpuMat3::default();
+            assert_eq!(
+                bytemuck::bytes_of(&req.adjustments.global.cam_to_prophoto),
+                bytemuck::bytes_of(&identity_matrix)
+            );
+            assert_eq!(
+                bytemuck::bytes_of(&req.adjustments.global.prophoto_to_working),
+                bytemuck::bytes_of(&identity_matrix)
+            );
+            let dcp = req.dcp_textures.as_ref().unwrap();
+            assert_eq!(dcp.huesat_dims, [2, 2, 2]);
+            assert_eq!(dcp.look_dims, [2, 2, 2]);
+            assert_eq!(dcp.huesat, [24.0_f32, 0.75, 0.875, 1.0].repeat(8));
+            assert_eq!(dcp.look, [-12.0_f32, 0.875, 1.125, 1.0].repeat(8));
+            assert_ne!(dcp.huesat[..4], [0.0, 1.0, 1.0, 1.0]);
+            assert_ne!(dcp.look[..4], [0.0, 1.0, 1.0, 1.0]);
+            assert!(dcp.huesat.iter().chain(&dcp.look).all(|v| v.is_finite()));
+            assert_eq!(dcp.tone_curve, identity_dcp().tone_curve);
+            let lut = Arc::clone(req.lut.as_ref().unwrap());
+            let lut_before = lut.data.clone();
+            // Every control owns a copy of the same captured request. Only
+            // its named uniform changes; assets, geometry and other effects stay.
+            let copy_request = || RenderRequest {
+                adjustments: req.adjustments,
+                mask_bitmaps: req.mask_bitmaps,
+                lut: req.lut.clone(),
+                roi: req.roi,
+                dcp_textures: req.dcp_textures.clone(),
+            };
+            let expected = reference_engine(&context, &image, copy_request(), precision);
+            let mut without_sharpness = copy_request();
+            without_sharpness.adjustments.global.sharpness = 0.0;
+            let mut without_huesat = copy_request();
+            without_huesat.adjustments.global.dcp_huesat_dims = [0; 4];
+            let mut without_look = copy_request();
+            without_look.adjustments.global.dcp_look_dims = [0; 4];
+            for (effect, control) in [
+                ("sharpness", without_sharpness),
+                ("HueSat", without_huesat),
+                ("Look", without_look),
+            ] {
+                // Restore only the deliberately disabled field to check every
+                // other adjustment byte against the original captured request.
+                let mut restored = control.adjustments;
+                match effect {
+                    "sharpness" => restored.global.sharpness = 0.36,
+                    "HueSat" => restored.global.dcp_huesat_dims = [2, 2, 2, 0],
+                    "Look" => restored.global.dcp_look_dims = [2, 2, 2, 0],
+                    _ => unreachable!("fixed three-effect control set"),
+                }
+                assert_eq!(
+                    bytemuck::bytes_of(&restored),
+                    bytemuck::bytes_of(&req.adjustments)
+                );
+                assert!(std::ptr::eq(control.mask_bitmaps, req.mask_bitmaps));
+                assert!(Arc::ptr_eq(
+                    control.lut.as_ref().unwrap(),
+                    req.lut.as_ref().unwrap()
+                ));
+                let roi = control.roi.unwrap();
+                assert_eq!((roi.x, roi.y, roi.width, roi.height), (3, 5, 13, 9));
+                let captured = control.dcp_textures.as_ref().unwrap();
+                assert_eq!(captured.huesat_dims, dcp.huesat_dims);
+                assert_eq!(captured.look_dims, dcp.look_dims);
+                assert_eq!(captured.huesat, dcp.huesat);
+                assert_eq!(captured.look, dcp.look);
+                assert_eq!(captured.tone_curve, dcp.tone_curve);
+                let disabled = reference_engine(&context, &image, control, precision);
+                assert_eq!(disabled.color(), expected.color());
+                assert_eq!(disabled.dimensions(), expected.dimensions());
+                assert_ne!(
+                    disabled.as_bytes(),
+                    expected.as_bytes(),
+                    "fixed {effect} control must change at least one channel at {precision:?}"
+                );
+            }
+            let actual = owner.render(&image, req, precision).unwrap();
+            assert_eq!(actual.dimensions(), (13, 9));
+            assert_eq!(actual.as_bytes(), expected.as_bytes());
+            assert_eq!(
+                Arc::strong_count(&lut),
+                1,
+                "owner must not retain captured LUT requests"
+            );
+            assert_eq!(lut.data, lut_before);
+            assert_eq!(masks[0].as_raw(), &original_mask);
+            assert_eq!(image.as_bytes(), original_image);
+            assert!(shared_display.lock().unwrap().is_none());
+            assert!(owner.context.display.lock().unwrap().is_none());
+            assert!(pollster::block_on(scope.pop()).is_none());
+        }
+        finish_hardware(&context, &errors);
+    }
+}
+// END ISOLATED CREATIVE OWNER.
+
+/// Admission already blocks new legacy requests and has awaited their actual
+/// leases/work. Move all source-bearing GPU owners out before destroying them.
+pub(crate) fn retire_native_presentation(state: &AppState) -> Result<(), String> {
+    let context = state
+        .gpu_context
+        .lock()
+        .map_err(|_| "GPU context poisoned")?
+        .clone();
+    let processor = state
+        .gpu_processor
+        .lock()
+        .map_err(|_| "GPU processor poisoned")?
+        .take();
+    let cache = state
+        .gpu_image_cache
+        .lock()
+        .map_err(|_| "GPU cache poisoned")?
+        .take();
+    let fallback_device = processor
+        .as_ref()
+        .map(|p| Arc::clone(&p.processor.context.device));
+    let result = if let Some(context) = context.as_ref() {
+        let mut display = context
+            .display
+            .lock()
+            .map_err(|_| "Native display poisoned")?
+            .take();
+        let result = if let Some(display) = display.as_mut() {
+            let binding = display.current_bind_group.take();
+            drop(binding);
+            display.clear_source_frame(&context.device, &context.queue)
+        } else {
+            Ok(())
+        };
+        // No presentation/render/allocation happens while this slot is locked.
+        *context
+            .display
+            .lock()
+            .map_err(|_| "Native display poisoned")? = display;
+        result
+    } else {
+        Ok(())
+    };
+    drop((processor, cache));
+    result?;
+    let device = context
+        .as_ref()
+        .map(|c| Arc::clone(&c.device))
+        .or(fallback_device);
+    if let Some(device) = device {
+        device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(60)),
+            })
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+impl WgpuDisplay {
+    fn clear_source_frame(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<(), String> {
+        let output = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(frame)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                self.surface.configure(device, &self.config);
+                match self.surface.get_current_texture() {
+                    wgpu::CurrentSurfaceTexture::Success(frame)
+                    | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
+                    _ => return Err("Native display retirement failed".into()),
+                }
+            }
+            _ => return Err("Native display retirement failed".into()),
+        };
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Retire native source frame"),
+        });
+        {
+            let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Clear retired native source"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: self.latest_transform.bg_primary[0] as f64,
+                            g: self.latest_transform.bg_primary[1] as f64,
+                            b: self.latest_transform.bg_primary[2] as f64,
+                            a: self.latest_transform.bg_primary[3] as f64,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: NonZero::new(0),
+            });
+        }
+        queue.submit(Some(encoder.finish()));
+        output.present();
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn preview_reuse_hardware_context() -> (GpuContext, Arc<std::sync::Mutex<Vec<String>>>) {
+    isolated_creative_tests::hardware_context()
+}
+
+// Shared checked boundaries for the actual same-shader sampler.
+pub(crate) fn point_colour_pixel(
+    uv: [f32; 2],
+    dimensions: (u32, u32),
+) -> Result<(u32, u32), String> {
+    if dimensions.0 == 0
+        || dimensions.1 == 0
+        || uv.iter().any(|v| !v.is_finite() || !(0.0..1.0).contains(v))
+    {
+        return Err("Point Colour sample is outside the composed image".into());
+    }
+    let pixel = (
+        (uv[0] as f64 * dimensions.0 as f64).floor() as u32,
+        (uv[1] as f64 * dimensions.1 as f64).floor() as u32,
+    );
+    if pixel.0 >= dimensions.0 || pixel.1 >= dimensions.1 {
+        return Err("Invalid Point Colour coordinate".into());
+    }
+    Ok(pixel)
+}
+
+fn decode_point_colour_sample(
+    bytes: &[u8],
+) -> Result<crate::image_processing::PointColourSample, String> {
+    if bytes.len() != 32 {
+        return Err("Invalid Point Colour readback length".into());
+    }
+    let mut value = [0.0f32; 8];
+    for (i, chunk) in bytes.chunks_exact(4).enumerate() {
+        value[i] = f32::from_ne_bytes(chunk.try_into().unwrap());
+    }
+    if !value.iter().all(|v| v.is_finite())
+        || value[3] != 1.0
+        || value[7] != 1.0
+        || !(0.0..360.0).contains(&value[4])
+        || !(0.0..=1.0).contains(&value[5])
+        || value[6] < 0.0
+    {
+        return Err("Invalid Point Colour float sample".into());
+    }
+    Ok(crate::image_processing::PointColourSample {
+        linear_rgb: [value[0], value[1], value[2]],
+        hue: value[4],
+        saturation: value[5],
+        value: value[6],
+    })
+}
+
+#[cfg(test)]
+mod point_colour_tests {
+    use super::*;
+    use crate::image_processing::{RenderOptions, get_all_adjustments_from_json};
+    use serde_json::json;
+
+    fn request(value: serde_json::Value) -> RenderRequest<'static> {
+        RenderRequest {
+            adjustments: get_all_adjustments_from_json(
+                &value,
+                false,
+                crate::as_shot::AsShot::reference(),
+                RenderOptions::default(),
+            ),
+            mask_bitmaps: &[],
+            lut: None,
+            roi: None,
+            dcp_textures: None,
+        }
+    }
+    fn finish(context: &GpuContext, errors: &std::sync::Mutex<Vec<String>>) {
+        context
+            .device
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: Some(std::time::Duration::from_secs(60)),
+            })
+            .unwrap();
+        assert!(errors.lock().unwrap().is_empty());
+    }
+    #[test]
+    fn pc06_checked_coordinates_and_readback_contract() {
+        assert_eq!(
+            point_colour_pixel([0.5, 0.25], (4000, 3000)).unwrap(),
+            (2000, 750)
+        );
+        assert_eq!(point_colour_pixel([0.0, 0.0], (1, 1)).unwrap(), (0, 0));
+        for uv in [
+            [1.0, 0.0],
+            [-0.01, 0.0],
+            [f32::NAN, 0.0],
+            [0.0, f32::INFINITY],
+        ] {
+            assert!(point_colour_pixel(uv, (4000, 3000)).is_err());
+        }
+        assert!(point_colour_pixel([0.0, 0.0], (0, 1)).is_err());
+        let value = [2.0f32, 0.0, 0.0, 1.0, 0.0, 1.0, 1.353256, 1.0];
+        let bytes = bytemuck::cast_slice(&value);
+        assert_eq!(
+            decode_point_colour_sample(bytes).unwrap().linear_rgb,
+            [2.0, 0.0, 0.0]
+        );
+        for length in [0, 16, 31] {
+            assert!(decode_point_colour_sample(&bytes[..length]).is_err());
+        }
+        let mut bad = value;
+        bad[7] = 0.0;
+        assert!(decode_point_colour_sample(bytemuck::cast_slice(&bad)).is_err());
+        bad = value;
+        bad[0] = f32::NAN;
+        assert!(decode_point_colour_sample(bytemuck::cast_slice(&bad)).is_err());
+    }
+
+    #[test]
+    #[ignore = "actual GPU; separate explicit grant required"]
+    fn pc01_actual_shader_function_known_answers() {
+        let (context, errors) = super::isolated_creative_tests::hardware_context();
+        let scope = context
+            .device
+            .push_error_scope(wgpu::ErrorFilter::Validation);
+        // Append only an invocation entrypoint: every colour function is the
+        // exact production shader, not a Rust replica or copied shader prefix.
+        let source = production_shader_source()
+            + r#"
+@compute @workgroup_size(1)
+fn point_colour_known_answers(@builtin(global_invocation_id) id: vec3<u32>) {
+  var p = PointColourUniform(0.0, 40.0, 0.0, 0.0, 0.0, 1u, 0u, 0u);
+  var c = vec3<f32>(1.0, 0.0, 0.0);
+  if (id.x == 0u) { p.luminance = 1.0; }
+  if (id.x == 1u) { p.saturation = -1.0; }
+  if (id.x == 2u) { p.state = 0u; c = vec3<f32>(-0.25, 2.0, 0.5); }
+  if (id.x == 3u) { c = vec3<f32>(-0.25, 2.0, 0.5); }
+  if (id.x == 4u) { c = vec3<f32>(0.25); p.hue = 30.0; p.saturation = 1.0; }
+  if (id.x == 5u) { textureStore(point_sample, vec2<i32>(i32(id.x), 0), vec4<f32>(vec3<f32>(get_raw_hsl_influence(2.0, 358.0, 40.0)), 1.0)); return; }
+  if (id.x == 6u) { p.hue = 30.0; }
+  if (id.x == 7u) { c = vec3<f32>(4.0, 0.0, 0.0); p.luminance = 1.0; }
+  textureStore(point_sample, vec2<i32>(i32(id.x), 0), vec4<f32>(apply_point_colour(c, p), 1.0));
+}
+"#;
+        let shader = context
+            .device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("actual Point Colour function controls"),
+                source: wgpu::ShaderSource::Wgsl(source.into()),
+            });
+        let pipeline = context
+            .device
+            .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: None,
+                module: &shader,
+                entry_point: Some("point_colour_known_answers"),
+                compilation_options: Default::default(),
+                cache: None,
+            });
+        let texture = context.device.create_texture(&wgpu::TextureDescriptor {
+            label: None,
+            size: wgpu::Extent3d {
+                width: 8,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba32Float,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&Default::default());
+        let group = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: None,
+                layout: &pipeline.get_bind_group_layout(0),
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 17,
+                    resource: wgpu::BindingResource::TextureView(&view),
+                }],
+            });
+        let mut encoder = context.device.create_command_encoder(&Default::default());
+        {
+            let mut pass = encoder.begin_compute_pass(&Default::default());
+            pass.set_pipeline(&pipeline);
+            pass.set_bind_group(0, &group, &[]);
+            pass.dispatch_workgroups(8, 1, 1);
+        }
+        context.queue.submit(Some(encoder.finish()));
+        let bytes = read_texture_data_roi(
+            &context.device,
+            &context.queue,
+            &texture,
+            wgpu::Origin3d::ZERO,
+            wgpu::Extent3d {
+                width: 8,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            16,
+        )
+        .unwrap();
+        let validation_error = pollster::block_on(scope.pop());
+        assert!(
+            validation_error.is_none(),
+            "Point Colour GPU validation failed: {validation_error:?}"
+        );
+        let values: Vec<f32> = bytes
+            .chunks_exact(4)
+            .map(|b| f32::from_ne_bytes(b.try_into().unwrap()))
+            .collect();
+        let expected = [
+            [2.0, 0.0, 0.0],
+            [0.2126; 3],
+            [-0.25, 2.0, 0.5],
+            [-0.25, 2.0, 0.5],
+            [0.25; 3],
+            [0.9417645335842487; 3],
+            [0.2126 / 0.9278, 0.2126 / 0.9278, 0.0],
+            [8.0, 0.0, 0.0],
+        ];
+        for (i, expected) in expected.iter().enumerate() {
+            for c in 0..3 {
+                assert!(
+                    (values[i * 4 + c] - expected[c]).abs() <= 0.00001,
+                    "case {i} channel {c}: {}",
+                    values[i * 4 + c]
+                );
+            }
+        }
+        for i in [2, 3] {
+            assert_eq!(&values[i * 4..i * 4 + 3], &[-0.25, 2.0, 0.5]);
+        }
+        finish(&context, &errors);
+    }
+
+    #[test]
+    #[ignore = "actual GPU; separate explicit grant required"]
+    fn pc05_real_pipeline_sample_feedback_and_both_precisions() {
+        let (context, errors) = super::isolated_creative_tests::hardware_context();
+        let scope = context
+            .device
+            .push_error_scope(wgpu::ErrorFilter::Validation);
+        let image = DynamicImage::ImageRgb32F(image::Rgb32FImage::from_fn(33, 19, |x, y| {
+            image::Rgb([0.25 + x as f32 / 128.0, 0.0625 + y as f32 / 128.0, 0.03125])
+        }));
+        let mut renderer = IsolatedCreativeRenderer::new(&context);
+        let first = renderer
+            .sample_point_colour(&image, request(json!({})), [0.5, 0.5])
+            .unwrap();
+        let point = json!({"pointColour":{"v":1,"centerHue":first.hue,"widthDegrees":40,"hue":30,"saturation":-20,"luminance":50},
+            "colorGrading":{"global":{"hue":240,"saturation":80,"luminance":10}}});
+        let second = renderer
+            .sample_point_colour(&image, request(point.clone()), [0.5, 0.5])
+            .unwrap();
+        assert_eq!(
+            first.linear_rgb.map(f32::to_bits),
+            second.linear_rgb.map(f32::to_bits)
+        );
+        assert_eq!(first.hue.to_bits(), second.hue.to_bits());
+        let upstream = renderer
+            .sample_point_colour(&image, request(json!({"exposure":1})), [0.5, 0.5])
+            .unwrap();
+        assert_ne!(first.linear_rgb, upstream.linear_rgb);
+        let edge = renderer
+            .sample_point_colour(&image, request(json!({})), [32.5 / 33.0, 18.5 / 19.0])
+            .unwrap();
+        assert_ne!(first.linear_rgb, edge.linear_rgb);
+        for precision in [
+            RenderOutputPrecision::EightBit,
+            RenderOutputPrecision::SixteenBit,
+        ] {
+            let mut req = request(point.clone());
+            req.adjustments.global.point_probe = [16, 9, 1, 0];
+            let mut observed = None;
+            renderer
+                .render_inner(&image, req, precision, Some(&mut observed))
+                .unwrap();
+            assert_eq!(
+                observed.unwrap().linear_rgb.map(f32::to_bits),
+                first.linear_rgb.map(f32::to_bits)
+            );
+            let off = renderer
+                .render(&image, request(json!({})), precision)
+                .unwrap();
+            let adjusted = renderer
+                .render(&image, request(point.clone()), precision)
+                .unwrap();
+            assert_ne!(off.as_bytes(), adjusted.as_bytes());
+        }
+        assert!(pollster::block_on(scope.pop()).is_none());
+        finish(&context, &errors);
+    }
+
+    #[test]
+    #[ignore = "actual GPU; separate explicit grant required"]
+    fn pc06_real_owner_errors_neutral_and_reuse() {
+        let (context, errors) = super::isolated_creative_tests::hardware_context();
+        let scope = context
+            .device
+            .push_error_scope(wgpu::ErrorFilter::Validation);
+        let image = DynamicImage::ImageRgb32F(image::Rgb32FImage::from_pixel(
+            5,
+            3,
+            image::Rgb([0.5, 0.125, 0.0]),
+        ));
+        let mut renderer = IsolatedCreativeRenderer::new(&context);
+        assert!(
+            renderer
+                .sample_point_colour(&image, request(json!({})), [1.0, 0.0])
+                .is_err()
+        );
+        assert_eq!(renderer.processor_build_count(), 0);
+        assert!(
+            renderer
+                .sample_point_colour(&image, request(json!({"pointColour":{"v":2}})), [0.5, 0.5])
+                .is_err()
+        );
+        assert_eq!(renderer.processor_build_count(), 0);
+        let first = renderer
+            .sample_point_colour(&image, request(json!({})), [0.5, 0.5])
+            .unwrap();
+        let gray =
+            DynamicImage::ImageRgb32F(image::Rgb32FImage::from_pixel(5, 3, image::Rgb([0.25; 3])));
+        assert!(
+            renderer
+                .sample_point_colour(&gray, request(json!({})), [0.5, 0.5])
+                .unwrap_err()
+                .contains("neutral")
+        );
+        let final_value = renderer
+            .sample_point_colour(&image, request(json!({})), [0.5, 0.5])
+            .unwrap();
+        assert_eq!(first.linear_rgb, final_value.linear_rgb);
+        assert_eq!(renderer.processor_build_count(), 1);
+        assert!(pollster::block_on(scope.pop()).is_none());
+        finish(&context, &errors);
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn point_colour_test_context() -> (GpuContext, Arc<std::sync::Mutex<Vec<String>>>) {
+    isolated_creative_tests::hardware_context()
 }

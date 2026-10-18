@@ -111,6 +111,7 @@ pub fn all_available_adjustments() -> HashSet<String> {
         "saturation",
         "vibrance",
         "hsl",
+        "pointColour",
         "hue",
         "colorGrading",
         "colorCalibration",
@@ -822,4 +823,30 @@ pub fn save_settings(settings: AppSettings, app_handle: AppHandle) -> Result<(),
         .unwrap()
         .set_capacity(cache_size);
     Ok(())
+}
+
+#[cfg(test)]
+mod point_colour_settings_registry_tests {
+    use super::*;
+
+    #[test]
+    fn pc04_point_colour_is_in_default_copy_paste_registry() {
+        let available = all_available_adjustments();
+        let included = default_included_adjustments();
+        let settings = CopyPasteSettings::default();
+        assert!(available.contains("pointColour"));
+        assert!(included.contains("pointColour"));
+        assert!(settings.known_adjustments.contains("pointColour"));
+        assert!(settings.included_adjustments.contains("pointColour"));
+        for existing in ["hsl", "exposure", "whiteBalance"] {
+            assert!(available.contains(existing));
+            assert!(included.contains(existing));
+        }
+        for excluded in ["crop", "masks", "lensModel"] {
+            assert!(available.contains(excluded));
+            assert!(!included.contains(excluded));
+            assert!(!settings.included_adjustments.contains(excluded));
+        }
+        assert!(!settings.auto_sync);
+    }
 }

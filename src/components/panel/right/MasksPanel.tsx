@@ -52,6 +52,7 @@ import CurveGraph from '../../adjustments/Curves';
 import ColorPanel from '../../adjustments/Color';
 import DetailsPanel from '../../adjustments/Details';
 import EffectsPanel from '../../adjustments/Effects';
+import { isProgressiveMutationBlocked } from '../../../utils/progressiveOpen';
 import Waveform from '../editor/Waveform';
 import Resizer from '../../ui/Resizer';
 import { DepthRangePicker } from '../../ui/DepthRangePicker';
@@ -255,6 +256,7 @@ function MasksListRoot({ children, onClick }: { children: React.ReactNode; onCli
 
 export default function MasksPanel() {
   const { t } = useTranslation();
+  const progressiveLocked = useEditorStore((state) => isProgressiveMutationBlocked(state));
   const { setAdjustments } = useEditorActions();
   const isAiFree = useSettingsStore((s) => s.appSettings?.aiProvider === 'ai-free');
   const { handleGenerateAiDepthMask, handleGenerateAiForegroundMask, handleGenerateAiSkyMask, handleCancelAiTask } =
@@ -966,6 +968,7 @@ export default function MasksPanel() {
       onDragEnd={handleDragEnd}
       collisionDetection={pointerWithin}
     >
+      <fieldset disabled={progressiveLocked} className="m-0 flex h-full min-h-0 min-w-0 flex-col border-0 p-0">
       <div className="flex flex-col h-full select-none overflow-hidden" onContextMenu={handlePanelContextMenu}>
         <div className="p-3 flex justify-between items-center shrink-0 border-b border-surface">
           <Text variant={TextVariants.title}>{t('editor.masks.maskingTitle')}</Text>
@@ -1223,6 +1226,7 @@ export default function MasksPanel() {
           )}
         </div>
       </div>
+      </fieldset>
 
       <DragOverlay dropAnimation={{ duration: 150, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
         {activeDragItem ? (

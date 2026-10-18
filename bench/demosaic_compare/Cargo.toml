@@ -1,0 +1,14 @@
+[package]
+name = "xtrans-current"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Same rawler revision RapidRaw pins in src-tauri/Cargo.lock.
+[dependencies]
+rawler = { git = "https://github.com/CyberTimon/RapidRAW-DngLab.git", rev = "a32bc1ff1f4f3c56d4d3226082f6eb17414f9159" }
+anyhow = "1"
+serde_json = "1"
+
+[profile.release]
+opt-level = 3

@@ -286,13 +286,59 @@ pub fn apply_relight<'a>(
     image: Cow<'a, DynamicImage>,
     adjustments: &serde_json::Value,
 ) -> Cow<'a, DynamicImage> {
+    apply_relight_with_map(image, adjustments, None, None)
+}
+
+/// Whether the current saved relight inputs can affect pixels and therefore
+/// require a captured normal map. Keep these defaults aligned with the legacy
+/// renderer below: absent/non-boolean visibility is treated as visible, and
+/// ambient is compared only after its existing f64-to-f32 conversion.
+pub(crate) fn requires_normal_map(adjustments: &serde_json::Value) -> bool {
     let effects_visible = adjustments
         .get("sectionVisibility")
         .and_then(|v| v.get("effects"))
         .and_then(|s| s.as_bool())
         .unwrap_or(true);
-
     if !adjustments["relightEnabled"].as_bool().unwrap_or(false) || !effects_visible {
+        return false;
+    }
+
+    let ambient = adjustments["relightAmbient"].as_f64().unwrap_or(0.0) as f32;
+    let has_visible_light = adjustments["relightLights"]
+        .as_array()
+        .map(|lights| {
+            lights
+                .iter()
+                .any(|light| light["visible"].as_bool().unwrap_or(true))
+        })
+        .unwrap_or(false);
+    has_visible_light || ambient != 0.0
+}
+
+/// Models belong to one composition. A captured call always clears this first,
+/// so same-geometry A -> B cannot reuse models built from A's sampled pixels.
+#[derive(Default)]
+pub(crate) struct LocalRelightScratch {
+    models: Option<RelightCache>,
+}
+
+pub(crate) fn apply_relight_captured<'a>(
+    image: Cow<'a, DynamicImage>,
+    adjustments: &serde_json::Value,
+    map: &Arc<image::RgbaImage>,
+    scratch: &mut LocalRelightScratch,
+) -> Cow<'a, DynamicImage> {
+    scratch.models = None;
+    apply_relight_with_map(image, adjustments, Some(map), Some(scratch))
+}
+
+fn apply_relight_with_map<'a>(
+    image: Cow<'a, DynamicImage>,
+    adjustments: &serde_json::Value,
+    captured: Option<&Arc<image::RgbaImage>>,
+    local: Option<&mut LocalRelightScratch>,
+) -> Cow<'a, DynamicImage> {
+    if !requires_normal_map(adjustments) {
         return image;
     }
 
@@ -393,7 +439,9 @@ pub fn apply_relight<'a>(
     let mut out = image.into_owned().into_rgb32f();
     let eps = 2.0e-3;
 
-    let cache_key = {
+    let cache_key = if local.is_some() {
+        0 // Local models are built afresh; no sampled-pixel cache identity.
+    } else {
         let mut hasher = DefaultHasher::new();
         crate::effect_maps::effect_map_key(normal_b64, adjustments).hash(&mut hasher);
         (w, h).hash(&mut hasher);
@@ -404,17 +452,24 @@ pub fn apply_relight<'a>(
         hasher.finish()
     };
 
-    let cached = RELIGHT_CACHE
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .as_ref()
-        .filter(|c| c.key == cache_key)
-        .cloned();
+    let cached = if local.is_some() {
+        None
+    } else {
+        RELIGHT_CACHE
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .filter(|c| c.key == cache_key)
+            .cloned()
+    };
 
     let mut cache = match cached {
         Some(cache) => cache,
         None => {
-            let normal_map = match crate::effect_maps::resolve_rgba_map(normal_b64, adjustments) {
+            let normal_map = match captured
+                .cloned()
+                .or_else(|| crate::effect_maps::resolve_rgba_map(normal_b64, adjustments))
+            {
                 Some(map) => map,
                 None => return Cow::Owned(DynamicImage::ImageRgb32F(out)),
             };
@@ -521,7 +576,11 @@ pub fn apply_relight<'a>(
         _ => Vec::new(),
     };
 
-    *RELIGHT_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = Some(cache.clone());
+    if let Some(local) = local {
+        local.models = Some(cache.clone());
+    } else {
+        *RELIGHT_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = Some(cache.clone());
+    }
 
     let surface_models = &cache.surface_models;
 
@@ -606,4 +665,93 @@ pub fn apply_relight<'a>(
     );
 
     Cow::Owned(DynamicImage::ImageRgb32F(out))
+}
+
+#[cfg(test)]
+mod captured_relight_tests {
+    use super::*;
+    use base64::Engine as _;
+    use serde_json::json;
+
+    #[test]
+    fn l04_same_geometry_b_uses_fresh_models_without_global_write() {
+        struct Restore(Option<RelightCache>);
+        impl Drop for Restore {
+            fn drop(&mut self) {
+                *RELIGHT_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = self.0.take();
+            }
+        }
+        let _restore = Restore(
+            RELIGHT_CACHE
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .take(),
+        );
+        let map = image::RgbaImage::from_fn(8, 8, |x, y| {
+            image::Rgba([
+                100 + (x * 4) as u8,
+                100 + (y * 4) as u8,
+                0,
+                ((x + y) * 16) as u8,
+            ])
+        });
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        DynamicImage::ImageRgba8(map)
+            .write_to(&mut bytes, image::ImageFormat::Png)
+            .unwrap();
+        let encoded = base64::engine::general_purpose::STANDARD.encode(bytes.into_inner());
+        let adjustments = json!({"relightEnabled":true,"relightNormalMap":encoded,"relightAmbient":15.0,"relightShadows":true,"relightLights":[{"type":"point","x":0.2,"y":0.3,"visible":true}]});
+        let captured = crate::effect_maps::capture_rgba_map(
+            adjustments["relightNormalMap"].as_str().unwrap(),
+            &adjustments,
+        )
+        .unwrap();
+        let a = DynamicImage::ImageRgb32F(image::Rgb32FImage::from_fn(24, 16, |x, y| {
+            image::Rgb([x as f32 * 0.02 - 0.2, y as f32 * 0.04, 1.5])
+        }));
+        let b = DynamicImage::ImageRgb32F(image::Rgb32FImage::from_fn(24, 16, |x, y| {
+            image::Rgb([y as f32 * 0.08, x as f32 * 0.01 + 0.1, 0.25])
+        }));
+        let old_a = apply_relight(Cow::Borrowed(&a), &adjustments).into_owned();
+        let sentinel = RELIGHT_CACHE
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+            .unwrap();
+        let mut scratch = LocalRelightScratch::default();
+        let local_a =
+            apply_relight_captured(Cow::Borrowed(&a), &adjustments, &captured, &mut scratch)
+                .into_owned();
+        assert_eq!(old_a.as_bytes(), local_a.as_bytes());
+        let local_b =
+            apply_relight_captured(Cow::Borrowed(&b), &adjustments, &captured, &mut scratch)
+                .into_owned();
+        let untouched = RELIGHT_CACHE
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+            .unwrap();
+        assert_eq!(sentinel.key, untouched.key);
+        assert!(Arc::ptr_eq(
+            &sentinel.surface_models,
+            &untouched.surface_models
+        ));
+        assert_eq!(sentinel.shadow_models.len(), untouched.shadow_models.len());
+        for ((key_a, a), (key_b, b)) in sentinel.shadow_models.iter().zip(&untouched.shadow_models)
+        {
+            assert_eq!(key_a, key_b);
+            assert!(Arc::ptr_eq(a, b));
+        }
+        *RELIGHT_CACHE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        let cold_b = apply_relight(Cow::Borrowed(&b), &adjustments).into_owned();
+        let fresh_b = apply_relight_captured(
+            Cow::Borrowed(&b),
+            &adjustments,
+            &captured,
+            &mut LocalRelightScratch::default(),
+        )
+        .into_owned();
+        assert_eq!(local_b.as_bytes(), cold_b.as_bytes());
+        assert_eq!(local_b.as_bytes(), fresh_b.as_bytes());
+    }
 }

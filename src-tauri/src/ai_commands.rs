@@ -34,6 +34,20 @@ fn encode_to_base64_png(image: &GrayImage) -> Result<String, String> {
     Ok(format!("data:image/png;base64,{}", base64_str))
 }
 
+fn full_reference_for_ai_consumer(
+    state: &tauri::State<'_, AppState>,
+    request: &std::sync::Arc<crate::image_loader::ConsumerRequest>,
+    js_adjustments: &serde_json::Value,
+) -> Result<std::sync::Arc<image::DynamicImage>, String> {
+    let result = if request.is_keyed() {
+        request.full_reference()
+    } else {
+        get_cached_full_warped_image(state, js_adjustments)
+    };
+    request.check()?;
+    result
+}
+
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn generate_ai_foreground_mask(
@@ -42,6 +56,7 @@ pub async fn generate_ai_foreground_mask(
     flip_horizontal: bool,
     flip_vertical: bool,
     orientation_steps: u8,
+    expected_open_key: Option<crate::progressive_open::OpenKey>,
     task_id: Option<String>,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
@@ -50,33 +65,48 @@ pub async fn generate_ai_foreground_mask(
         .as_ref()
         .map(|id| AiTaskGuard::new(&state.active_ai_tasks, id.clone()));
     let cancel_flag = _guard.as_ref().map(|g| &g.token);
+    let request = state.capture_consumer_request(
+        expected_open_key.as_ref(),
+        None,
+        Some(js_adjustments.clone()),
+        load_settings(app_handle.clone()).unwrap_or_default(),
+    )?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let models = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
+    let models_result = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string());
+    request.check()?;
+    let models = models_result?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let warped_image = get_cached_full_warped_image(&state, &js_adjustments)?;
+    let warped_result = full_reference_for_ai_consumer(&state, &request, &js_adjustments);
+    request.check()?;
+    let warped_image = warped_result?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let full_mask_image =
-        run_u2netp_model(warped_image.as_ref(), &models.u2netp).map_err(|e| e.to_string())?;
+    let full_mask_result =
+        run_u2netp_model(warped_image.as_ref(), &models.u2netp).map_err(|e| e.to_string());
+    request.check()?;
+    let full_mask_image = full_mask_result?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let base64_data = encode_to_base64_png(&full_mask_image)?;
+    let encoded_result = encode_to_base64_png(&full_mask_image);
+    request.check()?;
+    let base64_data = encoded_result?;
+    request.check()?;
 
     Ok(AiForegroundMaskParameters {
         mask_data_base64: Some(base64_data),
@@ -95,6 +125,7 @@ pub async fn generate_ai_sky_mask(
     flip_horizontal: bool,
     flip_vertical: bool,
     orientation_steps: u8,
+    expected_open_key: Option<crate::progressive_open::OpenKey>,
     task_id: Option<String>,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
@@ -103,33 +134,48 @@ pub async fn generate_ai_sky_mask(
         .as_ref()
         .map(|id| AiTaskGuard::new(&state.active_ai_tasks, id.clone()));
     let cancel_flag = _guard.as_ref().map(|g| &g.token);
+    let request = state.capture_consumer_request(
+        expected_open_key.as_ref(),
+        None,
+        Some(js_adjustments.clone()),
+        load_settings(app_handle.clone()).unwrap_or_default(),
+    )?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let models = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
+    let models_result = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string());
+    request.check()?;
+    let models = models_result?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let warped_image = get_cached_full_warped_image(&state, &js_adjustments)?;
+    let warped_result = full_reference_for_ai_consumer(&state, &request, &js_adjustments);
+    request.check()?;
+    let warped_image = warped_result?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let full_mask_image =
-        run_sky_seg_model(warped_image.as_ref(), &models.sky_seg).map_err(|e| e.to_string())?;
+    let full_mask_result =
+        run_sky_seg_model(warped_image.as_ref(), &models.sky_seg).map_err(|e| e.to_string());
+    request.check()?;
+    let full_mask_image = full_mask_result?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let base64_data = encode_to_base64_png(&full_mask_image)?;
+    let encoded_result = encode_to_base64_png(&full_mask_image);
+    request.check()?;
+    let base64_data = encoded_result?;
+    request.check()?;
 
     Ok(AiSkyMaskParameters {
         mask_data_base64: Some(base64_data),
@@ -154,6 +200,7 @@ pub async fn generate_ai_depth_mask(
     flip_horizontal: bool,
     flip_vertical: bool,
     orientation_steps: u8,
+    expected_open_key: Option<crate::progressive_open::OpenKey>,
     task_id: Option<String>,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
@@ -162,14 +209,22 @@ pub async fn generate_ai_depth_mask(
         .as_ref()
         .map(|id| AiTaskGuard::new(&state.active_ai_tasks, id.clone()));
     let cancel_flag = _guard.as_ref().map(|g| &g.token);
+    let request = state.capture_consumer_request(
+        expected_open_key.as_ref(),
+        Some(path.as_str()),
+        Some(js_adjustments.clone()),
+        load_settings(app_handle.clone()).unwrap_or_default(),
+    )?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let models = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
+    let models_result = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string());
+    request.check()?;
+    let models = models_result?;
 
     let path_hash = {
         let mut hasher = blake3::Hasher::new();
@@ -189,56 +244,64 @@ pub async fn generate_ai_depth_mask(
         return Err("Task cancelled".to_string());
     }
 
-    let cached_depth = {
-        let mut ai_state_lock = state.ai_state.lock().unwrap();
-        let ai_state = ai_state_lock.as_mut().unwrap();
+    let cached_depth = if request.is_keyed() {
+        let warped_result = full_reference_for_ai_consumer(&state, &request, &js_adjustments);
+        request.check()?;
+        let warped_image = warped_result?;
+        if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
+            return Err("Task cancelled".to_string());
+        }
 
-        if let Some(cached) = &ai_state.depth_map {
-            if cached.path_hash == path_hash {
-                cached.clone()
-            } else {
-                drop(ai_state_lock);
-                let warped_image = get_cached_full_warped_image(&state, &js_adjustments)?;
-
-                if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
-                    return Err("Task cancelled".to_string());
-                }
-
-                let depth_img =
-                    run_depth_anything_model(warped_image.as_ref(), &models.depth_anything)
-                        .map_err(|e| e.to_string())?;
-
-                let new_cache = CachedDepthMap {
-                    path_hash: path_hash.clone(),
-                    depth_image: depth_img,
-                    original_size: (warped_image.width(), warped_image.height()),
-                };
-
-                let mut ai_state_lock = state.ai_state.lock().unwrap();
-                let ai_state = ai_state_lock.as_mut().unwrap();
-                ai_state.depth_map = Some(new_cache.clone());
-                new_cache
-            }
+        let depth_result = run_depth_anything_model(warped_image.as_ref(), &models.depth_anything)
+            .map_err(|e| e.to_string());
+        request.check()?;
+        let depth_image = depth_result?;
+        CachedDepthMap {
+            path_hash: path_hash.clone(),
+            depth_image,
+            original_size: (warped_image.width(), warped_image.height()),
+        }
+    } else {
+        let cached = {
+            let ai_state_lock = state.ai_state.lock().unwrap();
+            let ai_state = ai_state_lock.as_ref().unwrap();
+            ai_state
+                .depth_map
+                .as_ref()
+                .filter(|cached| cached.path_hash == path_hash)
+                .cloned()
+        };
+        request.check()?;
+        if let Some(cached) = cached {
+            cached
         } else {
-            drop(ai_state_lock);
-            let warped_image = get_cached_full_warped_image(&state, &js_adjustments)?;
-
+            let warped_result = full_reference_for_ai_consumer(&state, &request, &js_adjustments);
+            request.check()?;
+            let warped_image = warped_result?;
             if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
                 return Err("Task cancelled".to_string());
             }
 
-            let depth_img = run_depth_anything_model(warped_image.as_ref(), &models.depth_anything)
-                .map_err(|e| e.to_string())?;
-
+            let depth_result =
+                run_depth_anything_model(warped_image.as_ref(), &models.depth_anything)
+                    .map_err(|e| e.to_string());
+            request.check()?;
+            let depth_image = depth_result?;
             let new_cache = CachedDepthMap {
                 path_hash: path_hash.clone(),
-                depth_image: depth_img,
+                depth_image,
                 original_size: (warped_image.width(), warped_image.height()),
             };
 
-            let mut ai_state_lock = state.ai_state.lock().unwrap();
-            let ai_state = ai_state_lock.as_mut().unwrap();
-            ai_state.depth_map = Some(new_cache.clone());
+            request.check()?;
+            let cache_copy = new_cache.clone();
+            let displaced = {
+                let mut ai_state_lock = state.ai_state.lock().unwrap();
+                let ai_state = ai_state_lock.as_mut().unwrap();
+                std::mem::replace(&mut ai_state.depth_map, Some(cache_copy))
+            };
+            drop(displaced);
+            request.check()?;
             new_cache
         }
     };
@@ -253,8 +316,12 @@ pub async fn generate_ai_depth_mask(
         cached_depth.original_size.1,
         image::imageops::FilterType::Triangle,
     );
+    request.check()?;
 
-    let base64_data = encode_to_base64_png(&raw_depth_fullres)?;
+    let encoded_result = encode_to_base64_png(&raw_depth_fullres);
+    request.check()?;
+    let base64_data = encoded_result?;
+    request.check()?;
 
     Ok(AiDepthMaskParameters {
         min_depth,
@@ -272,61 +339,88 @@ pub async fn generate_ai_depth_mask(
 
 #[tauri::command]
 pub async fn generate_full_image_depth_map(
+    expected_open_key: Option<crate::progressive_open::OpenKey>,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    let models = crate::ai_processing::get_or_init_ai_models(
+    let request = state.capture_consumer_request(
+        expected_open_key.as_ref(),
+        None,
+        None,
+        load_settings(app_handle.clone()).unwrap_or_default(),
+    )?;
+    let models_result = crate::ai_processing::get_or_init_ai_models(
         &app_handle,
         &state.ai_state,
         &state.ai_init_lock,
     )
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string());
+    request.check()?;
+    let models = models_result?;
 
-    let loaded_image = get_loaded_image(&state)?;
+    // Keep this request's full source, AsShot and captured settings through map generation.
+    let loaded_image = request.loaded().clone();
     let source_image =
         crate::mask_generation::build_full_source_image(&loaded_image.image, loaded_image.is_raw);
+    request.check()?;
 
-    let depth_img = crate::ai_processing::run_depth_anything_model(
+    let depth_result = crate::ai_processing::run_depth_anything_model(
         source_image.as_ref(),
         &models.depth_anything,
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string());
+    request.check()?;
+    let depth_img = depth_result?;
 
-    crate::effect_maps::encode_source_space_map(&image::DynamicImage::ImageLuma8(depth_img))
+    let encoded_result =
+        crate::effect_maps::encode_source_space_map(&image::DynamicImage::ImageLuma8(depth_img));
+    request.check()?;
+    let encoded = encoded_result?;
+    request.check()?;
+    Ok(encoded)
 }
 
 #[tauri::command]
 pub async fn generate_relight_normal_map(
+    expected_open_key: Option<crate::progressive_open::OpenKey>,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    let normal_model = crate::ai_processing::get_or_init_normal_model(
+    let request = state.capture_consumer_request(
+        expected_open_key.as_ref(),
+        None,
+        None,
+        load_settings(app_handle.clone()).unwrap_or_default(),
+    )?;
+    let normal_model_result = crate::ai_processing::get_or_init_normal_model(
         &app_handle,
         &state.ai_state,
         &state.ai_init_lock,
     )
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string());
+    request.check()?;
+    let normal_model = normal_model_result?;
 
-    let loaded_image = get_loaded_image(&state)?;
+    // Keep this request's full source, AsShot and captured settings through map generation.
+    let loaded_image = request.loaded().clone();
     let source_image =
         crate::mask_generation::build_full_source_image(&loaded_image.image, loaded_image.is_raw);
+    request.check()?;
 
-    let normal_img =
+    let normal_result =
         crate::ai_processing::run_normal_model(source_image.as_ref(), normal_model.as_ref())
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string());
+    request.check()?;
+    let normal_img = normal_result?;
 
-    crate::effect_maps::encode_source_space_map(&image::DynamicImage::ImageRgba8(normal_img))
-}
-
-fn get_loaded_image(state: &tauri::State<'_, AppState>) -> Result<crate::LoadedImage, String> {
-    state
-        .original_image
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-        .ok_or_else(|| "No original image loaded".to_string())
+    let encoded_result =
+        crate::effect_maps::encode_source_space_map(&image::DynamicImage::ImageRgba8(normal_img));
+    request.check()?;
+    let encoded = encoded_result?;
+    request.check()?;
+    Ok(encoded)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -341,6 +435,7 @@ pub async fn generate_ai_subject_mask(
     flip_vertical: bool,
     orientation_steps: u8,
     skip_refinement: Option<bool>,
+    expected_open_key: Option<crate::progressive_open::OpenKey>,
     task_id: Option<String>,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
@@ -349,14 +444,22 @@ pub async fn generate_ai_subject_mask(
         .as_ref()
         .map(|id| AiTaskGuard::new(&state.active_ai_tasks, id.clone()));
     let cancel_flag = _guard.as_ref().map(|g| &g.token);
+    let request = state.capture_consumer_request(
+        expected_open_key.as_ref(),
+        Some(path.as_str()),
+        Some(js_adjustments.clone()),
+        load_settings(app_handle.clone()).unwrap_or_default(),
+    )?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let models = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
+    let models_result = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string());
+    request.check()?;
+    let models = models_result?;
 
     let path_hash = {
         let mut hasher = blake3::Hasher::new();
@@ -376,43 +479,52 @@ pub async fn generate_ai_subject_mask(
         return Err("Task cancelled".to_string());
     }
 
-    let warped_image = get_cached_full_warped_image(&state, &js_adjustments)?;
+    let warped_result = full_reference_for_ai_consumer(&state, &request, &js_adjustments);
+    request.check()?;
+    let warped_image = warped_result?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let embeddings = {
-        let mut ai_state_lock = state.ai_state.lock().unwrap();
-        let ai_state = ai_state_lock.as_mut().unwrap();
-
-        if let Some(cached_embeddings) = &ai_state.embeddings {
-            if cached_embeddings.path_hash == path_hash {
-                cached_embeddings.clone()
-            } else {
-                drop(ai_state_lock);
-                let mut new_embeddings =
-                    generate_image_embeddings(warped_image.as_ref(), &models.sam_encoder)
-                        .map_err(|e| e.to_string())?;
-
-                new_embeddings.path_hash = path_hash.clone();
-
+    let embeddings = if request.is_keyed() {
+        let embeddings_result =
+            generate_image_embeddings(warped_image.as_ref(), &models.sam_encoder)
+                .map_err(|e| e.to_string());
+        request.check()?;
+        let mut new_embeddings = embeddings_result?;
+        new_embeddings.path_hash = path_hash.clone();
+        request.check()?;
+        new_embeddings
+    } else {
+        let cached_embeddings = {
+            let ai_state_lock = state.ai_state.lock().unwrap();
+            let ai_state = ai_state_lock.as_ref().unwrap();
+            ai_state
+                .embeddings
+                .as_ref()
+                .filter(|cached| cached.path_hash == path_hash)
+                .cloned()
+        };
+        request.check()?;
+        if let Some(cached_embeddings) = cached_embeddings {
+            cached_embeddings
+        } else {
+            let embeddings_result =
+                generate_image_embeddings(warped_image.as_ref(), &models.sam_encoder)
+                    .map_err(|e| e.to_string());
+            request.check()?;
+            let mut new_embeddings = embeddings_result?;
+            new_embeddings.path_hash = path_hash.clone();
+            request.check()?;
+            let cache_copy = new_embeddings.clone();
+            let displaced = {
                 let mut ai_state_lock = state.ai_state.lock().unwrap();
                 let ai_state = ai_state_lock.as_mut().unwrap();
-                ai_state.embeddings = Some(new_embeddings.clone());
-                new_embeddings
-            }
-        } else {
-            drop(ai_state_lock);
-            let mut new_embeddings =
-                generate_image_embeddings(warped_image.as_ref(), &models.sam_encoder)
-                    .map_err(|e| e.to_string())?;
-
-            new_embeddings.path_hash = path_hash.clone();
-
-            let mut ai_state_lock = state.ai_state.lock().unwrap();
-            let ai_state = ai_state_lock.as_mut().unwrap();
-            ai_state.embeddings = Some(new_embeddings.clone());
+                std::mem::replace(&mut ai_state.embeddings, Some(cache_copy))
+            };
+            drop(displaced);
+            request.check()?;
             new_embeddings
         }
     };
@@ -493,7 +605,7 @@ pub async fn generate_ai_subject_mask(
     let unrotated_start_point = (min_x, min_y);
     let unrotated_end_point = (max_x, max_y);
 
-    let mask_bitmap = run_sam_decoder(
+    let mask_result = run_sam_decoder(
         &models.sam_decoder,
         &embeddings,
         unrotated_start_point,
@@ -504,13 +616,18 @@ pub async fn generate_ai_subject_mask(
             Some(warped_image.as_ref())
         },
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string());
+    request.check()?;
+    let mask_bitmap = mask_result?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
         return Err("Task cancelled".to_string());
     }
 
-    let base64_data = encode_to_base64_png(&mask_bitmap)?;
+    let encoded_result = encode_to_base64_png(&mask_bitmap);
+    request.check()?;
+    let base64_data = encoded_result?;
+    request.check()?;
 
     Ok(AiSubjectMaskParameters {
         start_x: start_point.0,
@@ -529,12 +646,21 @@ pub async fn generate_ai_subject_mask(
 pub async fn precompute_ai_subject_mask(
     js_adjustments: serde_json::Value,
     path: String,
+    expected_open_key: Option<crate::progressive_open::OpenKey>,
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<(), String> {
-    let models = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
+    let request = state.capture_consumer_request(
+        expected_open_key.as_ref(),
+        Some(path.as_str()),
+        Some(js_adjustments.clone()),
+        load_settings(app_handle.clone()).unwrap_or_default(),
+    )?;
+    let models_result = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string());
+    request.check()?;
+    let models = models_result?;
 
     let path_hash = {
         let mut hasher = blake3::Hasher::new();
@@ -550,27 +676,48 @@ pub async fn precompute_ai_subject_mask(
         hasher.finalize().to_hex().to_string()
     };
 
-    {
+    let cached = if request.is_keyed() {
+        false
+    } else {
         let ai_state_lock = state.ai_state.lock().unwrap();
-        if let Some(ai_state) = ai_state_lock.as_ref()
-            && let Some(cached_embeddings) = &ai_state.embeddings
-            && cached_embeddings.path_hash == path_hash
-        {
-            return Ok(());
-        }
+        ai_state_lock
+            .as_ref()
+            .and_then(|ai_state| ai_state.embeddings.as_ref())
+            .is_some_and(|cached_embeddings| cached_embeddings.path_hash == path_hash)
+    };
+    request.check()?;
+    if cached {
+        return Ok(());
     }
 
-    let warped_image = get_cached_full_warped_image(&state, &js_adjustments)?;
-    let mut new_embeddings = generate_image_embeddings(warped_image.as_ref(), &models.sam_encoder)
-        .map_err(|e| e.to_string())?;
+    let warped_result = full_reference_for_ai_consumer(&state, &request, &js_adjustments);
+    request.check()?;
+    let warped_image = warped_result?;
+    let embeddings_result = generate_image_embeddings(warped_image.as_ref(), &models.sam_encoder)
+        .map_err(|e| e.to_string());
+    request.check()?;
+    let mut new_embeddings = embeddings_result?;
 
     new_embeddings.path_hash = path_hash.clone();
 
-    let mut ai_state_lock = state.ai_state.lock().unwrap();
-    if let Some(ai_state) = ai_state_lock.as_mut() {
-        ai_state.embeddings = Some(new_embeddings);
+    request.check()?;
+    if !request.is_keyed() {
+        let cache_entry = Some(new_embeddings);
+        let displaced = {
+            let mut ai_state_lock = state.ai_state.lock().unwrap();
+            if let Some(ai_state) = ai_state_lock.as_mut() {
+                std::mem::replace(&mut ai_state.embeddings, cache_entry)
+            } else {
+                cache_entry
+            }
+        };
+        drop(displaced);
+        request.check()?;
     }
 
+    // Keyed precomputation intentionally drops its local embedding instead of
+    // publishing into the path-only global cache.
+    request.check()?;
     Ok(())
 }
 

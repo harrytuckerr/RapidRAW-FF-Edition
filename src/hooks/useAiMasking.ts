@@ -8,6 +8,30 @@ import { useCloudStore } from '../store/useCloudStore';
 import { Adjustments, AiPatch, MaskContainer, Coord } from '../utils/adjustments';
 import { SubMask } from '../components/panel/right/Masks';
 import { Invokes } from '../components/ui/AppProperties';
+import { currentAccurateOpenKey, isCurrentOpenKey } from '../utils/progressiveOpen';
+import type { OpenKey } from '../utils/progressiveOpen';
+
+interface EditorSourceBinding {
+  path: string;
+  openKey?: OpenKey;
+}
+
+function captureEditorSource(): EditorSourceBinding | null {
+  const state = useEditorStore.getState();
+  if (!state.selectedImage?.isReady || state.pendingOpenIntent) return null;
+  const openKey = currentAccurateOpenKey(state);
+  if (state.selectedImage.openTicket && !openKey) return null;
+  return { path: state.selectedImage.path, ...(openKey ? { openKey } : {}) };
+}
+
+function isEditorSourceCurrent(binding: EditorSourceBinding): boolean {
+  const state = useEditorStore.getState();
+  if (state.pendingOpenIntent || state.selectedImage?.path !== binding.path || !state.selectedImage?.isReady)
+    return false;
+  return binding.openKey
+    ? isCurrentOpenKey(binding.openKey, state, binding.path, true)
+    : !state.selectedImage.openTicket;
+}
 
 const getTransformAdjustments = (adj: Adjustments) => ({
   transformDistortion: adj.transformDistortion,
@@ -76,6 +100,8 @@ export function useAiMasking() {
     async (subMaskId: string, sourceX: number, sourceY: number) => {
       const { selectedImage, adjustments, patchesSentToBackend } = useEditorStore.getState();
       if (!selectedImage?.path) return;
+      const binding = captureEditorSource();
+      if (!binding || binding.path !== selectedImage.path) return;
 
       const patchId = adjustments.aiPatches?.find((p: AiPatch) =>
         p.subMasks.some((sm: SubMask) => sm.id === subMaskId),
@@ -102,7 +128,13 @@ export function useAiMasking() {
           currentAdjustments: adjustments,
           patchDefinition: patchDefinitionForBackend,
           sourcePoint: [sourceX, sourceY],
+          ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
         });
+
+        if (!isEditorSourceCurrent(binding)) {
+          patchesSentToBackend.delete(patchId);
+          return;
+        }
 
         const newPatchData = JSON.parse(newPatchDataJson);
         patchesSentToBackend.delete(patchId);
@@ -132,12 +164,15 @@ export function useAiMasking() {
     async (patchId: string, prompt: string, useFastInpaint: boolean) => {
       const { selectedImage, adjustments, patchesSentToBackend } = useEditorStore.getState();
       if (!selectedImage?.path) return;
+      const binding = captureEditorSource();
+      if (!binding || binding.path !== selectedImage.path) return;
 
       const patch: AiPatch | undefined = adjustments.aiPatches?.find((p: AiPatch) => p.id === patchId);
       if (!patch) return;
 
       const patchDefinition = { ...patch, prompt };
       const token = await getToken();
+      if (!isEditorSourceCurrent(binding)) return;
 
       registerAiTask(patchId, 'inpaint');
       setAdjustments((prev: Adjustments) => ({
@@ -153,7 +188,10 @@ export function useAiMasking() {
           useFastInpaint: useFastInpaint,
           token: token || null,
           taskId: patchId,
+          ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
         });
+
+        if (!isEditorSourceCurrent(binding)) return;
 
         const newPatchData = JSON.parse(newPatchDataJson);
         patchesSentToBackend.delete(patchId);
@@ -176,6 +214,7 @@ export function useAiMasking() {
           useCloudStore.getState().fetchUsage();
         }
       } catch (err: any) {
+        if (!isEditorSourceCurrent(binding)) return;
         if (!String(err).includes('cancelled')) {
           toast.error(`AI Replace Failed: ${err}`);
         }
@@ -194,7 +233,10 @@ export function useAiMasking() {
     async (subMaskId: string | null, startPoint: Coord, endPoint: Coord) => {
       const { selectedImage, adjustments, patchesSentToBackend } = useEditorStore.getState();
       if (!selectedImage?.path) return;
+      const binding = captureEditorSource();
+      if (!binding || binding.path !== selectedImage.path) return;
       const token = await getToken();
+      if (!isEditorSourceCurrent(binding)) return;
 
       const patchId = adjustments.aiPatches?.find((p: AiPatch) =>
         p.subMasks.some((sm: SubMask) => sm.id === subMaskId),
@@ -220,7 +262,9 @@ export function useAiMasking() {
           startPoint: [startPoint.x, startPoint.y],
           skipRefinement: true,
           taskId: patchId,
+          ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
         });
+        if (!isEditorSourceCurrent(binding)) return;
 
         const subMaskToUpdate = adjustments.aiPatches
           ?.find((p: AiPatch) => p.id === patchId)
@@ -248,7 +292,9 @@ export function useAiMasking() {
           useFastInpaint: true,
           token: token || null,
           taskId: patchId,
+          ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
         });
+        if (!isEditorSourceCurrent(binding)) return;
 
         const newPatchData = JSON.parse(newPatchDataJson);
         patchesSentToBackend.delete(patchId);
@@ -270,6 +316,7 @@ export function useAiMasking() {
         }));
         setEditor({ activeAiPatchContainerId: null, activeAiSubMaskId: null });
       } catch (err: any) {
+        if (!isEditorSourceCurrent(binding)) return;
         if (!String(err).includes('cancelled')) {
           toast.error(`Quick Erase Failed: ${err.message || String(err)}`);
         }
@@ -325,6 +372,8 @@ export function useAiMasking() {
   const handleGenerateAiMask = async (subMaskId: string, startPoint: Coord, endPoint: Coord) => {
     const { selectedImage, adjustments, patchesSentToBackend } = useEditorStore.getState();
     if (!selectedImage?.path) return;
+    const binding = captureEditorSource();
+    if (!binding || binding.path !== selectedImage.path) return;
     registerAiTask(subMaskId, 'subject');
 
     try {
@@ -343,7 +392,9 @@ export function useAiMasking() {
         startPoint: [startPoint.x, startPoint.y],
         skipRefinement: isInpaintMask,
         taskId: subMaskId,
+        ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
       });
+      if (!isEditorSourceCurrent(binding)) return;
 
       const subMask =
         adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId) ||
@@ -353,6 +404,7 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
+      if (!isEditorSourceCurrent(binding)) return;
       if (!String(error).includes('cancelled')) {
         toast.error(`AI Mask Failed: ${error}`);
       }
@@ -364,6 +416,8 @@ export function useAiMasking() {
   const handleGenerateAiDepthMask = async (subMaskId: string, parameters: any) => {
     const { selectedImage, adjustments, patchesSentToBackend } = useEditorStore.getState();
     if (!selectedImage?.path) return;
+    const binding = captureEditorSource();
+    if (!binding || binding.path !== selectedImage.path) return;
     registerAiTask(subMaskId, 'depth');
 
     try {
@@ -381,7 +435,9 @@ export function useAiMasking() {
         orientationSteps: adjustments.orientationSteps,
         rotation: adjustments.rotation,
         taskId: subMaskId,
+        ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
       });
+      if (!isEditorSourceCurrent(binding)) return;
 
       const subMask =
         adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId) ||
@@ -391,6 +447,7 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
+      if (!isEditorSourceCurrent(binding)) return;
       if (!String(error).includes('cancelled')) {
         toast.error(`AI Depth Mask Failed: ${error}`);
       }
@@ -402,6 +459,8 @@ export function useAiMasking() {
   const handleGenerateAiForegroundMask = async (subMaskId: string) => {
     const { selectedImage, adjustments, patchesSentToBackend } = useEditorStore.getState();
     if (!selectedImage?.path) return;
+    const binding = captureEditorSource();
+    if (!binding || binding.path !== selectedImage.path) return;
     registerAiTask(subMaskId, 'foreground');
 
     try {
@@ -413,7 +472,9 @@ export function useAiMasking() {
         orientationSteps: adjustments.orientationSteps,
         rotation: adjustments.rotation,
         taskId: subMaskId,
+        ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
       });
+      if (!isEditorSourceCurrent(binding)) return;
 
       const subMask =
         adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId) ||
@@ -423,6 +484,7 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
+      if (!isEditorSourceCurrent(binding)) return;
       if (!String(error).includes('cancelled')) {
         toast.error(`AI Foreground Mask Failed: ${error}`);
       }
@@ -434,6 +496,8 @@ export function useAiMasking() {
   const handleGenerateAiSkyMask = async (subMaskId: string) => {
     const { selectedImage, adjustments, patchesSentToBackend } = useEditorStore.getState();
     if (!selectedImage?.path) return;
+    const binding = captureEditorSource();
+    if (!binding || binding.path !== selectedImage.path) return;
     registerAiTask(subMaskId, 'sky');
 
     try {
@@ -445,7 +509,9 @@ export function useAiMasking() {
         orientationSteps: adjustments.orientationSteps,
         rotation: adjustments.rotation,
         taskId: subMaskId,
+        ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
       });
+      if (!isEditorSourceCurrent(binding)) return;
 
       const subMask =
         adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId) ||
@@ -455,6 +521,7 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
+      if (!isEditorSourceCurrent(binding)) return;
       if (!String(error).includes('cancelled')) {
         toast.error(`AI Sky Mask Failed: ${error}`);
       }
@@ -470,11 +537,16 @@ export function useAiMasking() {
       adjustments?.aiPatches?.flatMap((p: AiPatch) => p.subMasks).find((sm: SubMask) => sm.id === activeAiSubMaskId);
 
     if (activeSubMask?.type === 'ai-subject' && selectedImage?.path) {
+      const binding = captureEditorSource();
+      if (!binding || binding.path !== selectedImage.path) return;
       const transformAdjustments = getTransformAdjustments(adjustments);
       invoke('precompute_ai_subject_mask', {
         jsAdjustments: transformAdjustments,
         path: selectedImage.path,
-      }).catch((err) => console.error('Failed to precompute AI subject mask:', err));
+        ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
+      }).catch((err) => {
+        if (isEditorSourceCurrent(binding)) console.error('Failed to precompute AI subject mask:', err);
+      });
     }
   }, [
     useEditorStore.getState().activeMaskId,
