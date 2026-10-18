@@ -1327,16 +1327,86 @@ pub fn generate_mask_bitmap(
     crop_offset: (f32, f32),
     warped_image: Option<&DynamicImage>,
 ) -> Option<GrayImage> {
+    generate_mask_bitmap_impl(
+        mask_def,
+        width,
+        height,
+        scale,
+        crop_offset,
+        warped_image,
+        false,
+    )
+    .ok()
+    .flatten()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CheckedMaskError {
+    InvalidGeometry,
+    UnresolvedVisibleSubmask { mask: String, submask: String },
+}
+impl std::fmt::Display for CheckedMaskError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Checked mask: {self:?}")
+    }
+}
+impl std::error::Error for CheckedMaskError {}
+
+/// Explicit reference only: no AppState, path lookup or cached warped image.
+/// A visible unresolved child is an error rather than a partial/zero mask.
+pub(crate) fn generate_mask_bitmap_checked(
+    mask_def: &MaskDefinition,
+    width: u32,
+    height: u32,
+    scale: f32,
+    crop_offset: (f32, f32),
+    warped_image: Option<&DynamicImage>,
+) -> Result<Option<GrayImage>, CheckedMaskError> {
+    if width == 0
+        || height == 0
+        || !scale.is_finite()
+        || scale <= 0.0
+        || !crop_offset.0.is_finite()
+        || !crop_offset.1.is_finite()
+    {
+        return Err(CheckedMaskError::InvalidGeometry);
+    }
+    generate_mask_bitmap_impl(
+        mask_def,
+        width,
+        height,
+        scale,
+        crop_offset,
+        warped_image,
+        true,
+    )
+}
+
+fn generate_mask_bitmap_impl(
+    mask_def: &MaskDefinition,
+    width: u32,
+    height: u32,
+    scale: f32,
+    crop_offset: (f32, f32),
+    warped_image: Option<&DynamicImage>,
+    strict: bool,
+) -> Result<Option<GrayImage>, CheckedMaskError> {
     if !mask_def.visible || mask_def.sub_masks.is_empty() {
-        return None;
+        return Ok(None);
     }
 
     let mut final_mask = GrayImage::new(width, height);
 
     for sub_mask in &mask_def.sub_masks {
-        if let Some(mut sub_bitmap) =
-            generate_sub_mask_bitmap(sub_mask, width, height, scale, crop_offset, warped_image)
-        {
+        let generated =
+            generate_sub_mask_bitmap(sub_mask, width, height, scale, crop_offset, warped_image);
+        if strict && sub_mask.visible && generated.is_none() {
+            return Err(CheckedMaskError::UnresolvedVisibleSubmask {
+                mask: mask_def.id.clone(),
+                submask: sub_mask.id.clone(),
+            });
+        }
+        if let Some(mut sub_bitmap) = generated {
             if sub_mask.invert {
                 for p in sub_bitmap.pixels_mut() {
                     p[0] = 255 - p[0];
@@ -1386,64 +1456,109 @@ pub fn generate_mask_bitmap(
         }
     }
 
-    Some(final_mask)
+    Ok(Some(final_mask))
 }
 
 #[tauri::command]
 pub fn generate_mask_overlay(
     mut mask_def: serde_json::Value,
+    expected_open_key: Option<crate::progressive_open::OpenKey>,
     width: u32,
     height: u32,
     scale: f32,
     crop_offset: (f32, f32),
     mut js_adjustments: Option<serde_json::Value>,
     state: tauri::State<'_, AppState>,
+    app_handle: tauri::AppHandle,
 ) -> Result<String, String> {
-    if let Some(ref mut adj) = js_adjustments {
-        crate::adjustment_utils::hydrate_adjustments(&state, adj);
+    let settings = crate::app_settings::load_settings(app_handle).unwrap_or_default();
+    let request = state.capture_consumer_request(
+        expected_open_key.as_ref(),
+        None,
+        Some(
+            js_adjustments
+                .clone()
+                .unwrap_or_else(|| serde_json::json!({})),
+        ),
+        settings,
+    )?;
+    if request.is_keyed() {
+        let parsed = capture_standalone_mask(&mask_def);
+        request.check()?;
+        let parsed = parsed?;
+        return request.stage(|| {
+            let mask = request.mask_bitmap(
+                &parsed,
+                width,
+                height,
+                scale,
+                (crop_offset.0 * scale, crop_offset.1 * scale),
+            )?;
+            let Some(mask) = mask else {
+                return Ok(String::new());
+            };
+            let mut rgba = RgbaImage::new(width, height);
+            for (x, y, pixel) in mask.enumerate_pixels() {
+                rgba.put_pixel(x, y, Rgba([255, 0, 0, (pixel[0] as f32 * 0.5) as u8]));
+            }
+            let mut buffer = Cursor::new(Vec::new());
+            rgba.write_to(&mut buffer, ImageFormat::Png)
+                .map_err(|e| e.to_string())?;
+            Ok(format!(
+                "data:image/png;base64,{}",
+                general_purpose::STANDARD.encode(buffer.get_ref())
+            ))
+        });
     }
-
-    if let Some(sub_masks) = mask_def.get_mut("subMasks").and_then(|v| v.as_array_mut()) {
-        let mut cache = state.patch_cache.lock().unwrap_or_else(|e| e.into_inner());
-        crate::adjustment_utils::hydrate_sub_masks(sub_masks, &mut cache);
-    }
-
-    let parsed_mask_def: MaskDefinition = serde_json::from_value(mask_def)
-        .map_err(|e| format!("Failed to parse hydrated mask_def: {}", e))?;
-
-    let scaled_crop_offset = (crop_offset.0 * scale, crop_offset.1 * scale);
-
-    let warped_image = js_adjustments.as_ref().and_then(|adj| {
-        resolve_warped_image_for_masks(&state, adj, std::slice::from_ref(&parsed_mask_def))
-    });
-
-    if let Some(gray_mask) = generate_mask_bitmap(
-        &parsed_mask_def,
-        width,
-        height,
-        scale,
-        scaled_crop_offset,
-        warped_image.as_deref(),
-    ) {
-        let mut rgba_mask = RgbaImage::new(width, height);
-        for (x, y, pixel) in gray_mask.enumerate_pixels() {
-            let intensity = pixel[0];
-            let alpha = (intensity as f32 * 0.5) as u8;
-            rgba_mask.put_pixel(x, y, Rgba([255, 0, 0, alpha]));
+    let result = (|| {
+        if let Some(ref mut adj) = js_adjustments {
+            crate::adjustment_utils::hydrate_adjustments(&state, adj);
         }
 
-        let mut buf = Cursor::new(Vec::new());
-        rgba_mask
-            .write_to(&mut buf, ImageFormat::Png)
-            .map_err(|e| e.to_string())?;
+        if let Some(sub_masks) = mask_def.get_mut("subMasks").and_then(|v| v.as_array_mut()) {
+            let mut cache = state.patch_cache.lock().unwrap_or_else(|e| e.into_inner());
+            crate::adjustment_utils::hydrate_sub_masks(sub_masks, &mut cache);
+        }
 
-        let base64_str = general_purpose::STANDARD.encode(buf.get_ref());
-        let data_url = format!("data:image/png;base64,{}", base64_str);
+        let parsed_mask_def: MaskDefinition = serde_json::from_value(mask_def)
+            .map_err(|e| format!("Failed to parse hydrated mask_def: {}", e))?;
 
-        Ok(data_url)
-    } else {
-        Ok("".to_string())
-    }
+        let scaled_crop_offset = (crop_offset.0 * scale, crop_offset.1 * scale);
+
+        let warped_image = js_adjustments.as_ref().and_then(|adj| {
+            resolve_warped_image_for_masks(&state, adj, std::slice::from_ref(&parsed_mask_def))
+        });
+
+        if let Some(gray_mask) = generate_mask_bitmap(
+            &parsed_mask_def,
+            width,
+            height,
+            scale,
+            scaled_crop_offset,
+            warped_image.as_deref(),
+        ) {
+            let mut rgba_mask = RgbaImage::new(width, height);
+            for (x, y, pixel) in gray_mask.enumerate_pixels() {
+                let intensity = pixel[0];
+                let alpha = (intensity as f32 * 0.5) as u8;
+                rgba_mask.put_pixel(x, y, Rgba([255, 0, 0, alpha]));
+            }
+
+            let mut buf = Cursor::new(Vec::new());
+            rgba_mask
+                .write_to(&mut buf, ImageFormat::Png)
+                .map_err(|e| e.to_string())?;
+
+            let base64_str = general_purpose::STANDARD.encode(buf.get_ref());
+            let data_url = format!("data:image/png;base64,{}", base64_str);
+
+            Ok(data_url)
+        } else {
+            Ok("".to_string())
+        }
+    })();
+    request.check()?;
+    result
 }
 
 pub fn resolve_warped_image_for_masks(
@@ -1549,4 +1664,13 @@ pub fn get_cached_or_generate_mask(
     }
 
     generated
+}
+
+/// A separate mask payload has its own local hydration domain and does not
+/// consume a slot in the current edit's32 display masks. It never reads cache.
+pub(crate) fn capture_standalone_mask(mask: &serde_json::Value) -> Result<MaskDefinition, String> {
+    let captured =
+        crate::adjustment_utils::hydrate_snapshot_adjustments(&serde_json::json!({"masks":[mask]}))
+            .map_err(|e| e.to_string())?;
+    serde_json::from_value(captured["masks"][0].clone()).map_err(|e| e.to_string())
 }

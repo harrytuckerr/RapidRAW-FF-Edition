@@ -27,6 +27,205 @@ pub struct RawImageMeta {
     pub clean_model: String,
 }
 
+/// Cancellation uses the existing native load generation; no closure is stored.
+pub(crate) type RawCancel = Option<(Arc<AtomicUsize>, usize)>;
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum PreparedQuality {
+    CurrentFull,
+    LegacyFast,
+    AccurateXtrans1 {
+        max_workers: usize,
+        scratch_budget_bytes: usize,
+    },
+}
+
+/// One owned decoder result, immutable after capture. No application-level
+/// mosaic clone, source-byte borrow or decoder survives in this owner.
+pub(crate) struct PreparedRaw {
+    input: DevelopmentInput,
+    as_shot: AsShot,
+}
+
+struct DevelopmentInput {
+    raw: RawImage,
+    original_whitelevel: rawler::rawimage::WhiteLevel,
+    original_wb: [f32; 4],
+    orientation: Orientation,
+    meta: RawImageMeta,
+    to_white_one: f32,
+}
+
+struct DevelopmentPolicy {
+    developer: RawDevelop,
+    is_linear_format: bool,
+    apply_ungamma: bool,
+    fast_demosaic: bool,
+    has_dcp_profile: bool,
+}
+
+impl PreparedRaw {
+    pub(crate) fn fast_demosaic_scale_factor(
+        &self,
+        decoded_width: u32,
+        decoded_height: u32,
+    ) -> f32 {
+        let max_orig = (self.input.raw.width as f32).max(self.input.raw.height as f32);
+        let max_comp = (decoded_width as f32).max(decoded_height as f32);
+        if max_orig > 0.0 {
+            let ratio = max_comp / max_orig;
+            if ratio > 0.1 && ratio < 0.35 {
+                return 0.25;
+            } else if (0.35..0.75).contains(&ratio) {
+                return 0.5;
+            }
+        }
+        1.0
+    }
+
+    pub(crate) fn as_shot(&self) -> AsShot {
+        self.as_shot
+    }
+
+    pub(crate) fn is_native_xtrans(&self) -> bool {
+        is_native_xtrans(&self.input.raw)
+    }
+
+    /// Decoded camera identity only for genuine single-plane RGB CFA mosaics
+    /// (X-Trans or Bayer). Linear/rendered/4-colour data never qualifies, and
+    /// no EXIF, extension or filename fact is consulted.
+    pub(crate) fn camera_native_cfa_meta(&self) -> Option<&RawImageMeta> {
+        let raw = &self.input.raw;
+        (raw.cpp == 1
+            && matches!(&raw.photometric, RawPhotometricInterpretation::Cfa(config)
+                if config.cfa.is_rgb()))
+        .then_some(&self.input.meta)
+    }
+}
+
+fn check_raw_cancel(cancel: &RawCancel) -> Result<()> {
+    if let Some((tracker, generation)) = cancel
+        && tracker.load(Ordering::SeqCst) != *generation
+    {
+        return Err(anyhow!("Load cancelled"));
+    }
+    Ok(())
+}
+
+fn is_native_xtrans(raw: &RawImage) -> bool {
+    raw.cpp == 1
+        && matches!(&raw.photometric, RawPhotometricInterpretation::Cfa(config)
+            if config.cfa.width == 6 && config.cfa.height == 6 && config.cfa.is_rgb())
+}
+
+/// Run one decode. Optional extra AsShot capture is exclusive to the new
+/// prepared API: old wrappers retain their original metadata/error surface.
+fn decode_raw(
+    file_bytes: &[u8],
+    cancel: &RawCancel,
+    capture_as_shot: bool,
+) -> Result<(RawImage, Orientation, Option<AsShot>)> {
+    check_raw_cancel(cancel)?;
+    let source = RawSource::new_from_slice(file_bytes);
+    let decoder = rawler::get_decoder(&source)?;
+    check_raw_cancel(cancel)?;
+    let raw = decoder.raw_image(&source, &RawDecodeParams::default(), false)?;
+    let orientation = metadata_orientation(decoder.as_ref(), &source)?;
+    let as_shot =
+        capture_as_shot.then(|| capture_as_shot_metadata(&raw, decoder.as_ref(), file_bytes));
+    Ok((raw, orientation, as_shot))
+}
+
+impl DevelopmentInput {
+    fn capture(mut raw: RawImage, orientation: Orientation, file_bytes: &[u8]) -> Self {
+        let original_whitelevel = raw.whitelevel.clone();
+        let original_wb = raw.wb_coeffs;
+        let original_white_level =
+            raw.whitelevel.0.first().cloned().unwrap_or(u16::MAX as u32) as f32;
+        let original_black_level = raw
+            .blacklevel
+            .levels
+            .first()
+            .map(|r| r.as_f32())
+            .unwrap_or(0.0);
+        let denominator = (original_white_level - original_black_level).max(1.0);
+        let to_white_one = (u32::MAX as f32 - original_black_level) / denominator;
+        for level in raw.whitelevel.0.iter_mut() {
+            *level = u32::MAX;
+        }
+        raw.wb_coeffs =
+            crate::multi_exposure::neutralize_wb_if_multiexposure(raw.wb_coeffs, file_bytes);
+        let meta = RawImageMeta {
+            wb_coeffs: raw.wb_coeffs,
+            make: raw.make.clone(),
+            model: raw.model.clone(),
+            clean_model: raw.clean_model.clone(),
+        };
+        Self {
+            raw,
+            original_whitelevel,
+            original_wb,
+            orientation,
+            meta,
+            to_white_one,
+        }
+    }
+}
+
+pub(crate) fn prepare_raw(file_bytes: &[u8], cancel: &RawCancel) -> Result<PreparedRaw> {
+    let (raw, orientation, as_shot) = decode_raw(file_bytes, cancel, true)?;
+    let as_shot = as_shot.ok_or_else(|| anyhow!("Prepared RAW AsShot capture missing"))?;
+    let input = DevelopmentInput::capture(raw, orientation, file_bytes);
+    check_raw_cancel(cancel)?;
+    Ok(PreparedRaw { input, as_shot })
+}
+
+// Test-only entry counts per actual development quality: CurrentFull,
+// LegacyFast, AccurateXtrans1. Read on the same worker thread that develops.
+#[cfg(test)]
+thread_local! {
+    pub(crate) static PREPARED_DEVELOPMENTS: std::cell::Cell<[usize; 3]> =
+        const { std::cell::Cell::new([0; 3]) };
+}
+
+/// Full-quality, unoriented development from the same captured decode.
+/// No implicit retry to CurrentFull/JPEG on an eligible accurate-path error.
+pub(crate) fn develop_prepared_raw(
+    prepared: &PreparedRaw,
+    quality: PreparedQuality,
+    _highlight_compression: f32,
+    linear_mode: &str,
+    has_dcp_profile: bool,
+    cancel: RawCancel,
+) -> Result<(DynamicImage, Orientation, RawImageMeta)> {
+    #[cfg(test)]
+    PREPARED_DEVELOPMENTS.with(|counts| {
+        let mut next = counts.get();
+        next[match quality {
+            PreparedQuality::CurrentFull => 0,
+            PreparedQuality::LegacyFast => 1,
+            PreparedQuality::AccurateXtrans1 { .. } => 2,
+        }] += 1;
+        counts.set(next);
+    });
+    check_raw_cancel(&cancel)?;
+    let policy = development_policy(
+        &prepared.input.raw,
+        matches!(quality, PreparedQuality::LegacyFast),
+        linear_mode,
+        has_dcp_profile,
+    )?;
+    let intermediate = develop_captured(&prepared.input, &policy, quality, &cancel)?;
+    finish_development(
+        intermediate,
+        &policy,
+        prepared.input.orientation,
+        prepared.input.meta.clone(),
+        prepared.input.to_white_one,
+        &cancel,
+    )
+}
+
 pub fn develop_raw_image(
     file_bytes: &[u8],
     fast_demosaic: bool,
@@ -172,28 +371,35 @@ fn develop_internal(
     has_dcp_profile: bool,
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
 ) -> Result<(DynamicImage, Orientation, RawImageMeta)> {
-    let check_cancel = || -> Result<()> {
-        if let Some((tracker, generation)) = &cancel_token
-            && tracker.load(Ordering::SeqCst) != *generation
-        {
-            return Err(anyhow!("Load cancelled"));
-        }
-        Ok(())
-    };
+    let (raw, orientation, _) = decode_raw(file_bytes, &cancel_token, false)?;
+    // Preserve policy errors (notably selected-DCP linear rejection) before WB
+    // metadata work. White-level replacement does not affect policy decisions.
+    let policy = development_policy(&raw, fast_demosaic, &linear_mode, has_dcp_profile)?;
+    let input = DevelopmentInput::capture(raw, orientation, file_bytes);
+    let developed = develop_captured(&input, &policy, PreparedQuality::CurrentFull, &cancel_token)?;
+    let rescale_factor = input.to_white_one;
+    let raw_meta = input.meta.clone();
+    // Old byte wrappers do not retain their decoded mosaic during conversion.
+    drop(input);
+    finish_development(
+        developed,
+        &policy,
+        orientation,
+        raw_meta,
+        rescale_factor,
+        &cancel_token,
+    )
+}
 
-    check_cancel()?;
+fn development_policy(
+    raw_image: &RawImage,
+    fast_demosaic: bool,
+    linear_mode: &str,
+    has_dcp_profile: bool,
+) -> Result<DevelopmentPolicy> {
+    let is_linear_format = is_linear_raw_format(raw_image);
 
-    let source = RawSource::new_from_slice(file_bytes);
-    let decoder = rawler::get_decoder(&source)?;
-
-    check_cancel()?;
-    let mut raw_image: RawImage = decoder.raw_image(&source, &RawDecodeParams::default(), false)?;
-
-    let orientation = metadata_orientation(decoder.as_ref(), &source)?;
-
-    let is_linear_format = is_linear_raw_format(&raw_image);
-
-    let (apply_ungamma, apply_calibration) = match linear_mode.as_str() {
+    let (apply_ungamma, apply_calibration) = match linear_mode {
         "gamma" => (true, true),
         "skip_calib" => (false, false),
         "gamma_skip_calib" => (true, false),
@@ -202,23 +408,6 @@ fn develop_internal(
 
     // DCP profile replaces the camera calibration step (§3.1).
     let keep_calibrate = keep_calibration(is_linear_format, apply_calibration, has_dcp_profile);
-
-    let original_white_level = raw_image
-        .whitelevel
-        .0
-        .first()
-        .cloned()
-        .unwrap_or(u16::MAX as u32) as f32;
-    let original_black_level = raw_image
-        .blacklevel
-        .levels
-        .first()
-        .map(|r| r.as_f32())
-        .unwrap_or(0.0);
-
-    for level in raw_image.whitelevel.0.iter_mut() {
-        *level = u32::MAX;
-    }
 
     let mut developer = RawDevelop::default();
 
@@ -251,25 +440,60 @@ fn develop_internal(
         }
     }
 
-    raw_image.wb_coeffs =
-        crate::multi_exposure::neutralize_wb_if_multiexposure(raw_image.wb_coeffs, file_bytes);
+    Ok(DevelopmentPolicy {
+        developer,
+        is_linear_format,
+        apply_ungamma,
+        fast_demosaic,
+        has_dcp_profile,
+    })
+}
 
-    // Capture camera metadata BEFORE drop for DCP profile rendering (§4.1).
-    let raw_meta = RawImageMeta {
-        wb_coeffs: raw_image.wb_coeffs,
-        make: raw_image.make.clone(),
-        model: raw_image.model.clone(),
-        clean_model: raw_image.clean_model.clone(),
-    };
+fn develop_captured(
+    input: &DevelopmentInput,
+    policy: &DevelopmentPolicy,
+    quality: PreparedQuality,
+    cancel: &RawCancel,
+) -> Result<Intermediate> {
+    check_raw_cancel(cancel)?;
+    match quality {
+        PreparedQuality::AccurateXtrans1 {
+            max_workers,
+            scratch_budget_bytes,
+        } if !policy.fast_demosaic && is_native_xtrans(&input.raw) => {
+            use rawler::imgop::sensor::xtrans::external::{XTransDemosaicOptions, XTransPasses};
+            let cancelled = || {
+                cancel.as_ref().is_some_and(|(tracker, generation)| {
+                    tracker.load(Ordering::SeqCst) != *generation
+                })
+            };
+            let options = XTransDemosaicOptions::new(
+                XTransPasses::One,
+                input.to_white_one,
+                max_workers,
+                scratch_budget_bytes,
+                &cancelled,
+            )?;
+            Ok(policy
+                .developer
+                .develop_intermediate_with_demosaic(&input.raw, &options)?)
+        }
+        _ => Ok(policy.developer.develop_intermediate(&input.raw)?),
+    }
+}
 
-    check_cancel()?;
-    let mut developed_intermediate = developer.develop_intermediate(&raw_image)?;
-
-    drop(raw_image);
-
-    let denominator = (original_white_level - original_black_level).max(1.0);
-    let rescale_factor = (u32::MAX as f32 - original_black_level) / denominator;
-
+fn finish_development(
+    mut developed_intermediate: Intermediate,
+    policy: &DevelopmentPolicy,
+    orientation: Orientation,
+    raw_meta: RawImageMeta,
+    rescale_factor: f32,
+    cancel: &RawCancel,
+) -> Result<(DynamicImage, Orientation, RawImageMeta)> {
+    let fast_demosaic = policy.fast_demosaic;
+    let is_linear_format = policy.is_linear_format;
+    let apply_ungamma = policy.apply_ungamma;
+    let has_dcp_profile = policy.has_dcp_profile;
     let safe_highlight_compression = 1000.0;
 
     let clamp_limit = if fast_demosaic {
@@ -283,7 +507,7 @@ fn develop_internal(
         (dim.w as u32, dim.h as u32)
     };
 
-    check_cancel()?;
+    check_raw_cancel(cancel)?;
 
     match &mut developed_intermediate {
         Intermediate::Monochrome(pixels) => {
@@ -332,7 +556,7 @@ fn develop_internal(
         }
     }
 
-    check_cancel()?;
+    check_raw_cancel(cancel)?;
 
     let dynamic_image = match developed_intermediate {
         Intermediate::ThreeColor(pixels) => {
@@ -363,16 +587,28 @@ pub fn read_as_shot(file_bytes: &[u8]) -> Option<AsShot> {
     let raw_image = decoder
         .raw_image(&source, &RawDecodeParams::default(), true)
         .ok()?;
+    Some(capture_as_shot_metadata(
+        &raw_image,
+        decoder.as_ref(),
+        file_bytes,
+    ))
+}
+
+fn capture_as_shot_metadata(
+    raw_image: &RawImage,
+    decoder: &dyn Decoder,
+    file_bytes: &[u8],
+) -> AsShot {
     let is_monochrome = raw_image.cpp == 1
         && !matches!(raw_image.photometric, RawPhotometricInterpretation::Cfa(_));
 
-    Some(AsShot {
+    AsShot {
         white_balance: (!is_monochrome)
-            .then(|| as_shot_white_balance(&raw_image, file_bytes))
+            .then(|| as_shot_white_balance(raw_image, file_bytes))
             .flatten()
             .unwrap_or_else(WhiteBalance::reference),
-        exposure: crate::baseline_exposure::read(decoder.as_ref(), file_bytes, is_monochrome),
-    })
+        exposure: crate::baseline_exposure::read(decoder, file_bytes, is_monochrome),
+    }
 }
 
 fn as_shot_white_balance(raw_image: &RawImage, file_bytes: &[u8]) -> Option<WhiteBalance> {
@@ -434,5 +670,340 @@ mod integration_tests {
         assert!(!keep_calibration(true, false, false));
         assert!(keep_calibration(true, true, false));
         assert!(!keep_calibration(false, true, true));
+    }
+}
+
+#[cfg(test)]
+mod prepared_tests {
+    use super::*;
+    use rawler::{
+        CFA,
+        cfa::PlaneColor,
+        decoders::Camera,
+        imgop::{Dim2, Point, Rect},
+        rawimage::{BlackLevel, CFAConfig, RawImageData, WhiteLevel},
+    };
+
+    // Synthetic owned decoder output, not a decoder/real-RAW fixture.
+    fn fixture(pattern: &str, width: usize, height: usize) -> RawImage {
+        let cfa = CFA::new(pattern);
+        let colors = PlaneColor::new("RGB");
+        let mut matrix = std::collections::HashMap::new();
+        matrix.insert(
+            Illuminant::D65,
+            vec![1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        );
+        let camera = Camera {
+            make: "Synthetic".into(),
+            model: "Fixture".into(),
+            clean_model: "Fixture".into(),
+            cfa: cfa.clone(),
+            plane_color: colors.clone(),
+            color_matrix: matrix,
+            ..Camera::default()
+        };
+        RawImage::new_with_data(
+            camera,
+            RawImageData::Float(vec![256.0; width * height]),
+            width,
+            height,
+            1,
+            [2.0, 1.0, 4.0, f32::NAN],
+            RawPhotometricInterpretation::Cfa(CFAConfig::new(&cfa, &colors)),
+            Some(BlackLevel::zero(1, 1, 1)),
+            Some(WhiteLevel::new(vec![1024])),
+            false,
+        )
+    }
+
+    fn prepared(raw: RawImage) -> PreparedRaw {
+        PreparedRaw {
+            input: DevelopmentInput::capture(raw, Orientation::Rotate90, b"synthetic"),
+            as_shot: AsShot::reference(),
+        }
+    }
+
+    fn sample_bits(raw: &RawImage) -> Vec<u32> {
+        match &raw.data {
+            RawImageData::Float(v) => v.iter().map(|v| v.to_bits()).collect(),
+            _ => panic!("synthetic float mosaic required"),
+        }
+    }
+
+    #[test]
+    fn capture_retains_complete_source_metadata_and_moves_the_mosaic() {
+        let mut raw = fixture("RGGB", 64, 64);
+        raw.whitelevel = WhiteLevel::new(vec![1024, 2048, 4096, 8192]);
+        raw.blacklevel = BlackLevel::new(&[64u16, 65, 66, 67], 2, 2, 1);
+        raw.active_area = Some(Rect::new(Point::new(2, 3), Dim2::new(60, 58)));
+        raw.crop_area = Some(Rect::new(Point::new(4, 5), Dim2::new(54, 52)));
+        let address = match &raw.data {
+            RawImageData::Float(v) => v.as_ptr(),
+            _ => unreachable!(),
+        };
+        let black = raw.blacklevel.clone();
+        let matrix = raw.color_matrix.clone();
+        let active = raw.active_area;
+        let crop = raw.crop_area;
+        let prepared = prepared(raw);
+        assert_eq!(
+            (
+                &prepared.input.raw.blacklevel,
+                &prepared.input.original_whitelevel
+            ),
+            (&black, &WhiteLevel::new(vec![1024, 2048, 4096, 8192]))
+        );
+        assert_eq!(prepared.input.raw.whitelevel.0, vec![u32::MAX; 4]);
+        assert_eq!(
+            prepared.input.original_wb.map(f32::to_bits),
+            [2.0, 1.0, 4.0, f32::NAN].map(f32::to_bits)
+        );
+        assert_eq!(
+            prepared.input.meta.wb_coeffs.map(f32::to_bits),
+            prepared.input.original_wb.map(f32::to_bits)
+        );
+        assert_eq!(prepared.input.raw.color_matrix, matrix);
+        assert_eq!(prepared.input.raw.active_area, active);
+        assert_eq!(prepared.input.raw.crop_area, crop);
+        assert_eq!(prepared.input.orientation, Orientation::Rotate90);
+        assert_eq!(prepared.input.meta.model, "Fixture");
+        assert_eq!(
+            prepared.input.to_white_one.to_bits(),
+            ((u32::MAX as f32 - 64.0) / 960.0).to_bits()
+        );
+        assert!(!prepared.is_native_xtrans());
+        assert_eq!(prepared.as_shot().exposure.dng_baseline, 0.0);
+        match &prepared.input.raw.data {
+            RawImageData::Float(v) => assert_eq!(v.as_ptr(), address),
+            _ => panic!("mosaic changed representation"),
+        }
+    }
+
+    #[test]
+    fn policies_preserve_quality_speed_linear_and_dcp_step_ownership() {
+        let mut raw = fixture("RGGB", 64, 64);
+        let full = development_policy(&raw, false, "skip_calib", false).unwrap();
+        assert_eq!(
+            full.developer.demosaic_algorithm,
+            DemosaicAlgorithm::Quality
+        );
+        assert_eq!(
+            full.developer.steps,
+            vec![
+                ProcessingStep::Rescale,
+                ProcessingStep::Demosaic,
+                ProcessingStep::CropActiveArea,
+                ProcessingStep::WhiteBalance,
+                ProcessingStep::Calibrate,
+                ProcessingStep::CropDefault
+            ]
+        );
+        let fast = development_policy(&raw, true, "auto", false).unwrap();
+        assert_eq!(fast.developer.demosaic_algorithm, DemosaicAlgorithm::Speed);
+        assert_eq!(fast.developer.steps, full.developer.steps);
+        let dcp = development_policy(&raw, false, "auto", true).unwrap();
+        assert_eq!(
+            dcp.developer.steps,
+            vec![
+                ProcessingStep::Rescale,
+                ProcessingStep::Demosaic,
+                ProcessingStep::CropActiveArea,
+                ProcessingStep::CropDefault
+            ]
+        );
+        raw.photometric = RawPhotometricInterpretation::LinearRaw;
+        let linear = development_policy(&raw, false, "gamma_skip_calib", false).unwrap();
+        assert!(linear.apply_ungamma);
+        assert_eq!(
+            linear.developer.steps,
+            vec![
+                ProcessingStep::Rescale,
+                ProcessingStep::CropActiveArea,
+                ProcessingStep::WhiteBalance,
+                ProcessingStep::CropDefault
+            ]
+        );
+        assert_eq!(
+            development_policy(&raw, false, "auto", true)
+                .err()
+                .unwrap()
+                .to_string(),
+            "DCP profiles require camera-native RAW data; linear RAW input is not supported"
+        );
+    }
+
+    #[test]
+    fn repeated_bayer_development_borrows_source_and_ignores_xtrans_only_budget() {
+        let prepared = prepared(fixture("RGGB", 64, 64));
+        let before = sample_bits(&prepared.input.raw);
+        let (current, orientation, meta) = develop_prepared_raw(
+            &prepared,
+            PreparedQuality::CurrentFull,
+            2.5,
+            "auto",
+            false,
+            None,
+        )
+        .unwrap();
+        let (other, other_orientation, other_meta) = develop_prepared_raw(
+            &prepared,
+            PreparedQuality::AccurateXtrans1 {
+                max_workers: 0,
+                scratch_budget_bytes: 0,
+            },
+            2.5,
+            "auto",
+            false,
+            None,
+        )
+        .unwrap();
+        assert_eq!((current.width(), current.height()), (64, 64));
+        assert_eq!(orientation, Orientation::Rotate90);
+        assert_eq!(other_orientation, orientation);
+        assert_eq!(meta.model, other_meta.model);
+        assert_eq!(
+            current
+                .to_rgba32f()
+                .as_raw()
+                .iter()
+                .map(|v| v.to_bits())
+                .collect::<Vec<_>>(),
+            other
+                .to_rgba32f()
+                .as_raw()
+                .iter()
+                .map(|v| v.to_bits())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(sample_bits(&prepared.input.raw), before);
+        assert_eq!(prepared.input.original_whitelevel.0, vec![1024]);
+    }
+
+    #[test]
+    fn eligible_accurate_failures_do_not_silently_develop_current_quality() {
+        let mut raw = fixture("RBGBRGGGRGGBGGBGGRBRGRBGGGBGGRGGRGGB", 512, 512);
+        raw.color_matrix.clear();
+        let prepared = prepared(raw);
+        assert!(prepared.is_native_xtrans());
+        let error = develop_prepared_raw(
+            &prepared,
+            PreparedQuality::AccurateXtrans1 {
+                max_workers: 0,
+                scratch_budget_bytes: 0,
+            },
+            2.5,
+            "auto",
+            false,
+            None,
+        )
+        .err()
+        .unwrap();
+        assert!(error.to_string().contains("ScratchBudget"));
+        let error = develop_prepared_raw(
+            &prepared,
+            PreparedQuality::AccurateXtrans1 {
+                max_workers: 1,
+                scratch_budget_bytes: rawler::imgop::sensor::xtrans::external::XTransPasses::One
+                    .scratch_bytes(),
+            },
+            2.5,
+            "auto",
+            false,
+            None,
+        )
+        .err()
+        .unwrap();
+        assert!(error.to_string().contains("InvalidMetric"));
+    }
+
+    #[test]
+    fn accurate_camera_output_undoes_interpolation_wb_before_profile_stage() {
+        let mut raw = fixture("RBGBRGGGRGGBGGBGGRBRGRBGGGBGGRGGRGGB", 512, 512);
+        let RawPhotometricInterpretation::Cfa(config) = &raw.photometric else {
+            unreachable!()
+        };
+        raw.data = RawImageData::Float(
+            (0..512 * 512)
+                .map(|i| [128.0, 256.0, 512.0][config.cfa.color_at(i / 512, i % 512)])
+                .collect(),
+        );
+        let prepared = prepared(raw);
+        let (image, orientation, meta) = develop_prepared_raw(
+            &prepared,
+            PreparedQuality::AccurateXtrans1 {
+                max_workers: 1,
+                scratch_budget_bytes: rawler::imgop::sensor::xtrans::external::XTransPasses::One
+                    .scratch_bytes(),
+            },
+            2.5,
+            "auto",
+            true,
+            None,
+        )
+        .unwrap();
+        assert_eq!(orientation, Orientation::Rotate90);
+        assert_eq!(&meta.wb_coeffs[..3], &[2.0, 1.0, 4.0]);
+        assert_eq!((image.width(), image.height()), (512, 512));
+        for pixel in image.to_rgb32f().pixels() {
+            for (actual, expected) in pixel.0.iter().zip([0.125, 0.25, 0.5]) {
+                assert!((*actual - expected).abs() <= 1e-5);
+            }
+        }
+        assert_eq!(prepared.input.original_whitelevel.0, vec![1024]);
+    }
+
+    #[test]
+    fn final_conversion_keeps_existing_full_hdr_and_fast_clamps() {
+        let raw = fixture("RGGB", 64, 64);
+        for (fast, expected) in [
+            (false, vec![0.0, 0.5, 4.0, 1000.0]),
+            (true, vec![0.0, 0.5, 1.0, 1.0]),
+        ] {
+            let policy = development_policy(&raw, fast, "auto", false).unwrap();
+            let pixels = rawler::pixarray::PixF32::new_with(vec![-1.0, 0.25, 2.0, 600.0], 4, 1);
+            let meta = RawImageMeta {
+                wb_coeffs: raw.wb_coeffs,
+                make: raw.make.clone(),
+                model: raw.model.clone(),
+                clean_model: raw.clean_model.clone(),
+            };
+            let (out, _, _) = finish_development(
+                Intermediate::Monochrome(pixels),
+                &policy,
+                Orientation::Normal,
+                meta,
+                2.0,
+                &None,
+            )
+            .unwrap();
+            assert_eq!(
+                out.to_rgba32f().pixels().map(|p| p[0]).collect::<Vec<_>>(),
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn cancellation_precedes_decode_and_prepared_dispatch() {
+        let cancel = Some((Arc::new(AtomicUsize::new(2)), 1));
+        assert_eq!(
+            prepare_raw(b"invalid", &cancel).err().unwrap().to_string(),
+            "Load cancelled"
+        );
+        let prepared = prepared(fixture("RGGB", 64, 64));
+        assert_eq!(
+            develop_prepared_raw(
+                &prepared,
+                PreparedQuality::CurrentFull,
+                2.5,
+                "auto",
+                false,
+                cancel
+            )
+            .err()
+            .unwrap()
+            .to_string(),
+            "Load cancelled"
+        );
     }
 }

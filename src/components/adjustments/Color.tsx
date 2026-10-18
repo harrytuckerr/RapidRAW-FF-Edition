@@ -10,6 +10,9 @@ import { AppSettings } from '../ui/AppProperties';
 import Text from '../ui/Text';
 import AdjustmentSubSection from './AdjustmentSubSection';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useEditorStore } from '../../store/useEditorStore';
+import { isProgressiveMutationBlocked } from '../../utils/progressiveOpen';
+import { pointColourV1 } from '../../utils/adjustments';
 import {
   getRelativeWhiteBalance,
   getWhiteBalanceMode,
@@ -409,6 +412,94 @@ const ColorCalibrationPanel = ({ adjustments, setAdjustments, onDragStateChange 
   );
 };
 
+export function PointColourControls({ adjustments, setAdjustments, onDragStateChange }: ColorPanelProps) {
+  const { t } = useTranslation();
+  const active = useEditorStore((state) => state.isPointColourPickerActive);
+  const owner = useEditorStore((state) => state.selectedImage);
+  const ready = useEditorStore((state) => !!state.selectedImage?.isReady && !isProgressiveMutationBlocked(state));
+  const owns = () => {
+    const current = useEditorStore.getState();
+    return !!owner?.isReady && current.selectedImage === owner && !isProgressiveMutationBlocked(current);
+  };
+  const commit = (update: (previous: Adjustments) => Adjustments) => {
+    if (owns()) setAdjustments((previous: Adjustments) => (owns() ? update(previous) : previous));
+  };
+  const point = pointColourV1(adjustments.pointColour);
+  const unsupported = adjustments.pointColour != null && !point;
+  const label = (key: string, fallback: string) =>
+    t(`adjustments.color.pointColour.${key}`, { defaultValue: fallback });
+  return (
+    <fieldset className="mt-4 border-t border-surface py-3" aria-label={label('title', 'Point Colour')}>
+      <legend>{label('title', 'Point Colour')}</legend>
+      <button
+        type="button"
+        disabled={!ready}
+        aria-pressed={active}
+        aria-label={label('pick', 'Pick a colour')}
+        onClick={() => {
+          if (owns()) useEditorStore.getState().setEditor({ isPointColourPickerActive: !active });
+        }}
+      >
+        <Pipette size={16} /> {active ? label('cancel', 'Cancel picker') : label('pick', 'Pick a colour')}
+      </button>
+      {unsupported && (
+        <p role="alert">
+          {label('unsupported', 'This Point Colour setting is unsupported. Remove it to edit safely.')}
+        </p>
+      )}
+      {point && (
+        <>
+          <span
+            aria-label={label('target', 'Target hue')}
+            style={{ background: `hsl(${point.centerHue}, 100%, 50%)`, display: 'inline-block', width: 20, height: 20 }}
+          />
+          <button
+            type="button"
+            aria-pressed={point.enabled !== false}
+            onClick={() =>
+              commit((prev: Adjustments) => {
+                const latest = pointColourV1(prev.pointColour);
+                return latest ? { ...prev, pointColour: { ...latest, enabled: latest.enabled === false } } : prev;
+              })
+            }
+          >
+            {point.enabled === false
+              ? label('enable', 'Enable Point Colour')
+              : label('disable', 'Disable Point Colour')}
+          </button>
+          {(['widthDegrees', 'hue', 'saturation', 'luminance'] as const).map((key) => (
+            <Slider
+              key={key}
+              label={label(key, key === 'widthDegrees' ? 'Hue range' : key.charAt(0).toUpperCase() + key.slice(1))}
+              value={point[key]}
+              disabled={!ready}
+              min={key === 'widthDegrees' ? 1 : -100}
+              max={key === 'widthDegrees' ? 180 : 100}
+              step={1}
+              onDragStateChange={onDragStateChange}
+              onChange={(event: SliderChangeEvent) => {
+                const value = Number(event.target.value);
+                if (!Number.isFinite(value)) return;
+                commit((prev: Adjustments) => {
+                  const latest = pointColourV1(prev.pointColour);
+                  if (!latest) return prev;
+                  const candidate = { ...latest, [key]: value };
+                  return pointColourV1(candidate) ? { ...prev, pointColour: candidate } : prev;
+                });
+              }}
+            />
+          ))}
+        </>
+      )}
+      {adjustments.pointColour != null && (
+        <button type="button" onClick={() => commit((prev: Adjustments) => ({ ...prev, pointColour: null }))}>
+          {label('remove', 'Remove Point Colour')}
+        </button>
+      )}
+    </fieldset>
+  );
+}
+
 export default function ColorPanel({
   adjustments,
   setAdjustments,
@@ -693,6 +784,14 @@ export default function ColorPanel({
           order={toolOrder.indexOf('colorMixer')}
           title={t('adjustments.color.colorMixer')}
         >
+          {!isForMask && (
+            <PointColourControls
+              adjustments={adjustments}
+              setAdjustments={setAdjustments}
+              appSettings={appSettings}
+              onDragStateChange={onDragStateChange}
+            />
+          )}
           <div className="flex justify-between mb-4 px-1">
             {HSL_COLORS.map(({ name, color, label }) => (
               <ColorSwatch

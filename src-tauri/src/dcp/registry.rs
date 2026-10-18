@@ -156,6 +156,13 @@ struct InnerRegistry {
     looks: Vec<LookMetadata>,
 }
 
+/// One coherent, ephemeral catalog view for the optional default decision.
+/// Not persisted and not a claim that backing files still contain these bytes.
+pub(super) struct DefaultProfileSnapshot {
+    pub(super) profiles: Vec<ProfileEntry>,
+    pub(super) looks: Vec<LookMetadata>,
+}
+
 /// Thread-safe, O(1)-lookup registry of discovered DCPs and Looks.
 pub struct ProfileRegistry {
     inner: Mutex<InnerRegistry>,
@@ -338,6 +345,17 @@ impl ProfileRegistry {
     pub fn all_profiles(&self) -> Vec<ProfileEntry> {
         let inner = self.inner.lock().unwrap();
         inner.dcp_by_id.values().cloned().collect()
+    }
+
+    /// Clone both collections under one lock; poison is unavailable evidence.
+    /// Stable ordering is for snapshot comparison, never default eligibility.
+    pub(super) fn default_snapshot(&self) -> Option<DefaultProfileSnapshot> {
+        let inner = self.inner.lock().ok()?;
+        let mut profiles: Vec<_> = inner.dcp_by_id.values().cloned().collect();
+        profiles.sort_by_key(|entry| entry.id.to_hex());
+        let mut looks = inner.looks.clone();
+        looks.sort_by(|a, b| a.uuid.cmp(&b.uuid).then(a.file_path.cmp(&b.file_path)));
+        Some(DefaultProfileSnapshot { profiles, looks })
     }
 
     /// Number of distinct DCP profiles and Looks.

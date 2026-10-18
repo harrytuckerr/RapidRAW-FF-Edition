@@ -32,6 +32,19 @@ import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
 import { useUIStore } from '../../../store/useUIStore';
+import { currentAccurateOpenKey, isCurrentOpenKey, sourceRenderPolicy } from '../../../utils/progressiveOpen';
+import type { OpenKey } from '../../../utils/progressiveOpen';
+
+interface SizeEstimateRequest {
+  paths: string[];
+  exportSettings: ExportSettings;
+  outputFormat: string;
+  currentEditPath: string | null;
+  currentEditAdjustments: Adjustments | null;
+  expectedOpenKey?: OpenKey;
+  generation: number;
+  isOwnerCurrent(): boolean;
+}
 
 interface ExportPanelProps {
   exportState: ExportState;
@@ -321,6 +334,7 @@ export default function ExportPanel({
   } = useExportSettings();
 
   const adjustmentsRef = useRef(useEditorStore.getState().adjustments);
+  const estimateGenerationRef = useRef(0);
 
   const [isAdvancedExpanded, setIsAdvancedExpanded] = useState(false);
   const initDone = useRef(false);
@@ -389,6 +403,7 @@ export default function ExportPanel({
   const osPlatform = useOsPlatform();
   const isAndroid = osPlatform === 'android';
   const activePanels = useUIStore((state) => state.activePanels);
+  const renderPolicy = useEditorStore(sourceRenderPolicy);
   const isPanelReallyActive = Object.values(activePanels).includes(Panel.Export);
 
   const { status, progress, errorMessage } = exportState;
@@ -460,25 +475,30 @@ export default function ExportPanel({
 
   const debouncedEstimateSize = useMemo(
     () =>
-      debounce(async (paths, currentAdj, currentPath, exportSettings, format) => {
-        if (paths.length === 0 || !isVisible) {
+      debounce(async (request: SizeEstimateRequest) => {
+        if (request.generation !== estimateGenerationRef.current || !isVisible) return;
+        if (request.paths.length === 0) {
           setEstimatedSize(null);
+          setIsEstimating(false);
           return;
         }
+        if (!request.isOwnerCurrent()) return;
         setIsEstimating(true);
         try {
           const size: number = await invoke(Invokes.EstimateExportSizes, {
-            paths,
-            exportSettings,
-            outputFormat: format,
-            currentEditPath: currentPath || null,
-            currentEditAdjustments: currentAdj || null,
+            paths: request.paths,
+            exportSettings: request.exportSettings,
+            outputFormat: request.outputFormat,
+            currentEditPath: request.currentEditPath,
+            currentEditAdjustments: request.currentEditAdjustments,
+            ...(request.expectedOpenKey ? { expectedOpenKey: request.expectedOpenKey } : {}),
           });
+          if (request.generation !== estimateGenerationRef.current || !request.isOwnerCurrent()) return;
           setEstimatedSize(size);
         } catch (err) {
-          setEstimatedSize(null);
+          if (request.generation === estimateGenerationRef.current && request.isOwnerCurrent()) setEstimatedSize(null);
         } finally {
-          setIsEstimating(false);
+          if (request.generation === estimateGenerationRef.current && request.isOwnerCurrent()) setIsEstimating(false);
         }
       }, 500),
     [isVisible],
@@ -513,8 +533,68 @@ export default function ExportPanel({
           : null,
     };
     const format = FILE_FORMATS.find((f: FileFormat) => f.id === fileFormat)?.extensions[0] || 'jpeg';
-    const runEstimate = () =>
-      debouncedEstimateSize(pathsToExport, adjustmentsRef.current, selectedImage?.path, exportSettings, format);
+    const runEstimate = () => {
+      const generation = ++estimateGenerationRef.current;
+      const explicitFileTargets = isLibraryContext || multiSelectedPaths.length > 0;
+      const current = useEditorStore.getState();
+      if (explicitFileTargets) {
+        setIsEstimating(false);
+        debouncedEstimateSize({
+          paths: [...pathsToExport],
+          exportSettings,
+          outputFormat: format,
+          currentEditPath: null,
+          currentEditAdjustments: null,
+          generation,
+          isOwnerCurrent: () => true,
+        });
+        return;
+      }
+
+      const ownerImage = current.selectedImage;
+      const currentPath = ownerImage?.path;
+      const policy = sourceRenderPolicy(current);
+      if (
+        !ownerImage?.isReady ||
+        !currentPath ||
+        currentPath !== selectedImage?.path ||
+        policy === 'locked' ||
+        pathsToExport.length === 0
+      ) {
+        debouncedEstimateSize.cancel();
+        setEstimatedSize(null);
+        setIsEstimating(false);
+        return;
+      }
+
+      const expectedOpenKey = policy === 'encoded' ? currentAccurateOpenKey(current) : undefined;
+      if (policy === 'encoded' && !expectedOpenKey) {
+        debouncedEstimateSize.cancel();
+        setEstimatedSize(null);
+        setIsEstimating(false);
+        return;
+      }
+      const isOwnerCurrent = () => {
+        const latest = useEditorStore.getState();
+        if (latest.pendingOpenIntent || latest.selectedImage?.path !== currentPath) return false;
+        return expectedOpenKey
+          ? sourceRenderPolicy(latest) === 'encoded' && isCurrentOpenKey(expectedOpenKey, latest, currentPath, true)
+          : latest.selectedImage === ownerImage &&
+              latest.selectedImage.isReady &&
+              sourceRenderPolicy(latest) === 'legacy-native';
+      };
+      setIsEstimating(false);
+      debouncedEstimateSize({
+        paths: [...pathsToExport],
+        exportSettings,
+        outputFormat: format,
+        currentEditPath: currentPath,
+        currentEditAdjustments: current.adjustments,
+        ...(expectedOpenKey ? { expectedOpenKey } : {}),
+        generation,
+        isOwnerCurrent,
+      });
+    };
 
     runEstimate();
 
@@ -528,13 +608,15 @@ export default function ExportPanel({
     });
 
     return () => {
+      estimateGenerationRef.current += 1;
       unsubscribe();
       debouncedEstimateSize.cancel();
     };
   }, [
     isPanelReallyActive,
     pathsToExport,
-    selectedImage?.path,
+    selectedImage,
+    renderPolicy,
     fileFormat,
     jpegQuality,
     tiffBitDepth,
@@ -584,6 +666,39 @@ export default function ExportPanel({
   const handleExport = async () => {
     if (numImages === 0 || isExporting) return;
 
+    const exportPaths = [...pathsToExport];
+    const explicitFileTargets = isLibraryContext || multiSelectedPaths.length > 0;
+    const owner = useEditorStore.getState();
+    const ownerImage = owner.selectedImage;
+    const currentEditPath = explicitFileTargets ? null : ownerImage?.path || null;
+    const ownerAdjustments = owner.adjustments;
+    const policy = sourceRenderPolicy(owner);
+    const openKey = !explicitFileTargets && policy === 'encoded' ? currentAccurateOpenKey(owner) : undefined;
+    if (
+      !explicitFileTargets &&
+      (!ownerImage?.isReady ||
+        !currentEditPath ||
+        currentEditPath !== selectedImage?.path ||
+        policy === 'locked' ||
+        (policy === 'encoded' && !openKey))
+    )
+      return;
+    const expectedOpenKey = openKey ? { ...openKey } : undefined;
+    const isRequestCurrent = () => {
+      if (explicitFileTargets) return true;
+      const latest = useEditorStore.getState();
+      if (
+        !currentEditPath ||
+        latest.pendingOpenIntent ||
+        latest.selectedImage?.path !== currentEditPath ||
+        latest.adjustments !== ownerAdjustments
+      )
+        return false;
+      return expectedOpenKey
+        ? sourceRenderPolicy(latest) === 'encoded' && isCurrentOpenKey(expectedOpenKey, latest, currentEditPath, true)
+        : latest.selectedImage === ownerImage && ownerImage?.isReady && sourceRenderPolicy(latest) === 'legacy-native';
+    };
+
     const exportSettings: ExportSettings = {
       filenameTemplate,
       jpegQuality,
@@ -613,6 +728,7 @@ export default function ExportPanel({
     const lastExportPath = appSettings?.exportPresets?.find((p) => p.id === '__last_used__')?.lastExportPath;
 
     try {
+      const currentEditAdjustments = explicitFileTargets ? null : structuredClone(ownerAdjustments);
       const selectedFormat: any = FILE_FORMATS.find((f) => f.id === fileFormat);
 
       let outputFolderOrFile = '';
@@ -622,7 +738,7 @@ export default function ExportPanel({
       if (isOriginalFolder) {
         outputFolderOrFile = 'originalFolderDummy';
       } else if (shouldChooseOutputFile) {
-        const originalFilename = pathsToExport[0].split(/[\\/]/).pop() || '';
+        const originalFilename = exportPaths[0].split(/[\\/]/).pop() || '';
         const stem = originalFilename.substring(0, originalFilename.lastIndexOf('.')) || originalFilename;
         const suggestedName = (filenameTemplate || '').replace('{original_filename}', stem);
         const outputFileName = `${suggestedName}.${selectedFormat.extensions[0]}`;
@@ -651,6 +767,7 @@ export default function ExportPanel({
       }
 
       if (isAndroid || outputFolderOrFile) {
+        if (!isRequestCurrent()) return;
         if (!isAndroid) {
           if (isOriginalFolder) {
             saveLastUsedPreset(lastExportPath || '');
@@ -665,16 +782,19 @@ export default function ExportPanel({
           }
         }
 
+        if (!isRequestCurrent()) return;
         setExportState({ status: Status.Exporting, progress: { current: 0, total: numImages }, errorMessage: '' });
+        if (!isRequestCurrent()) return;
         await invoke(Invokes.ExportImages, {
-          paths: pathsToExport,
+          paths: exportPaths,
           outputFolderOrFile: outputFolderOrFile,
           isExplicitFilePath: shouldChooseOutputFile,
           baseOriginFolders: rootPaths,
           exportSettings,
           outputFormat: selectedFormat.extensions[0],
-          currentEditPath: selectedImage?.path || null,
-          currentEditAdjustments: adjustmentsRef.current || null,
+          currentEditPath,
+          currentEditAdjustments,
+          ...(expectedOpenKey ? { expectedOpenKey } : {}),
         });
       }
     } catch (error) {

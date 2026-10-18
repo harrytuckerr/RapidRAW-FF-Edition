@@ -1,8 +1,15 @@
 import { useTranslation } from 'react-i18next';
 import Slider from '../ui/Slider';
-import { Adjustments, DetailsAdjustment, getAdjustmentToolOrder, getHiddenAdjustmentTools } from '../../utils/adjustments';
+import {
+  Adjustments,
+  DetailsAdjustment,
+  getAdjustmentToolOrder,
+  getHiddenAdjustmentTools,
+} from '../../utils/adjustments';
 import { AppSettings } from '../ui/AppProperties';
 import AdjustmentSubSection from './AdjustmentSubSection';
+import { useEditorStore } from '../../store/useEditorStore';
+import { isProgressiveMutationBlocked } from '../../utils/progressiveOpen';
 
 interface DetailsPanelProps {
   adjustments: Adjustments;
@@ -20,6 +27,7 @@ export default function DetailsPanel({
   onDragStateChange,
 }: DetailsPanelProps) {
   const { t } = useTranslation();
+  const isProgressiveLocked = useEditorStore((state) => isProgressiveMutationBlocked(state));
 
   const handleAdjustmentChange = (key: string, value: string) => {
     const numericValue = parseInt(value, 10);
@@ -44,6 +52,7 @@ export default function DetailsPanel({
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Sharpness, e.target.value)}
             step={1}
             value={adjustments.sharpness}
+            disabled={isProgressiveLocked}
             onDragStateChange={onDragStateChange}
           />
           {!isForMask && (
@@ -54,6 +63,7 @@ export default function DetailsPanel({
               onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.SharpnessThreshold, e.target.value)}
               step={1}
               value={adjustments.sharpnessThreshold ?? 15}
+              disabled={isProgressiveLocked}
               onDragStateChange={onDragStateChange}
               defaultValue={15}
               fillOrigin="min"
@@ -75,6 +85,7 @@ export default function DetailsPanel({
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Clarity, e.target.value)}
             step={1}
             value={adjustments.clarity}
+            disabled={isProgressiveLocked}
             onDragStateChange={onDragStateChange}
           />
           <Slider
@@ -84,6 +95,7 @@ export default function DetailsPanel({
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Dehaze, e.target.value)}
             step={1}
             value={adjustments.dehaze}
+            disabled={isProgressiveLocked}
             onDragStateChange={onDragStateChange}
           />
           <Slider
@@ -93,6 +105,7 @@ export default function DetailsPanel({
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Structure, e.target.value)}
             step={1}
             value={adjustments.structure}
+            disabled={isProgressiveLocked}
             onDragStateChange={onDragStateChange}
           />
           {!isForMask && (
@@ -103,6 +116,7 @@ export default function DetailsPanel({
               onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Centré, e.target.value)}
               step={1}
               value={adjustments.centré}
+              disabled={isProgressiveLocked}
               onDragStateChange={onDragStateChange}
             />
           )}
@@ -122,6 +136,7 @@ export default function DetailsPanel({
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.LumaNoiseReduction, e.target.value)}
             step={1}
             value={adjustments.lumaNoiseReduction}
+            disabled={isProgressiveLocked}
             onDragStateChange={onDragStateChange}
           />
           <Slider
@@ -131,6 +146,7 @@ export default function DetailsPanel({
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.ColorNoiseReduction, e.target.value)}
             step={1}
             value={adjustments.colorNoiseReduction}
+            disabled={isProgressiveLocked}
             onDragStateChange={onDragStateChange}
           />
         </AdjustmentSubSection>
@@ -149,6 +165,7 @@ export default function DetailsPanel({
             onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.ChromaticAberrationRedCyan, e.target.value)}
             step={1}
             value={adjustments.chromaticAberrationRedCyan}
+            disabled={isProgressiveLocked}
             onDragStateChange={onDragStateChange}
           />
           <Slider
@@ -160,6 +177,7 @@ export default function DetailsPanel({
             }
             step={1}
             value={adjustments.chromaticAberrationBlueYellow}
+            disabled={isProgressiveLocked}
             onDragStateChange={onDragStateChange}
           />
         </AdjustmentSubSection>

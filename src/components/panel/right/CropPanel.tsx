@@ -39,7 +39,12 @@ import Dropdown from '../../ui/Dropdown';
 import Button from '../../ui/Button';
 import { TEXT_COLOR_KEYS, TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
-import { useEditorActions } from '../../../hooks/useEditorActions';
+import {
+  useAutoStraighten,
+  useEditorActions,
+  type LensSelectionIntent as SourceFence,
+} from '../../../hooks/useEditorActions';
+import { sourceRenderPolicy, currentAccurateOpenKey, isCurrentOpenKey } from '../../../utils/progressiveOpen';
 import { calculateAreaPreservingCrop, calculateCenteredCrop } from '../../../utils/cropUtils';
 import { Crop } from 'react-image-crop';
 import { useShallow } from 'zustand/react/shallow';
@@ -72,6 +77,60 @@ const parseExifNumber = (val: any): number => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
+type LensDetectionStatus =
+  'idle' | 'waiting' | 'detecting' | 'missing_metadata' | 'no_match' | 'no_calibration' | 'error' | 'success';
+type LensListStatus = 'idle' | 'loading' | 'error';
+type LensParams = NonNullable<Adjustments['lensDistortionParams']>;
+
+interface LensExifInputs {
+  maker: string;
+  model: string;
+  cameraModel: string;
+  focalLength: number;
+  aperture: number;
+  distance: number;
+}
+
+interface LensRequest {
+  token: symbol;
+  sourceFence: SourceFence;
+  exif: LensExifInputs;
+}
+
+const getLensExifInputs = (image: { exif?: Record<string, unknown> } | null | undefined): LensExifInputs => ({
+  maker: typeof image?.exif?.Make === 'string' ? image.exif.Make : '',
+  model: typeof image?.exif?.LensModel === 'string' ? image.exif.LensModel : '',
+  cameraModel: typeof image?.exif?.Model === 'string' ? image.exif.Model : '',
+  focalLength: parseExifNumber(image?.exif?.FocalLength),
+  aperture: parseExifNumber(image?.exif?.FNumber),
+  distance: parseExifNumber(image?.exif?.SubjectDistance),
+});
+
+const hasUsableLensParams = (params: LensParams | null | undefined): params is LensParams => {
+  if (!params) return false;
+  const values = [
+    params.k1,
+    params.k2,
+    params.k3,
+    params.tca_vr,
+    params.tca_vb,
+    params.vig_k1,
+    params.vig_k2,
+    params.vig_k3,
+  ];
+  if (!values.every(Number.isFinite)) return false;
+  return (
+    Math.abs(params.k1) > 1e-6 ||
+    Math.abs(params.k2) > 1e-6 ||
+    Math.abs(params.k3) > 1e-6 ||
+    Math.abs(params.tca_vr - 1) > 1e-5 ||
+    Math.abs(params.tca_vb - 1) > 1e-5 ||
+    Math.abs(params.vig_k1) > 1e-6 ||
+    Math.abs(params.vig_k2) > 1e-6 ||
+    Math.abs(params.vig_k3) > 1e-6
+  );
+};
+
 const greatestCommonDivisor = (a: number, b: number): number => (b === 0 ? a : greatestCommonDivisor(b, a % b));
 
 const formatRatioLabel = (width: number, height: number): string => {
@@ -85,6 +144,35 @@ const formatRatioLabel = (width: number, height: number): string => {
   }
   return `${Number((width / height).toFixed(2))}:1`;
 };
+
+export function AutoStraightenControl() {
+  const { t } = useTranslation();
+  const { run, cancel, busy, canCancel, feedback, unavailable } = useAutoStraighten();
+  return (
+    <div className="mt-2 text-sm">
+      <button
+        type="button"
+        aria-label="Auto straighten"
+        disabled={busy || !!unavailable}
+        title={unavailable ?? undefined}
+        onClick={() => void run()}
+        className="rounded px-2 py-1 bg-surface disabled:opacity-50"
+      >
+        {busy
+          ? t('editor.crop.autoStraightenBusy', { defaultValue: 'Analysing…' })
+          : t('editor.crop.autoStraighten', { defaultValue: 'Auto straighten' })}
+      </button>
+      {busy && canCancel && (
+        <button type="button" onClick={cancel} aria-label="Cancel auto straighten">
+          {t('editor.crop.autoStraightenCancel', { defaultValue: 'Cancel' })}
+        </button>
+      )}
+      <p role="status" aria-live="polite">
+        {feedback || unavailable || ''}
+      </p>
+    </div>
+  );
+}
 
 export default function CropPanel() {
   const { t } = useTranslation();
@@ -103,6 +191,106 @@ export default function CropPanel() {
   const setEditor = useEditorStore((s) => s.setEditor);
   const { setAdjustments, handleRotate } = useEditorActions();
 
+  const clearLensSuccessTimer = useCallback(() => {
+    if (lensSuccessTimerRef.current !== null) {
+      clearTimeout(lensSuccessTimerRef.current);
+      lensSuccessTimerRef.current = null;
+    }
+  }, []);
+
+  const cancelLensRequests = useCallback(() => {
+    lensRequestTokenRef.current = Symbol('lens-request-cancelled');
+    lensListTokenRef.current = Symbol('lens-list-cancelled');
+    activeLensRequestRef.current = null;
+    clearLensSuccessTimer();
+  }, [clearLensSuccessTimer]);
+
+  const beginLensRequest = useCallback(
+    (_reason: string): LensRequest | null => {
+      if (!lensPanelMountedRef.current) return null;
+      const store = useEditorStore.getState();
+      const image = store.selectedImage;
+      if (!image?.path || sourceRenderPolicy(store) === 'locked') return null;
+      const openKey = currentAccurateOpenKey(store);
+      const token = Symbol('lens-request');
+      const sourceFence: SourceFence = {
+        path: image.path,
+        source: image,
+        adjustments: store.adjustments,
+        isCurrent: () => {
+          const current = useEditorStore.getState();
+          return (
+            lensPanelMountedRef.current &&
+            lensRequestTokenRef.current === token &&
+            activeLensRequestRef.current?.token === token &&
+            current.selectedImage === image &&
+            sourceRenderPolicy(current) !== 'locked' &&
+            (openKey ? isCurrentOpenKey(openKey, current, image.path, true) : !current.selectedImage?.openTicket)
+          );
+        },
+      };
+      const request = { token, sourceFence, exif: getLensExifInputs(image) };
+      lensRequestTokenRef.current = token;
+      lensListTokenRef.current = Symbol('lens-list-invalidated-by-selection');
+      setLensListStatus('idle');
+      activeLensRequestRef.current = request;
+      clearLensSuccessTimer();
+      setDetectionStatus('detecting');
+      return request;
+    },
+    [clearLensSuccessTimer],
+  );
+
+  const isLensRequestCurrent = useCallback((request: LensRequest) => {
+    return request.sourceFence.isCurrent() && useEditorStore.getState().adjustments === request.sourceFence.adjustments;
+  }, []);
+
+  const commitLensRequest = useCallback(
+    (request: LensRequest, value: Partial<Adjustments>): LensRequest | null => {
+      if (!isLensRequestCurrent(request)) return null;
+      lensCommittingRef.current = true;
+      let accepted;
+      try {
+        accepted = setAdjustments(value, request.sourceFence, { strictManualIntent: true });
+      } finally {
+        lensCommittingRef.current = false;
+      }
+      if (!accepted) return null;
+      const committedRequest = {
+        ...request,
+        sourceFence: { ...request.sourceFence, adjustments: useEditorStore.getState().adjustments },
+      };
+      activeLensRequestRef.current = committedRequest;
+      return isLensRequestCurrent(committedRequest) ? committedRequest : null;
+    },
+    [isLensRequestCurrent, setAdjustments],
+  );
+
+  const finishLensRequest = useCallback(
+    (request: LensRequest, status: LensDetectionStatus) => {
+      if (!isLensRequestCurrent(request)) return;
+      activeLensRequestRef.current = null;
+      setDetectionStatus(status);
+    },
+    [isLensRequestCurrent],
+  );
+
+  const showLensRequestSuccess = useCallback(
+    (request: LensRequest) => {
+      if (!isLensRequestCurrent(request)) return;
+      setDetectionStatus('success');
+      clearLensSuccessTimer();
+      lensSuccessTimerRef.current = setTimeout(() => {
+        lensSuccessTimerRef.current = null;
+        if (isLensRequestCurrent(request)) {
+          activeLensRequestRef.current = null;
+          setDetectionStatus('idle');
+        }
+      }, 2000);
+    },
+    [clearLensSuccessTimer, isLensRequestCurrent],
+  );
+
   const [customW, setCustomW] = useState('');
   const [customH, setCustomH] = useState('');
   const [isRotationActive, setIsRotationActive] = useState(false);
@@ -112,7 +300,15 @@ export default function CropPanel() {
   const [makers, setMakers] = useState<string[]>([]);
   const [lenses, setLenses] = useState<string[]>([]);
   const [myLenses, setMyLenses] = useState<any[]>([]);
-  const [detectionStatus, setDetectionStatus] = useState<'idle' | 'detecting' | 'not_found' | 'success'>('idle');
+  const [detectionStatus, setDetectionStatus] = useState<LensDetectionStatus>('idle');
+  const [lensListStatus, setLensListStatus] = useState<LensListStatus>('idle');
+  const lensPanelMountedRef = useRef(false);
+  const lensRequestTokenRef = useRef(Symbol('lens-request-initial'));
+  const activeLensRequestRef = useRef<LensRequest | null>(null);
+  const lensListTokenRef = useRef(Symbol('lens-list-initial'));
+  const lensSuccessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lensCommittingRef = useRef(false);
+  const loadedLensListRef = useRef<{ maker: string; source: SourceFence['source'] } | null>(null);
   const [localRotation, setLocalRotation] = useState<number | null>(null);
   const localRotationRef = useRef<number | null>(null);
 
@@ -232,24 +428,118 @@ export default function CropPanel() {
   const { aspectRatio, rotation = 0, flipHorizontal = false, flipVertical = false, orientationSteps = 0 } = adjustments;
 
   useEffect(() => {
-    invoke('get_lensfun_makers')
-      .then((m: any) => setMakers(m))
-      .catch(console.error);
+    lensPanelMountedRef.current = true;
+    return () => {
+      lensPanelMountedRef.current = false;
+      cancelLensRequests();
+    };
+  }, [cancelLensRequests]);
 
-    invoke('load_settings').then((settings: any) => {
-      if (settings?.myLenses) setMyLenses(settings.myLenses);
-    });
+  useEffect(
+    () =>
+      useEditorStore.subscribe((current, previous) => {
+        const sourceChanged =
+          current.selectedImage !== previous.selectedImage ||
+          current.pendingOpenIntent !== previous.pendingOpenIntent ||
+          current.progressiveOpen !== previous.progressiveOpen;
+        const editChanged =
+          current.adjustments !== previous.adjustments ||
+          (current.history === previous.history && current.historyIndex !== previous.historyIndex) ||
+          (current.history !== previous.history && current.history.length === 1);
+        if (sourceChanged || (!lensCommittingRef.current && editChanged)) {
+          cancelLensRequests();
+          setDetectionStatus('idle');
+          setLensListStatus('idle');
+          if (sourceChanged) {
+            loadedLensListRef.current = null;
+            setLenses([]);
+          }
+        }
+      }),
+    [cancelLensRequests],
+  );
+
+  useEffect(() => {
+    let active = true;
+    invoke<string[]>('get_lensfun_makers')
+      .then((makerList) => {
+        if (active && lensPanelMountedRef.current) setMakers(makerList);
+      })
+      .catch((error) => {
+        if (active && lensPanelMountedRef.current) console.error(error);
+      });
+
+    invoke<any>('load_settings')
+      .then((settings) => {
+        if (active && lensPanelMountedRef.current && settings?.myLenses) setMyLenses(settings.myLenses);
+      })
+      .catch((error) => {
+        if (active && lensPanelMountedRef.current) console.error(error);
+      });
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
-    if (adjustments.lensMaker) {
-      invoke('get_lensfun_lenses_for_maker', { maker: adjustments.lensMaker })
-        .then((l: any) => setLenses(l))
-        .catch(console.error);
-    } else {
+    const maker = adjustments.lensMaker;
+    const image = selectedImage;
+    const capturedAdjustments = adjustments;
+    const imagePath = image?.path;
+    const ownsListSource = () => {
+      const current = useEditorStore.getState();
+      return (
+        current.selectedImage === image &&
+        sourceRenderPolicy(current) !== 'locked' &&
+        current.adjustments === capturedAdjustments
+      );
+    };
+    const listToken = Symbol('lens-list-request');
+    lensListTokenRef.current = listToken;
+
+    if (!maker || !imagePath || !ownsListSource()) {
+      loadedLensListRef.current = null;
       setLenses([]);
+      setLensListStatus('idle');
+      return;
     }
-  }, [adjustments.lensMaker]);
+
+    if (loadedLensListRef.current?.maker === maker && loadedLensListRef.current.source === image) {
+      setLensListStatus('idle');
+      return;
+    }
+
+    setLensListStatus('loading');
+    invoke<string[]>('get_lensfun_lenses_for_maker', { maker })
+      .then((lensList) => {
+        const current = useEditorStore.getState();
+        if (
+          !lensPanelMountedRef.current ||
+          lensListTokenRef.current !== listToken ||
+          !ownsListSource() ||
+          current.adjustments.lensMaker !== maker
+        )
+          return;
+
+        loadedLensListRef.current = { maker, source: image };
+        setLenses(lensList);
+        setLensListStatus('idle');
+      })
+      .catch((error) => {
+        const current = useEditorStore.getState();
+        if (
+          !lensPanelMountedRef.current ||
+          lensListTokenRef.current !== listToken ||
+          !ownsListSource() ||
+          current.adjustments.lensMaker !== maker
+        )
+          return;
+
+        console.error(error);
+        setLensListStatus('error');
+      });
+  }, [adjustments, lensMode, selectedImage]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -608,89 +898,117 @@ export default function CropPanel() {
     [setEditor, updateLocalRotation, setAdjustments],
   );
 
-  const fetchDistortionParams = useCallback(
-    async (maker: string, model: string) => {
-      try {
-        const distParams: any = await invoke('get_lens_distortion_params', {
-          maker,
-          model,
-          focalLength: parseExifNumber(selectedImage?.exif?.FocalLength),
-          aperture: parseExifNumber(selectedImage?.exif?.FNumber),
-          distance: parseExifNumber(selectedImage?.exif?.SubjectDistance),
-        });
-        return distParams;
-      } catch (error) {
-        console.error('Failed to fetch lens distortion params', error);
-        return null;
-      }
-    },
-    [selectedImage?.exif],
-  );
+  const fetchDistortionParams = useCallback(async (maker: string, model: string, exif: LensExifInputs) => {
+    return invoke<LensParams | null>('get_lens_distortion_params', {
+      maker,
+      model,
+      focalLength: exif.focalLength,
+      aperture: exif.aperture,
+      distance: exif.distance,
+    });
+  }, []);
 
   const handleAutoDetectLens = useCallback(async () => {
-    const exifMaker = selectedImage?.exif?.Make;
-    const exifModel = selectedImage?.exif?.LensModel;
-    const exifCameraModel = selectedImage?.exif?.Model;
+    const request = beginLensRequest('auto-lens-correction');
+    if (!request) return;
 
-    if (!exifMaker || (!exifModel && !exifCameraModel)) {
-      setDetectionStatus('not_found');
+    const { exif } = request;
+    if (!exif.maker || (!exif.model && !exif.cameraModel)) {
+      finishLensRequest(request, 'missing_metadata');
       return;
     }
 
-    setDetectionStatus('detecting');
     try {
-      const result: [string, string] | null = await invoke('autodetect_lens', {
-        maker: exifMaker,
-        model: exifModel ?? '',
-        cameraModel: exifCameraModel ?? '',
+      const result = await invoke<[string, string] | null>('autodetect_lens', {
+        maker: exif.maker,
+        model: exif.model,
+        cameraModel: exif.cameraModel,
       });
+      if (!isLensRequestCurrent(request)) return;
 
       if (result) {
         const [detectedMaker, detectedModel] = result;
-        const distParams = await fetchDistortionParams(detectedMaker, detectedModel);
+        const distParams = await fetchDistortionParams(detectedMaker, detectedModel, exif);
+        if (!isLensRequestCurrent(request)) return;
+        if (!hasUsableLensParams(distParams)) {
+          finishLensRequest(request, 'no_calibration');
+          return;
+        }
 
-        setAdjustments((prev) => ({
-          ...prev,
+        const committed = commitLensRequest(request, {
           lensMaker: detectedMaker,
           lensModel: detectedModel,
           lensDistortionParams: distParams,
           lensCorrectionMode: 'auto',
-        }));
-
-        setDetectionStatus('success');
-        setTimeout(() => setDetectionStatus('idle'), 2000);
+        });
+        if (committed) showLensRequestSuccess(committed);
       } else {
-        setDetectionStatus('not_found');
+        finishLensRequest(request, 'no_match');
       }
     } catch {
-      setDetectionStatus('not_found');
+      finishLensRequest(request, 'error');
     }
-  }, [selectedImage?.exif, fetchDistortionParams, setAdjustments]);
+  }, [
+    beginLensRequest,
+    commitLensRequest,
+    fetchDistortionParams,
+    finishLensRequest,
+    isLensRequestCurrent,
+    showLensRequestSuccess,
+  ]);
 
   const handleMakerChange = useCallback(
     (maker: string) => {
+      if (sourceRenderPolicy(useEditorStore.getState()) === 'locked') return;
+      cancelLensRequests();
+      setDetectionStatus('idle');
       setAdjustments((prev) => ({
         ...prev,
         lensMaker: maker,
         lensModel: null,
         lensDistortionParams: null,
+        lensCorrectionMode: 'manual',
       }));
       setLenses([]);
+      setLensListStatus(maker ? 'loading' : 'idle');
+      loadedLensListRef.current = null;
     },
-    [setAdjustments],
+    [cancelLensRequests, setAdjustments],
   );
 
   const handleModelChange = useCallback(
     async (model: string) => {
-      if (!adjustments.lensMaker) return;
-      const distParams = await fetchDistortionParams(adjustments.lensMaker, model);
-      setAdjustments((prev) => ({
-        ...prev,
-        lensModel: model,
-        lensDistortionParams: distParams,
-      }));
+      const maker = useEditorStore.getState().adjustments.lensMaker;
+      if (!maker) return;
+      const request = beginLensRequest('manual-lens-model');
+      if (!request) return;
+      try {
+        const distParams = await fetchDistortionParams(maker, model, request.exif);
+        if (!isLensRequestCurrent(request)) return;
+        if (!hasUsableLensParams(distParams)) {
+          finishLensRequest(request, 'no_calibration');
+          return;
+        }
+
+        const committed = commitLensRequest(request, {
+          lensMaker: maker,
+          lensModel: model,
+          lensDistortionParams: distParams,
+          lensCorrectionMode: 'manual',
+        });
+        if (committed) showLensRequestSuccess(committed);
+      } catch {
+        finishLensRequest(request, 'error');
+      }
     },
-    [adjustments.lensMaker, fetchDistortionParams, setAdjustments],
+    [
+      beginLensRequest,
+      commitLensRequest,
+      fetchDistortionParams,
+      finishLensRequest,
+      isLensRequestCurrent,
+      showLensRequestSuccess,
+    ],
   );
 
   const handleMyLensSelect = useCallback(
@@ -700,20 +1018,50 @@ export default function CropPanel() {
       const selected = myLenses[index];
       if (!selected) return;
 
-      invoke('get_lensfun_lenses_for_maker', { maker: selected.maker })
-        .then((l: any) => setLenses(l))
-        .catch(console.error);
+      const request = beginLensRequest('saved-lens-selection');
+      if (!request) return;
+      setLensListStatus('loading');
+      let listLoaded = false;
+      try {
+        const lensList = await invoke<string[]>('get_lensfun_lenses_for_maker', { maker: selected.maker });
+        if (!isLensRequestCurrent(request)) return;
+        listLoaded = true;
+        const distParams = await fetchDistortionParams(selected.maker, selected.model, request.exif);
+        if (!isLensRequestCurrent(request)) return;
+        if (!hasUsableLensParams(distParams)) {
+          setLensListStatus('idle');
+          finishLensRequest(request, 'no_calibration');
+          return;
+        }
 
-      const distParams = await fetchDistortionParams(selected.maker, selected.model);
-
-      setAdjustments((prev) => ({
-        ...prev,
-        lensMaker: selected.maker,
-        lensModel: selected.model,
-        lensDistortionParams: distParams,
-      }));
+        const committed = commitLensRequest(request, {
+          lensMaker: selected.maker,
+          lensModel: selected.model,
+          lensDistortionParams: distParams,
+          lensCorrectionMode: 'manual',
+        });
+        if (committed) {
+          loadedLensListRef.current = { maker: selected.maker, source: committed.sourceFence.source };
+          setLenses(lensList);
+          setLensListStatus('idle');
+          showLensRequestSuccess(committed);
+        }
+      } catch {
+        if (isLensRequestCurrent(request)) {
+          setLensListStatus(listLoaded ? 'idle' : 'error');
+          finishLensRequest(request, 'error');
+        }
+      }
     },
-    [myLenses, fetchDistortionParams, setAdjustments],
+    [
+      beginLensRequest,
+      commitLensRequest,
+      fetchDistortionParams,
+      finishLensRequest,
+      isLensRequestCurrent,
+      myLenses,
+      showLensRequestSuccess,
+    ],
   );
 
   const hasDistortion =
@@ -738,6 +1086,63 @@ export default function CropPanel() {
     }));
   }, [myLenses, t]);
 
+  const renderLensStatus = (requestedStatus: LensDetectionStatus) => {
+    if (requestedStatus === 'idle') return null;
+    const status =
+      requestedStatus === 'success' && !hasUsableLensParams(adjustments.lensDistortionParams)
+        ? 'no_calibration'
+        : requestedStatus;
+    const isSuccess = status === 'success';
+    const isError = ['missing_metadata', 'no_match', 'no_calibration', 'error'].includes(status);
+    const message =
+      status === 'waiting'
+        ? t('modals.lensCorrection.waitingAutoDetect')
+        : status === 'detecting'
+          ? t('modals.lensCorrection.detectingExif')
+          : status === 'missing_metadata'
+            ? t('modals.lensCorrection.missingMetadata')
+            : status === 'no_match'
+              ? t('modals.lensCorrection.lensProfileNotFound')
+              : status === 'no_calibration'
+                ? t('modals.lensCorrection.calibrationUnavailable')
+                : status === 'error'
+                  ? t('modals.lensCorrection.requestError')
+                  : `${adjustments.lensMaker ?? ''} - ${adjustments.lensModel ?? ''}`;
+
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className={clsx(
+          'w-full flex items-center justify-center gap-2 p-3 text-sm rounded-md border transition-colors',
+          isError
+            ? 'bg-red-500/10 text-red-400 border-red-500/20'
+            : isSuccess
+              ? 'bg-green-500/10 text-green-400 border-green-500/20'
+              : 'bg-bg-primary border-surface text-text-secondary',
+        )}
+      >
+        {status === 'detecting' ? (
+          <Loader size={16} className="animate-spin" />
+        ) : isSuccess ? (
+          <Check size={16} />
+        ) : status === 'waiting' ? (
+          <Search size={16} />
+        ) : null}
+        {message}
+      </div>
+    );
+  };
+
+  const autoLensStatus: LensDetectionStatus =
+    detectionStatus !== 'idle'
+      ? detectionStatus
+      : adjustments.lensMaker && adjustments.lensModel
+        ? hasUsableLensParams(adjustments.lensDistortionParams)
+          ? 'success'
+          : 'no_calibration'
+        : 'waiting';
+
   useEffect(() => {
     const selectedIndex = lensMode === 'auto' ? 0 : 1;
     const targetX = `${selectedIndex * 100}%`;
@@ -760,12 +1165,16 @@ export default function CropPanel() {
 
   const handleModeChange = useCallback(
     (mode: 'auto' | 'manual') => {
-      setAdjustments((prev) => ({ ...prev, lensCorrectionMode: mode }));
       if (mode === 'auto') {
         handleAutoDetectLens();
+        return;
       }
+      if (sourceRenderPolicy(useEditorStore.getState()) === 'locked') return;
+      cancelLensRequests();
+      setDetectionStatus('idle');
+      setAdjustments((prev) => ({ ...prev, lensCorrectionMode: 'manual' }));
     },
-    [handleAutoDetectLens, setAdjustments],
+    [cancelLensRequests, handleAutoDetectLens, setAdjustments],
   );
 
   const handleTransformContextMenu = (e: React.MouseEvent) => {
@@ -804,8 +1213,12 @@ export default function CropPanel() {
     e.stopPropagation();
 
     const handleResetLens = () => {
+      if (sourceRenderPolicy(useEditorStore.getState()) === 'locked') return;
+      cancelLensRequests();
       setDetectionStatus('idle');
+      setLensListStatus('idle');
       setLenses([]);
+      loadedLensListRef.current = null;
       setAdjustments((prev: Adjustments) => ({
         ...prev,
         lensMaker: INITIAL_ADJUSTMENTS.lensMaker,
@@ -1020,6 +1433,7 @@ export default function CropPanel() {
                   onChange={handleFineRotationChange}
                   onDragStateChange={handleDragStateChange}
                 />
+                <AutoStraightenControl />
               </div>
             </div>
 
@@ -1425,32 +1839,7 @@ export default function CropPanel() {
                         </div>
 
                         {lensMode === 'auto' ? (
-                          <div
-                            className={clsx(
-                              'w-full flex items-center justify-center gap-2 p-3 text-sm rounded-md border transition-colors',
-                              detectionStatus === 'not_found'
-                                ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                                : adjustments.lensMaker
-                                  ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                                  : 'bg-bg-primary border-surface text-text-secondary',
-                            )}
-                          >
-                            {detectionStatus === 'detecting' ? (
-                              <>
-                                <Loader size={16} className="animate-spin" /> {t('modals.lensCorrection.detectingExif')}
-                              </>
-                            ) : detectionStatus === 'not_found' ? (
-                              t('modals.lensCorrection.lensProfileNotFound')
-                            ) : adjustments.lensMaker && adjustments.lensModel ? (
-                              <>
-                                <Check size={16} /> {adjustments.lensMaker} - {adjustments.lensModel}
-                              </>
-                            ) : (
-                              <>
-                                <Search size={16} /> {t('modals.lensCorrection.waitingAutoDetect')}
-                              </>
-                            )}
-                          </div>
+                          renderLensStatus(autoLensStatus)
                         ) : (
                           <>
                             <Dropdown
@@ -1472,6 +1861,23 @@ export default function CropPanel() {
                                 onChange={handleModelChange}
                                 placeholder={t('modals.lensCorrection.selectLensModel')}
                               />
+                            )}
+                            {renderLensStatus(detectionStatus)}
+                            {lensListStatus === 'loading' && (
+                              <Text as="div" variant={TextVariants.small} role="status" aria-live="polite">
+                                {t('modals.lensCorrection.loadingLensList')}
+                              </Text>
+                            )}
+                            {lensListStatus === 'error' && (
+                              <Text
+                                as="div"
+                                variant={TextVariants.small}
+                                role="status"
+                                aria-live="polite"
+                                color={TextColors.error}
+                              >
+                                {t('modals.lensCorrection.lensListError')}
+                              </Text>
                             )}
                           </>
                         )}

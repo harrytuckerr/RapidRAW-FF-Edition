@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { homeDir } from '@tauri-apps/api/path';
@@ -11,9 +11,10 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { Invokes, LibraryViewMode, ImageFile } from '../components/ui/AppProperties';
 import { INITIAL_ADJUSTMENTS, normalizeLoadedAdjustments } from '../utils/adjustments';
 import { globalImageCache } from '../utils/ImageLRUCache';
-import { debouncedSave, debouncedSetHistory } from './useEditorActions';
+import { debouncedSave, debouncedSetHistory, flushEditorSavesBeforeOpen } from './useEditorActions';
 import { clearLibrarySelection } from './useLibraryActions';
 import { computeSortedLibrary } from './useSortedLibrary';
+import { createOpenTicket, serializeOpenAdmission } from '../utils/progressiveOpen';
 
 export interface AppNavigationProps {
   clearThumbnailQueue: () => void;
@@ -95,6 +96,7 @@ const loadExifForImages = async (
 };
 
 export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationProps) {
+  const lifecycleRef = useRef(true);
   const {
     transformWrapperRef,
     preloadedDataRef,
@@ -106,6 +108,15 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
     currentResRef,
     prevAdjustmentsRef,
   } = refs;
+
+  useEffect(() => {
+    lifecycleRef.current = true;
+    return () => {
+      lifecycleRef.current = false;
+      const pending = useEditorStore.getState().pendingOpenIntent;
+      if (pending) useEditorStore.getState().failProgressiveIntent(pending.ticket);
+    };
+  }, []);
 
   const handleGoHome = useCallback(() => {
     useLibraryStore.getState().setLibrary({
@@ -127,9 +138,17 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
     const { setLibrary } = useLibraryStore.getState();
     const { setUI } = useUIStore.getState();
 
-    if (selectedImage?.path && cachedEditStateRef.current) {
+    if (selectedImage?.path && !selectedImage.openTicket && cachedEditStateRef.current) {
       globalImageCache.set(selectedImage.path, cachedEditStateRef.current);
     }
+    const progressive = useEditorStore.getState().progressiveOpen;
+    const pendingIntent = useEditorStore.getState().pendingOpenIntent;
+    if (pendingIntent) useEditorStore.getState().failProgressiveIntent(pendingIntent.ticket);
+    if (progressive?.openKey) {
+      void serializeOpenAdmission(() => invoke(Invokes.CancelImageOpen, { openKey: progressive.openKey }));
+    }
+    if (progressive?.placeholderUrl) URL.revokeObjectURL(progressive.placeholderUrl);
+    useEditorStore.getState().cancelProgressiveOpen(progressive?.ticket);
     if (transformWrapperRef.current) {
       transformWrapperRef.current.resetTransform(0);
     }
@@ -159,7 +178,8 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
 
   const handleImageSelect = useCallback(
     async (path: string, openInEditor: boolean = true) => {
-      const { selectedImage, isSliderDragging, resetHistory, setEditor } = useEditorStore.getState();
+      const initialState = useEditorStore.getState();
+      const { selectedImage, setEditor } = initialState;
       const { setLibrary, multiSelectedPaths } = useLibraryStore.getState();
       const { setUI } = useUIStore.getState();
 
@@ -167,35 +187,46 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         setUI({ activeView: 'editor' });
       }
 
-      if (selectedImage?.path === path) return;
+      if (selectedImage?.path === path && selectedImage.isReady && initialState.progressiveOpen?.phase === 'Accurate') {
+        if (initialState.pendingOpenIntent) {
+          useEditorStore.getState().failProgressiveIntent(initialState.pendingOpenIntent.ticket);
+          setLibrary({ libraryActivePath: path });
+        }
+        return;
+      }
+      let ticket: string;
+      try {
+        ticket = createOpenTicket();
+      } catch (error) {
+        toast.error(`Unable to open image safely: ${error}`);
+        return;
+      }
 
-      useEditorStore.getState().patchesSentToBackend.clear();
-      debouncedSave.flush();
-      debouncedSetHistory.cancel();
-
-      if (selectedImage?.path && cachedEditStateRef.current) {
+      const priorProgress = initialState.progressiveOpen;
+      const priorKey = priorProgress?.openKey ?? selectedImage?.openKey ?? null;
+      const priorPreview = initialState.finalPreviewUrl;
+      const priorPlaceholder = priorProgress?.placeholderUrl;
+      if (
+        selectedImage?.path &&
+        !selectedImage.openTicket &&
+        !initialState.pendingOpenIntent &&
+        cachedEditStateRef.current
+      ) {
         globalImageCache.set(selectedImage.path, cachedEditStateRef.current);
       }
+      if (priorPlaceholder) URL.revokeObjectURL(priorPlaceholder);
+      if (priorProgress && (priorProgress.phase === 'Pending' || priorProgress.phase === 'Refining')) {
+        useEditorStore.getState().cancelProgressiveOpen(priorProgress?.ticket);
+      }
+      const cancelPrior = priorKey
+        ? serializeOpenAdmission(() => invoke(Invokes.CancelImageOpen, { openKey: priorKey }))
+        : Promise.resolve(null);
 
       const cachedThumb = useProcessStore.getState().thumbnails[path];
       const cachedMedium = useProcessStore.getState().mediumThumbnails[path] || cachedThumb;
-
-      const cached = globalImageCache.get(path);
-      const isFrontendCached = Boolean(cached && cached.selectedImage?.isReady);
-      const isCachedInBackend = isFrontendCached
-        ? await invoke<boolean>('is_image_cached', { path }).catch(() => false)
-        : false;
-
-      const hasDifferentResolution =
-        cached &&
-        (useEditorStore.getState().originalSize.width !== cached.originalSize.width ||
-          useEditorStore.getState().originalSize.height !== cached.originalSize.height);
-
-      if (!isCachedInBackend || hasDifferentResolution) {
-        setEditor({ hasRenderedFirstFrame: false });
-      }
-
-      selectedImagePathRef.current = path;
+      const imageFile = useLibraryStore.getState().imageList.find((img) => img.path === path);
+      useEditorStore.getState().prepareProgressiveIntent(ticket, path);
+      debouncedSetHistory.cancel();
 
       const newMultiSelectedPaths = multiSelectedPaths.includes(path) ? multiSelectedPaths : [path];
 
@@ -222,108 +253,47 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         compactEditorPanelHeightOverride: null,
       });
 
-      if (isFrontendCached) {
-        setEditor({
-          selectedImage: {
-            ...cached.selectedImage,
-            thumbnailUrl: cachedMedium || cached.selectedImage.thumbnailUrl,
-          },
-          originalSize: cached.originalSize,
-          previewSize: cached.previewSize,
-          histogram: cached.histogram,
-          waveform: cached.waveform,
-          finalPreviewUrl: cached.finalPreviewUrl,
-          uncroppedAdjustedPreviewUrl: cached.uncroppedPreviewUrl,
-        });
-
-        setEditor({ adjustments: cached.adjustments });
-        resetHistory(cached.adjustments);
-        prevAdjustmentsRef.current = { path, adjustments: cached.adjustments };
-
-        setLibrary({ isViewLoading: false });
-
-        latestRenderedJobIdRef.current = previewJobIdRef.current;
+      try {
+        await cancelPrior;
+        if (!lifecycleRef.current || useEditorStore.getState().pendingOpenIntent?.ticket !== ticket) return;
+        const saved = await flushEditorSavesBeforeOpen();
+        if (!lifecycleRef.current || useEditorStore.getState().pendingOpenIntent?.ticket !== ticket) return;
+        if (!saved) {
+          useEditorStore.getState().failProgressiveIntent(ticket);
+          if (selectedImage?.path) setLibrary({ libraryActivePath: selectedImage.path });
+          toast.error('SavePending: the previous image changes could not be saved, so this image was not opened.');
+          return;
+        }
+        if (
+          !useEditorStore
+            .getState()
+            .activateProgressiveIntent(ticket, path, cachedMedium || '', imageFile?.group_id ?? null)
+        )
+          return;
+        useEditorStore.getState().patchesSentToBackend.clear();
+        selectedImagePathRef.current = path;
         isBackendReadyRef.current = false;
-        currentResRef.current = Infinity;
+        currentResRef.current = 0;
+        latestRenderedJobIdRef.current = previewJobIdRef.current;
+        prevAdjustmentsRef.current = { path, adjustments: useEditorStore.getState().adjustments };
+        setLibrary({ isViewLoading: true });
 
-        invoke(Invokes.LoadImage, { path })
-          .then((_result: any) => {
-            if (selectedImagePathRef.current !== path) return;
-            isBackendReadyRef.current = true;
-            currentResRef.current = 0;
-            setEditor({ originalSize: { width: _result.width, height: _result.height } });
-          })
-          .catch((err: any) => {
-            if (String(err).includes('cancelled')) return;
-            console.error('Background load_image failed on cache hit:', err);
-            isBackendReadyRef.current = true;
-            currentResRef.current = 0;
-          });
-
-        invoke(Invokes.LoadMetadata, { path })
-          .then((metadata: any) => {
-            if (selectedImagePathRef.current !== path) return;
-            let freshAdjustments: any;
-            if (metadata.adjustments && !metadata.adjustments.is_null) {
-              freshAdjustments = normalizeLoadedAdjustments(metadata.adjustments);
-            } else {
-              freshAdjustments = { ...INITIAL_ADJUSTMENTS };
-            }
-            if (freshAdjustments.aspectRatio == null && cached.adjustments.aspectRatio != null) {
-              freshAdjustments.aspectRatio = cached.adjustments.aspectRatio;
-            }
-            if (!isSliderDragging && JSON.stringify(cached.adjustments) !== JSON.stringify(freshAdjustments)) {
-              setEditor({ adjustments: freshAdjustments });
-              resetHistory(freshAdjustments);
-              prevAdjustmentsRef.current = { path, adjustments: freshAdjustments };
-              globalImageCache.set(path, { ...cached, adjustments: freshAdjustments });
-            }
-          })
-          .catch((err) => console.error('Failed background metadata sync on cache hit:', err));
-
-        return;
-      }
-
-      isBackendReadyRef.current = true;
-
-      const imageFile = useLibraryStore.getState().imageList.find((img) => img.path === path);
-      setEditor({
-        selectedImage: {
-          exif: null,
-          group_id: imageFile?.group_id ?? null,
-          height: 0,
-          isRaw: false,
-          isReady: false,
-          metadata: null,
-          path,
-          thumbnailUrl: cachedMedium,
-          width: 0,
-        },
-        originalSize: { width: 0, height: 0 },
-        previewSize: { width: 0, height: 0 },
-        histogram: null,
-        waveform: null,
-        uncroppedAdjustedPreviewUrl: null,
-      });
-
-      setLibrary({ isViewLoading: true });
-
-      setEditor((state) => {
-        const prev = state.finalPreviewUrl;
-        if (prev?.startsWith('blob:') && !globalImageCache.isProtected(prev)) {
+        if (priorPreview?.startsWith('blob:') && !globalImageCache.isProtected(priorPreview)) {
           setTimeout(() => {
-            if (!globalImageCache.isProtected(prev)) {
-              URL.revokeObjectURL(prev);
-            }
+            if (!globalImageCache.isProtected(priorPreview)) URL.revokeObjectURL(priorPreview);
           }, 250);
         }
-        return { finalPreviewUrl: null };
-      });
-
-      setEditor((state) => {
-        if (state.interactivePatch?.url) URL.revokeObjectURL(state.interactivePatch.url);
-        return { interactivePatch: null };
-      });
+        setEditor((state) => {
+          if (state.interactivePatch?.url) URL.revokeObjectURL(state.interactivePatch.url);
+          return { interactivePatch: null };
+        });
+      } catch (error) {
+        if (useEditorStore.getState().pendingOpenIntent?.ticket === ticket) {
+          useEditorStore.getState().failProgressiveIntent(ticket);
+          if (selectedImage?.path) setLibrary({ libraryActivePath: selectedImage.path });
+          toast.error(`SavePending: ${error}`);
+        }
+      }
     },
     [refs],
   );
@@ -397,6 +367,14 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         });
 
         if (!preserveEditor && selectedImage) {
+          const pendingIntent = useEditorStore.getState().pendingOpenIntent;
+          if (pendingIntent) useEditorStore.getState().failProgressiveIntent(pendingIntent.ticket);
+          const progressive = useEditorStore.getState().progressiveOpen;
+          if (progressive?.openKey) {
+            void serializeOpenAdmission(() => invoke(Invokes.CancelImageOpen, { openKey: progressive.openKey }));
+          }
+          if (progressive?.placeholderUrl) URL.revokeObjectURL(progressive.placeholderUrl);
+          useEditorStore.getState().cancelProgressiveOpen(progressive?.ticket);
           debouncedSave.flush();
           debouncedSetHistory.cancel();
           setEditor({ selectedImage: null, finalPreviewUrl: null, uncroppedAdjustedPreviewUrl: null, histogram: null });
@@ -450,6 +428,14 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       }
 
       if (!preserveEditor) {
+        const pendingIntent = useEditorStore.getState().pendingOpenIntent;
+        if (pendingIntent) useEditorStore.getState().failProgressiveIntent(pendingIntent.ticket);
+        const progressive = useEditorStore.getState().progressiveOpen;
+        if (progressive?.openKey) {
+          void serializeOpenAdmission(() => invoke(Invokes.CancelImageOpen, { openKey: progressive.openKey }));
+        }
+        if (progressive?.placeholderUrl) URL.revokeObjectURL(progressive.placeholderUrl);
+        useEditorStore.getState().cancelProgressiveOpen(progressive?.ticket);
         await invoke('cancel_thumbnail_generation');
         clearThumbnailQueue();
         setLibrary({ libraryScrollTop: 0 });

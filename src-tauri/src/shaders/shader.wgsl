@@ -30,6 +30,11 @@ struct ColorCalibrationSettings {
     _pad1: f32,
 }
 
+struct PointColourUniform {
+    center: f32, width: f32, hue: f32, saturation: f32,
+    luminance: f32, state: u32, _pad0: u32, _pad1: u32,
+}
+
 struct GlobalAdjustments {
     exposure: f32,
     brightness: f32,
@@ -99,6 +104,8 @@ struct GlobalAdjustments {
 
     color_calibration: ColorCalibrationSettings,
 
+    point_colour: PointColourUniform,
+    point_probe: vec4<u32>,
     hsl: array<HslColor, 8>,
     luma_curve: array<Point, 16>,
     red_curve: array<Point, 16>,
@@ -246,6 +253,8 @@ override HIGH_PRECISION_OUTPUT: u32 = 0u;
 @group(0) @binding(14) var dcp_huesat_tex: texture_3d<f32>;
 @group(0) @binding(15) var dcp_look_tex: texture_3d<f32>;
 @group(0) @binding(16) var dcp_tone_curve_tex: texture_1d<f32>;
+
+@group(0) @binding(17) var point_sample: texture_storage_2d<rgba32float, write>;
 
 const LUMA_COEFF = vec3<f32>(0.2126, 0.7152, 0.0722);
 
@@ -777,6 +786,26 @@ fn apply_hsl_panel(color: vec3<f32>, hsl_adjustments: array<HslColor, 8>, coords
     }
     let final_color = hs_shifted_rgb * (target_luma / new_luma);
     return final_color;
+}
+
+fn apply_point_colour(color: vec3<f32>, point: PointColourUniform) -> vec3<f32> {
+    if (point.state != 1u || (point.hue == 0.0 && point.saturation == 0.0 && point.luminance == 0.0)) { return color; }
+    let safe_color = max(color, vec3<f32>(0.0));
+    if (distance(safe_color.r, safe_color.g) < 0.001 && distance(safe_color.g, safe_color.b) < 0.001) { return safe_color; }
+    let hsv = rgb_to_hsv(linear_to_srgb_extended(safe_color));
+    let y = get_luma(safe_color);
+    let weight = get_raw_hsl_influence(hsv.x, point.center, point.width);
+    let hs = weight * smoothstep(0.05, 0.20, hsv.y);
+    let lum = weight * smoothstep(0.0, 1.0, hsv.y);
+    let saturation = hsv.y * (1.0 + point.saturation * hs);
+    let point_target_luma = y * (1.0 + point.luminance * lum);
+    if (saturation < 0.0001) { return vec3<f32>(point_target_luma); }
+    let shifted = srgb_to_linear(hsv_to_rgb(vec3<f32>(
+        (hsv.x + point.hue * 2.0 * hs + 360.0) % 360.0,
+        clamp(saturation, 0.0, 1.0), hsv.z)));
+    let new_y = get_luma(shifted);
+    if (new_y < 0.0001) { return vec3<f32>(max(0.0, point_target_luma)); }
+    return shifted * (point_target_luma / new_y);
 }
 
 fn apply_color_grading(color: vec3<f32>, shadows: ColorGradeSettings, midtones: ColorGradeSettings, highlights: ColorGradeSettings, global: ColorGradeSettings, blending: f32, balance: f32) -> vec3<f32> {
@@ -1882,6 +1911,16 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     composite_rgb_linear = apply_highlights_adjustment(composite_rgb_linear, tonal_log_detail, tonal_mid_detail, is_raw, t_highlights);
     composite_rgb_linear = apply_color_calibration(composite_rgb_linear, adjustments.global.color_calibration);
     composite_rgb_linear = apply_hsl_panel(composite_rgb_linear, final_hsl, absolute_coord_i);
+    if (adjustments.global.point_probe.z == 1u && adjustments.global.point_probe.w == 0u && all(vec2<u32>(absolute_coord_i) == adjustments.global.point_probe.xy)) {
+        textureStore(point_sample, vec2<i32>(0, 0), vec4<f32>(composite_rgb_linear, 1.0));
+        textureStore(point_sample, vec2<i32>(1, 0), vec4<f32>(rgb_to_hsv(linear_to_srgb_extended(composite_rgb_linear)), 1.0));
+    }
+    composite_rgb_linear = apply_point_colour(composite_rgb_linear, adjustments.global.point_colour);
+    // Internal test observation only; the production sampling API always sets w=0.
+    if (adjustments.global.point_probe.z == 1u && adjustments.global.point_probe.w == 1u && all(vec2<u32>(absolute_coord_i) == adjustments.global.point_probe.xy)) {
+        textureStore(point_sample, vec2<i32>(0, 0), vec4<f32>(composite_rgb_linear, 1.0));
+        textureStore(point_sample, vec2<i32>(1, 0), vec4<f32>(rgb_to_hsv(linear_to_srgb_extended(composite_rgb_linear)), 1.0));
+    }
     composite_rgb_linear = apply_hue_shift(composite_rgb_linear, t_hue);
     composite_rgb_linear = apply_creative_color(composite_rgb_linear, t_saturation, t_vibrance);
 

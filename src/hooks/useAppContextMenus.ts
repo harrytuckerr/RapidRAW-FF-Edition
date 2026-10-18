@@ -66,11 +66,69 @@ import {
   Album,
   AlbumGroup,
 } from '../components/ui/AppProperties';
-import { Color, COLOR_LABELS, INITIAL_ADJUSTMENTS, normalizeLoadedAdjustments } from '../utils/adjustments';
+import {
+  type Adjustments,
+  Color,
+  COLOR_LABELS,
+  INITIAL_ADJUSTMENTS,
+  normalizeLoadedAdjustments,
+} from '../utils/adjustments';
 import TaggingSubMenu from '../context/TaggingSubMenu';
 import { useEditorActions } from './useEditorActions';
 import { useLibraryActions } from './useLibraryActions';
 import { globalImageCache } from '../utils/ImageLRUCache';
+import { currentAccurateOpenKey, isCurrentOpenKey, isProgressiveMutationBlocked } from '../utils/progressiveOpen';
+import type { OpenKey } from '../utils/progressiveOpen';
+
+type EditorStoreSnapshot = ReturnType<typeof useEditorStore.getState>;
+type EditorSourceOwner = {
+  path: string;
+  image: NonNullable<EditorStoreSnapshot['selectedImage']>;
+  openKey: OpenKey | null;
+};
+
+function captureEditorSourceOwner(state: EditorStoreSnapshot = useEditorStore.getState()): EditorSourceOwner | null {
+  const image = state.selectedImage;
+  if (!image || state.pendingOpenIntent || isProgressiveMutationBlocked(state) || !image.isReady) return null;
+
+  if (image.openTicket) {
+    const openKey = currentAccurateOpenKey(state);
+    return openKey?.ticket === image.openTicket ? { path: image.path, image, openKey } : null;
+  }
+
+  return { path: image.path, image, openKey: null };
+}
+
+function ownsCurrentEditorSource(owner: EditorSourceOwner | null, state: EditorStoreSnapshot): boolean {
+  const image = state.selectedImage;
+  if (!owner || !image || state.pendingOpenIntent || image.path !== owner.path) return false;
+
+  if (owner.openKey) {
+    return image.openTicket === owner.openKey.ticket && isCurrentOpenKey(owner.openKey, state, owner.path, true);
+  }
+
+  return image === owner.image && !image.openTicket && image.isReady && !isProgressiveMutationBlocked(state);
+}
+
+function filterProgressiveBatchPaths(paths: string[], state: EditorStoreSnapshot): string[] {
+  const blockedPaths = new Set<string>();
+  if (state.pendingOpenIntent?.path) blockedPaths.add(state.pendingOpenIntent.path);
+  const selected = state.selectedImage;
+  if (
+    selected &&
+    (!selected.isReady ||
+      isProgressiveMutationBlocked(state) ||
+      (selected.openTicket && !currentAccurateOpenKey(state)))
+  )
+    blockedPaths.add(selected.path);
+  return paths.filter((path) => !blockedPaths.has(path));
+}
+
+function commitOwnedAdjustmentsAndResetHistory(owner: EditorSourceOwner | null, adjustments: Adjustments): void {
+  useEditorStore.setState((state) =>
+    ownsCurrentEditorSource(owner, state) ? { adjustments, history: [adjustments], historyIndex: 0 } : state,
+  );
+}
 
 export interface UseAppContextMenusProps {
   handleImageSelect: (path: string) => void;
@@ -199,8 +257,9 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       event.preventDefault();
       event.stopPropagation();
 
-      const { selectedImage, history, historyIndex, undo, redo, resetHistory, copiedAdjustments, setEditor } =
-        useEditorStore.getState();
+      const editorState = useEditorStore.getState();
+      const { selectedImage, history, historyIndex, undo, redo, copiedAdjustments } = editorState;
+      const editorSourceOwner = captureEditorSourceOwner(editorState);
       const { appSettings } = useSettingsStore.getState();
       const { setPanel, setUI } = useUIStore.getState();
 
@@ -343,14 +402,15 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               icon: Check,
               isDestructive: true,
               onClick: () => {
+                if (!ownsCurrentEditorSource(editorSourceOwner, useEditorStore.getState())) return;
                 const originalAspectRatio =
                   selectedImage.width && selectedImage.height ? selectedImage.width / selectedImage.height : null;
-                resetHistory({
+                const resetAdjustments: Adjustments = {
                   ...INITIAL_ADJUSTMENTS,
                   aspectRatio: originalAspectRatio,
                   aiPatches: [],
-                });
-                setEditor({ adjustments: { ...INITIAL_ADJUSTMENTS, aspectRatio: originalAspectRatio, aiPatches: [] } });
+                };
+                commitOwnedAdjustmentsAndResetHistory(editorSourceOwner, resetAdjustments);
               },
             },
           ],
@@ -377,7 +437,7 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       event.preventDefault();
       event.stopPropagation();
 
-      const { selectedImage, copiedAdjustments, setEditor } = useEditorStore.getState();
+      const { selectedImage, copiedAdjustments } = useEditorStore.getState();
       const { multiSelectedPaths, imageList, libraryActivePath, albumTree, activeAlbumId, setLibrary } =
         useLibraryStore.getState();
       const { appSettings } = useSettingsStore.getState();
@@ -496,22 +556,34 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       };
 
       const handleApplyAutoAdjustmentsToSelection = () => {
-        const editingPath = activeView === 'editor' ? selectedImage?.path : undefined;
-        const batchPaths = finalSelection.filter((p) => p !== editingPath);
-        if (batchPaths.length < finalSelection.length) {
-          handleAutoAdjustments();
-        }
+        const editorStateAtAction = useEditorStore.getState();
+        const currentView = useUIStore.getState().activeView;
+        const selectedImageAtAction = editorStateAtAction.selectedImage;
+        const editingPath = currentView === 'editor' ? selectedImageAtAction?.path : undefined;
+        const batchPaths = filterProgressiveBatchPaths(
+          finalSelection.filter((path) => path !== editingPath),
+          editorStateAtAction,
+        );
+        const editorSourceOwner = captureEditorSourceOwner(editorStateAtAction);
+        if (editingPath && finalSelection.includes(editingPath)) handleAutoAdjustments();
         if (batchPaths.length === 0) return;
         batchPaths.forEach((p) => globalImageCache.delete(p));
 
         invoke(Invokes.ApplyAutoAdjustmentsToPaths, { paths: batchPaths })
           .then(async () => {
-            if (selectedImage && batchPaths.includes(selectedImage.path)) {
-              const metadata: any = await invoke(Invokes.LoadMetadata, { path: selectedImage.path });
-              if (metadata.adjustments && !metadata.adjustments.is_null) {
+            if (
+              selectedImageAtAction &&
+              batchPaths.includes(selectedImageAtAction.path) &&
+              ownsCurrentEditorSource(editorSourceOwner, useEditorStore.getState())
+            ) {
+              const metadata: any = await invoke(Invokes.LoadMetadata, { path: selectedImageAtAction.path });
+              if (
+                metadata.adjustments &&
+                !metadata.adjustments.is_null &&
+                ownsCurrentEditorSource(editorSourceOwner, useEditorStore.getState())
+              ) {
                 const normalized = normalizeLoadedAdjustments(metadata.adjustments);
-                setEditor({ adjustments: normalized });
-                useEditorStore.getState().resetHistory(normalized);
+                commitOwnedAdjustmentsAndResetHistory(editorSourceOwner, normalized);
               }
             }
             if (libraryActivePath && batchPaths.includes(libraryActivePath)) {

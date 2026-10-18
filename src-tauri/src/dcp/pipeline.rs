@@ -66,7 +66,7 @@ fn check_cancel(cancel: &Cancel) -> Result<(), String> {
     Ok(())
 }
 
-fn matches_camera(profile_camera: &str, make: &str, model: &str, clean: &str) -> bool {
+pub(super) fn matches_camera(profile_camera: &str, make: &str, model: &str, clean: &str) -> bool {
     !profile_camera.trim().is_empty()
         && [
             model.to_string(),
@@ -90,7 +90,7 @@ fn load_base(registry: &ProfileRegistry, id: &str) -> Result<DcpProfile, String>
         .ok_or_else(|| "Selected DCP content changed; rescan and select the profile again".into())
 }
 
-fn validate_pairing(
+pub(super) fn validate_pairing(
     profile: &DcpProfile,
     required: &str,
     restriction: Option<&str>,
@@ -139,24 +139,41 @@ fn render_working(
     Ok(DynamicImage::ImageRgb32F(rgb))
 }
 
-/// `None` means no selection. `Some` is ready for ordinary GPU adjustments;
-/// callers must not apply DCP GPU uniforms or another working-space conversion.
-/// RAW development must return unoriented, un-white-balanced camera-native RGB.
-#[allow(clippy::too_many_arguments)]
-pub fn render_selected_profile(
-    bytes: &[u8],
+/// Owned parsed assets for one selection. Both developments borrow this exact
+/// snapshot; neither renderer reopens registry paths or rereads Amount.
+pub(crate) struct SelectedProfileAssets {
+    profile: DcpProfile,
+    look: Option<super::look_xmp::CobaltLook>,
+    amount: Option<Value>,
+}
+
+/// Identity of these already-parsed owned assets, never registry/path/UUID state.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct SelectedProfileIdentity {
+    base: super::model::ProfileId,
+    look: Option<super::look_xmp::LookId>,
+    amount: Option<Value>,
+}
+impl SelectedProfileAssets {
+    pub(crate) fn content_identity(&self) -> SelectedProfileIdentity {
+        SelectedProfileIdentity {
+            base: self.profile.id,
+            look: self.look.as_ref().map(|look| look.id.clone()),
+            amount: self.amount.clone(),
+        }
+    }
+}
+
+pub(crate) fn prepare_selected_profile(
     adjustments: &Value,
     registry: &ProfileRegistry,
-    fast: bool,
-    highlight: f32,
-    linear_mode: String,
-    cancel: Cancel,
-) -> Result<Option<DynamicImage>, String> {
+    cancel: &Cancel,
+) -> Result<Option<SelectedProfileAssets>, String> {
     let (base, look_id) = selection(adjustments)?;
     if base.is_none() && look_id.is_none() {
         return Ok(None);
     }
-    check_cancel(&cancel)?;
+    check_cancel(cancel)?;
     let base = base.ok_or("Selected Look requires an explicitly selected base DCP")?;
     let look = look_id
         .map(|id| {
@@ -174,6 +191,33 @@ pub fn render_selected_profile(
         })
         .transpose()?;
     let profile = load_base(registry, &base)?;
+    let amount = adjustments
+        .get("profile")
+        .and_then(|p| p.get("amount"))
+        .cloned();
+    Ok(Some(SelectedProfileAssets {
+        profile,
+        look,
+        amount,
+    }))
+}
+
+/// `None` means no selection. `Some` is ready for ordinary GPU adjustments;
+/// callers must not apply DCP GPU uniforms or another working-space conversion.
+/// RAW development must return unoriented, un-white-balanced camera-native RGB.
+#[allow(clippy::too_many_arguments)]
+pub fn render_selected_profile(
+    bytes: &[u8],
+    adjustments: &Value,
+    registry: &ProfileRegistry,
+    fast: bool,
+    highlight: f32,
+    linear_mode: String,
+    cancel: Cancel,
+) -> Result<Option<DynamicImage>, String> {
+    let Some(assets) = prepare_selected_profile(adjustments, registry, &cancel)? else {
+        return Ok(None);
+    };
     let (image, orientation, meta) = crate::raw_processing::develop_raw_image_with_meta(
         bytes,
         fast,
@@ -183,9 +227,49 @@ pub fn render_selected_profile(
         cancel.clone(),
     )
     .map_err(|e| format!("Profile RAW development failed: {e}"))?;
+    render_profile_camera_image(image, orientation, &meta, &assets, &cancel).map(Some)
+}
+
+pub(crate) fn render_prepared_selected_profile(
+    prepared: &crate::raw_processing::PreparedRaw,
+    assets: &SelectedProfileAssets,
+    quality: crate::raw_processing::PreparedQuality,
+    highlight: f32,
+    linear_mode: &str,
+    cancel: Cancel,
+) -> Result<DynamicImage, String> {
+    #[cfg(debug_assertions)]
+    let profile_raw_started = std::time::Instant::now();
+    let (image, orientation, meta) = crate::raw_processing::develop_prepared_raw(
+        prepared,
+        quality,
+        highlight,
+        linear_mode,
+        true,
+        cancel.clone(),
+    )
+    .map_err(|e| format!("Profile RAW development failed: {e}"))?;
+    #[cfg(debug_assertions)]
+    log::info!(
+        "[preview-stage] stage=profile_raw elapsed={}ns outcome=completed",
+        profile_raw_started.elapsed().as_nanos()
+    );
+    render_profile_camera_image(image, orientation, &meta, assets, &cancel)
+}
+
+fn render_profile_camera_image(
+    image: DynamicImage,
+    orientation: rawler::decoders::Orientation,
+    meta: &crate::raw_processing::RawImageMeta,
+    assets: &SelectedProfileAssets,
+    cancel: &Cancel,
+) -> Result<DynamicImage, String> {
+    let profile = &assets.profile;
     #[cfg(debug_assertions)]
     log::info!("Profile diagnostics: camera-native RAW development complete");
-    check_cancel(&cancel)?;
+    check_cancel(cancel)?;
+    #[cfg(debug_assertions)]
+    let profile_setup_started = std::time::Instant::now();
     if !matches_camera(
         &profile.unique_camera_model,
         &meta.make,
@@ -197,16 +281,16 @@ pub fn render_selected_profile(
             profile.unique_camera_model, meta.make, meta.model
         ));
     }
-    let rgb_look = if let Some(look) = look {
+    let rgb_look = if let Some(look) = assets.look.as_ref() {
         validate_pairing(
-            &profile,
+            profile,
             &look.required_base_profile,
             look.camera_model_restriction.as_deref(),
             &meta.make,
             &meta.model,
             &meta.clean_model,
         )?;
-        let amount = match adjustments.get("profile").and_then(|p| p.get("amount")) {
+        let amount = match assets.amount.as_ref() {
             None => 100.0,
             Some(value) => value.as_f64().ok_or("Look amount must be numeric")?,
         };
@@ -218,16 +302,35 @@ pub fn render_selected_profile(
     } else {
         None
     };
-    let renderer = DcpRenderer::new(&profile, neutral_from_wb(meta.wb_coeffs)?)
+    let renderer = DcpRenderer::new(profile, neutral_from_wb(meta.wb_coeffs)?)
         .map_err(|e| format!("Cannot build selected DCP renderer: {e}"))?;
     #[cfg(debug_assertions)]
+    log::info!(
+        "[preview-stage] stage=profile_setup elapsed={}ns outcome=completed",
+        profile_setup_started.elapsed().as_nanos()
+    );
+    #[cfg(debug_assertions)]
     log::info!("Profile diagnostics: renderer and Look prepared; evaluating pixels");
-    let image = render_working(image, &renderer, rgb_look.as_ref(), &cancel)?;
+    #[cfg(debug_assertions)]
+    let profile_colour_started = std::time::Instant::now();
+    let image = render_working(image, &renderer, rgb_look.as_ref(), cancel)?;
+    #[cfg(debug_assertions)]
+    log::info!(
+        "[preview-stage] stage=profile_colour elapsed={}ns outcome=completed",
+        profile_colour_started.elapsed().as_nanos()
+    );
     #[cfg(debug_assertions)]
     log::info!("Profile diagnostics: working RGB pixels complete");
+    #[cfg(debug_assertions)]
+    let profile_orientation_started = std::time::Instant::now();
     let image = crate::image_processing::apply_orientation(image, orientation);
-    check_cancel(&cancel)?;
-    Ok(Some(image))
+    check_cancel(cancel)?;
+    #[cfg(debug_assertions)]
+    log::info!(
+        "[preview-stage] stage=profile_orientation elapsed={}ns outcome=completed",
+        profile_orientation_started.elapsed().as_nanos()
+    );
+    Ok(image)
 }
 
 #[cfg(test)]
@@ -523,5 +626,192 @@ mod tests {
     fn cancellation_rejects_obsolete_work() {
         assert!(check_cancel(&Some((Arc::new(AtomicUsize::new(2)), 1))).is_err());
         assert!(check_cancel(&Some((Arc::new(AtomicUsize::new(1)), 1))).is_ok());
+    }
+
+    #[test]
+    fn prepared_selection_preserves_early_error_order() {
+        let registry = ProfileRegistry::new();
+        let cancelled = Some((Arc::new(AtomicUsize::new(2)), 1));
+        assert!(
+            prepare_selected_profile(&json!({}), &registry, &cancelled)
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(
+            prepare_selected_profile(&json!({"profile":{"look":"missing"}}), &registry, &None)
+                .err()
+                .unwrap(),
+            "Selected Look requires an explicitly selected base DCP"
+        );
+        let selected = json!({"profile":{"base":"00".repeat(32),"look":"missing"}});
+        assert_eq!(
+            prepare_selected_profile(&selected, &registry, &None)
+                .err()
+                .unwrap(),
+            "Selected Look 'missing' is missing from the registry"
+        );
+        assert_eq!(
+            prepare_selected_profile(&selected, &registry, &cancelled)
+                .err()
+                .unwrap(),
+            "Profile rendering cancelled"
+        );
+    }
+
+    fn prepared_camera_fixture() -> (DynamicImage, crate::raw_processing::RawImageMeta) {
+        (
+            DynamicImage::ImageRgb32F(
+                image::Rgb32FImage::from_raw(2, 1, vec![0.1, 0.1, 0.1, 0.2, 0.2, 0.2]).unwrap(),
+            ),
+            crate::raw_processing::RawImageMeta {
+                wb_coeffs: [1.0, 1.0, 1.0, f32::NAN],
+                make: "Nikon".into(),
+                model: "D850".into(),
+                clean_model: "D850".into(),
+            },
+        )
+    }
+
+    #[test]
+    fn owned_profile_snapshot_renders_without_reopening_and_orients_once() {
+        let mut profile = synthetic_profile();
+        // This deliberately unreadable source name cannot affect a captured model.
+        profile.file_path = "captured-profile-do-not-reopen.dcp".into();
+        let assets = SelectedProfileAssets {
+            profile,
+            look: None,
+            amount: Some(json!("ignored without Look")),
+        };
+        let (image, meta) = prepared_camera_fixture();
+        let first = render_profile_camera_image(
+            image.clone(),
+            rawler::decoders::Orientation::Rotate90,
+            &meta,
+            &assets,
+            &None,
+        )
+        .unwrap();
+        let second = render_profile_camera_image(
+            image,
+            rawler::decoders::Orientation::Rotate90,
+            &meta,
+            &assets,
+            &None,
+        )
+        .unwrap();
+        assert_eq!((first.width(), first.height()), (1, 2));
+        assert_eq!(first.to_rgb32f().as_raw(), second.to_rgb32f().as_raw());
+        assert_eq!(assets.amount, Some(json!("ignored without Look")));
+        let (image, mut wrong) = prepared_camera_fixture();
+        wrong.model = "D750".into();
+        wrong.clean_model = "D750".into();
+        assert!(
+            render_profile_camera_image(
+                image,
+                rawler::decoders::Orientation::Normal,
+                &wrong,
+                &assets,
+                &None
+            )
+            .unwrap_err()
+            .starts_with("Selected DCP is for")
+        );
+        let (image, mut invalid_wb) = prepared_camera_fixture();
+        invalid_wb.wb_coeffs[0] = f32::NAN;
+        assert_eq!(
+            render_profile_camera_image(
+                image,
+                rawler::decoders::Orientation::Normal,
+                &invalid_wb,
+                &assets,
+                &None
+            )
+            .unwrap_err(),
+            "DCP requires finite positive RGB white-balance coefficients"
+        );
+    }
+
+    #[test]
+    fn captured_look_keeps_pairing_and_raw_amount_validation() {
+        use crate::dcp::look_xmp::*;
+        let look = CobaltLook {
+            id: "synthetic".into(),
+            file_path: "captured-look-do-not-reopen.xmp".into(),
+            uuid: "synthetic".into(),
+            name: "Synthetic".into(),
+            group: String::new(),
+            cluster: String::new(),
+            short_name: String::new(),
+            sort_name: String::new(),
+            required_base_profile: "Synthetic base".into(),
+            camera_model_restriction: Some("Nikon D850".into()),
+            supports_amount: true,
+            table_uuid: "synthetic-table".into(),
+            table: LookTableSource::Decoded(CobaltRgbTable {
+                divisions: 3,
+                samples: vec![[32768; 3]; 27],
+                primaries: LookColorSpace::ProPhoto,
+                transfer: LookTransfer::Linear,
+                gamut: LookGamut::Clip,
+                min_amount: 0.0,
+                max_amount: 2.0,
+            }),
+            copyright: None,
+            process_version: String::new(),
+        };
+        let mut assets = SelectedProfileAssets {
+            profile: synthetic_profile(),
+            look: Some(look),
+            amount: Some(Value::Null),
+        };
+        for amount in [Value::Null, json!("100")] {
+            assets.amount = Some(amount);
+            let (image, meta) = prepared_camera_fixture();
+            assert_eq!(
+                render_profile_camera_image(
+                    image,
+                    rawler::decoders::Orientation::Normal,
+                    &meta,
+                    &assets,
+                    &None
+                )
+                .unwrap_err(),
+                "Look amount must be numeric"
+            );
+        }
+        assets.amount = None;
+        let (image, meta) = prepared_camera_fixture();
+        let implicit = render_profile_camera_image(
+            image,
+            rawler::decoders::Orientation::Normal,
+            &meta,
+            &assets,
+            &None,
+        )
+        .unwrap();
+        assets.amount = Some(json!(100));
+        let (image, meta) = prepared_camera_fixture();
+        let explicit = render_profile_camera_image(
+            image,
+            rawler::decoders::Orientation::Normal,
+            &meta,
+            &assets,
+            &None,
+        )
+        .unwrap();
+        assert_eq!(implicit.to_rgb32f().as_raw(), explicit.to_rgb32f().as_raw());
+        assets.look.as_mut().unwrap().required_base_profile = "Different base".into();
+        let (image, meta) = prepared_camera_fixture();
+        assert!(
+            render_profile_camera_image(
+                image,
+                rawler::decoders::Orientation::Normal,
+                &meta,
+                &assets,
+                &None
+            )
+            .unwrap_err()
+            .starts_with("Selected Look requires base")
+        );
     }
 }

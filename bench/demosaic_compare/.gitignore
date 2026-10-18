@@ -1,0 +1,15 @@
+# Keep build products, local environments, and benchmark outputs out of Git.
+/target/
+/Cargo.lock
+/out/
+/results/
+.venv/
+__pycache__/
+/*.f32
+/*.json
+/*.ppm
+/*.png
+/*.jpg
+/*.jpeg
+/*.tif
+/*.tiff

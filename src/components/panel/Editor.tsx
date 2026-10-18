@@ -3,7 +3,6 @@ import { Crop, PercentCrop } from 'react-image-crop';
 import { Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { invoke } from '@tauri-apps/api/core';
-import debounce from 'lodash.debounce';
 
 import { ImageDimensions, RenderSize, useImageRenderSize } from '../../hooks/useImageRenderSize';
 import { Adjustments, AiPatch, MaskContainer, INITIAL_ADJUSTMENTS } from '../../utils/adjustments';
@@ -26,7 +25,14 @@ import { useSettingsStore } from '../../store/useSettingsStore';
 import { useUIStore } from '../../store/useUIStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useAiMasking } from '../../hooks/useAiMasking';
-import { useEditorActions } from '../../hooks/useEditorActions';
+import { straightenedAdjustments, useEditorActions } from '../../hooks/useEditorActions';
+import {
+  clampEditorTransformForProgressiveFit,
+  currentAccurateOpenKey,
+  isCurrentOpenKey,
+  isProgressiveMutationBlocked,
+  sourceRenderPolicy,
+} from '../../utils/progressiveOpen';
 
 const parseRgb = (rgbStr: string): [number, number, number, number] => {
   const match = rgbStr.match(/[\d.]+/g);
@@ -94,6 +100,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
   const setUI = useUIStore((s) => s.setUI);
   const isLoading = useLibraryStore((s) => s.isViewLoading);
   const selectedImage = useEditorStore((s) => s.selectedImage);
+  const renderPolicy = useEditorStore(sourceRenderPolicy);
   const adjustments = useEditorStore((s) => s.adjustments);
   const adjustmentsHistory = useEditorStore((s) => s.history);
   const adjustmentsHistoryIndex = useEditorStore((s) => s.historyIndex);
@@ -118,37 +125,26 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
   const activeAiSubMaskId = useEditorStore((s) => s.activeAiSubMaskId);
   const isMaskControlHovered = useEditorStore((s) => s.isMaskControlHovered);
   const hasRenderedFirstFrame = useEditorStore((s) => s.hasRenderedFirstFrame);
+  const progressiveOpen = useEditorStore((s) => s.progressiveOpen);
+  const pendingOpenIntent = useEditorStore((s) => s.pendingOpenIntent);
+  const progressiveLocked =
+    Boolean(pendingOpenIntent) ||
+    progressiveOpen?.phase === 'Pending' ||
+    progressiveOpen?.phase === 'Refining' ||
+    Boolean(selectedImage?.openTicket && !selectedImage.isReady);
 
   const setEditor = useEditorStore((s) => s.setEditor);
   const toggleFullScreen = useUIStore((s) => s.toggleFullScreen);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const goToHistoryIndex = useEditorStore((s) => s.goToHistoryIndex);
-  const pushHistory = useEditorStore((s) => s.pushHistory);
   const canUndo = adjustmentsHistoryIndex > 0;
   const canRedo = adjustmentsHistoryIndex < adjustmentsHistory.length - 1;
 
   const isAndroid = osPlatform === 'android';
 
-  const debouncedSetHistory = useMemo(() => debounce((newAdj: Adjustments) => pushHistory(newAdj), 500), [pushHistory]);
-
-  const setAdjustments = useCallback(
-    (value: Partial<Adjustments> | ((prev: Adjustments) => Adjustments)) => {
-      setEditor((state) => {
-        const prevAdjustments = state.adjustments;
-        const newAdjustments = typeof value === 'function' ? value(prevAdjustments) : { ...prevAdjustments, ...value };
-        debouncedSetHistory(newAdjustments);
-        return {
-          adjustments: newAdjustments,
-          ...(state.showOriginal ? { showOriginal: false, previewOverride: null } : {}),
-        };
-      });
-    },
-    [debouncedSetHistory, setEditor],
-  );
-
   const { handleGenerateAiMask, handleQuickErase, handleDirectPatch } = useAiMasking();
-  const { toggleShowOriginal } = useEditorActions();
+  const { setAdjustments, toggleShowOriginal } = useEditorActions();
 
   const [crop, setCrop] = useState<Crop | null>(null);
   const prevCropParams = useRef<any>(null);
@@ -320,34 +316,14 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
 
   const handleZoomed = useCallback(
     (state: TransformState) => {
-      setEditor({ zoom: state.scale });
+      setEditor({ zoom: isProgressiveMutationBlocked(useEditorStore.getState()) ? 1 : state.scale });
     },
     [setEditor],
   );
 
   const handleStraighten = useCallback(
     (angleCorrection: number) => {
-      setAdjustments((prev: Adjustments) => {
-        const newRotation = (prev.rotation || 0) + angleCorrection;
-        const newCrop =
-          selectedImage?.width && selectedImage?.height
-            ? calculateAutoCropForRotation(
-                selectedImage.width,
-                selectedImage.height,
-                prev.orientationSteps || 0,
-                prev.aspectRatio,
-                newRotation,
-                prev.crop,
-                angleCorrection,
-              )
-            : prev.crop;
-
-        return {
-          ...prev,
-          rotation: newRotation,
-          crop: newCrop,
-        };
-      });
+      setAdjustments((prev: Adjustments) => straightenedAdjustments(prev, selectedImage, angleCorrection));
       setEditor({ isStraightenActive: false });
     },
     [selectedImage, setAdjustments, setEditor],
@@ -483,6 +459,8 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
 
   const applyTransform = useCallback(
     (x: number, y: number, scale: number) => {
+      const locked = isProgressiveMutationBlocked(useEditorStore.getState());
+      ({ x, y, scale } = clampEditorTransformForProgressiveFit(locked, x, y, scale));
       transformStateRef.current = { positionX: x, positionY: y, scale };
       setTransformState({ scale, positionX: x, positionY: y });
 
@@ -513,6 +491,14 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
     },
     [handleZoomed],
   );
+
+  useEffect(() => {
+    if (!progressiveLocked) return;
+    if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+    if (physicsFrameId.current) cancelAnimationFrame(physicsFrameId.current);
+    applyTransform(0, 0, 1);
+    setEditor({ zoom: 1 });
+  }, [progressiveLocked, applyTransform, setEditor]);
 
   const animateTransform = useCallback(
     (targetX: number, targetY: number, targetScale: number, duration: number) => {
@@ -738,6 +724,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
 
     const handleNativeWheel = (e: WheelEvent) => {
       e.preventDefault();
+      if (isProgressiveMutationBlocked(useEditorStore.getState())) return;
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
       if (physicsFrameId.current) cancelAnimationFrame(physicsFrameId.current);
 
@@ -1232,7 +1219,10 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
     }
   }, [isMasking, isAiEditing]);
 
-  const hasDisplayableImage = finalPreviewUrl || selectedImage?.thumbnailUrl;
+  const hasKeyedPendingOpen = Boolean(selectedImage?.openTicket && !selectedImage.isReady);
+  const hasDisplayableImage = hasKeyedPendingOpen
+    ? progressiveOpen?.phase === 'Refining' && progressiveOpen.placeholderUrl
+    : finalPreviewUrl || selectedImage?.thumbnailUrl;
   const showSpinner = isLoading && !hasDisplayableImage;
 
   useLayoutEffect(() => {
@@ -1304,8 +1294,19 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
   const processOverlayQueue = useCallback(async () => {
     if (isGeneratingOverlayRef.current || !pendingOverlayRequestRef.current) return;
 
-    const { maskDef, renderSize, jsAdjustments } = pendingOverlayRequestRef.current;
+    const { maskDef, renderSize, jsAdjustments, sourcePath, openKey } = pendingOverlayRequestRef.current;
     pendingOverlayRequestRef.current = null;
+
+    const sourceCurrent = () => {
+      const state = useEditorStore.getState();
+      if (state.pendingOpenIntent || state.selectedImage?.path !== sourcePath || !state.selectedImage?.isReady)
+        return false;
+      return openKey ? isCurrentOpenKey(openKey, state, sourcePath, true) : !state.selectedImage?.openTicket;
+    };
+    if (!sourceCurrent()) {
+      setMaskOverlayUrl(null);
+      return;
+    }
 
     if (!maskDef || !maskDef.visible || renderSize.width === 0) {
       setMaskOverlayUrl(null);
@@ -1319,7 +1320,8 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
       const { patchesSentToBackend } = useEditorStore.getState();
 
       const stripSubMasks = (subMasks: any[]) => {
-        if (!Array.isArray(subMasks)) return;
+        // Both standalone maskDef and adjustments must be self-contained for this source.
+        if (openKey || !Array.isArray(subMasks)) return;
         subMasks.forEach((sm) => {
           if (sm.id && sm.parameters && patchesSentToBackend.has(sm.id)) {
             if (sm.parameters.mask_data_base64 !== undefined) sm.parameters.mask_data_base64 = null;
@@ -1346,7 +1348,16 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
         scale: renderSize.scale,
         width: Math.round(renderSize.width),
         jsAdjustments: strippedAdjustments,
+        ...(openKey ? { expectedOpenKey: openKey } : {}),
       });
+
+      if (!sourceCurrent()) return;
+      if (openKey && dataUrl) {
+        const image = new Image();
+        image.src = dataUrl;
+        await image.decode();
+        if (!sourceCurrent()) return;
+      }
 
       if (dataUrl) {
         setMaskOverlayUrl(dataUrl);
@@ -1354,8 +1365,10 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
         setMaskOverlayUrl(null);
       }
     } catch (e) {
-      console.error('Failed to generate live mask overlay:', e);
-      setMaskOverlayUrl(null);
+      if (sourceCurrent()) {
+        console.error('Failed to generate live mask overlay:', e);
+        setMaskOverlayUrl(null);
+      }
     } finally {
       isGeneratingOverlayRef.current = false;
       if (pendingOverlayRequestRef.current) {
@@ -1366,7 +1379,20 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
 
   const requestMaskOverlay = useCallback(
     (maskDef: any, renderSize: any, currentAdjustments: any) => {
-      pendingOverlayRequestRef.current = { maskDef, renderSize, jsAdjustments: currentAdjustments };
+      const state = useEditorStore.getState();
+      const openKey = currentAccurateOpenKey(state);
+      if (state.pendingOpenIntent || !state.selectedImage?.isReady || (state.selectedImage.openTicket && !openKey)) {
+        pendingOverlayRequestRef.current = null;
+        setMaskOverlayUrl(null);
+        return;
+      }
+      pendingOverlayRequestRef.current = {
+        maskDef,
+        renderSize,
+        jsAdjustments: currentAdjustments,
+        sourcePath: state.selectedImage.path,
+        openKey,
+      };
       processOverlayQueue();
     },
     [processOverlayQueue],
@@ -1424,6 +1450,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
     appSettings?.useWgpuRenderer,
     appSettings?.editorNeutralGreyBg,
     selectedImage?.isReady,
+    renderPolicy,
     hasRenderedFirstFrame,
     isCropping,
     uncroppedAdjustedPreviewUrl,
@@ -1438,6 +1465,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
     appSettings?.useWgpuRenderer,
     appSettings?.editorNeutralGreyBg,
     selectedImage?.isReady,
+    renderPolicy,
     hasRenderedFirstFrame,
     isCropping,
     uncroppedAdjustedPreviewUrl,
@@ -1462,6 +1490,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
 
     const syncWgpu = () => {
       if (!isEffectActive) return;
+      if (sourceRenderPolicy(useEditorStore.getState()) !== 'legacy-native') return;
 
       const state = wgpuStateRef.current;
       const container = imageContainerRef.current;
@@ -2261,8 +2290,9 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
     }
   }
 
-  const isWgpuActive = appSettings?.useWgpuRenderer !== false && hasRenderedFirstFrame;
-  const hasRenderedAnyPreview = hasRenderedFirstFrame || !!finalPreviewUrl;
+  const isWgpuActive =
+    appSettings?.useWgpuRenderer !== false && renderPolicy === 'legacy-native' && hasRenderedFirstFrame;
+  const hasRenderedAnyPreview = (renderPolicy === 'legacy-native' && hasRenderedFirstFrame) || !!finalPreviewUrl;
 
   return (
     <div
@@ -2271,7 +2301,7 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
         !isInstantTransition && 'transition-all duration-300 ease-in-out',
         isFullScreen
           ? 'rounded-none p-0 gap-0'
-          : clsx('rounded-lg p-2 gap-2', appSettings?.useWgpuRenderer !== false ? 'bg-transparent' : 'bg-bg-secondary'),
+          : clsx('rounded-lg p-2 gap-2', isWgpuActive ? 'bg-transparent' : 'bg-bg-secondary'),
       )}
     >
       {hasRenderedAnyPreview && <div className="hidden" data-bench-id="editor-first-frame" />}
@@ -2284,8 +2314,8 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
         )}
       >
         <EditorToolbar
-          canRedo={canRedo}
-          canUndo={canUndo}
+          canRedo={canRedo && !progressiveLocked}
+          canUndo={canUndo && !progressiveLocked}
           isAndroid={isAndroid}
           isLoading={isLoading}
           onBackToLibrary={onBackToLibrary}
@@ -2308,17 +2338,38 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
         className={clsx(
           'flex-1 relative overflow-hidden touch-none',
           isFullScreen ? 'rounded-none' : 'rounded-lg',
-          appSettings?.useWgpuRenderer !== false && !isFullScreen && 'ring-[9999px] ring-bg-secondary',
+          isWgpuActive && !isFullScreen && 'ring-[9999px] ring-bg-secondary',
           !isWgpuActive && (appSettings?.editorNeutralGreyBg ? 'bg-[#808080]' : 'bg-bg-secondary'),
         )}
         style={{ cursor: cursorStyle }}
-        onContextMenu={onContextMenu}
         ref={imageContainerRef}
-        onPointerDownCapture={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onClick={handleClick}
+        onPointerDownCapture={(event) => {
+          if (progressiveLocked) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+          handlePointerDown(event);
+        }}
+        onPointerMove={(event) => {
+          if (!progressiveLocked) handlePointerMove(event);
+        }}
+        onPointerUp={(event) => {
+          if (!progressiveLocked) handlePointerUp(event);
+        }}
+        onPointerCancel={(event) => {
+          if (!progressiveLocked) handlePointerUp(event);
+        }}
+        onClick={(event) => {
+          if (!progressiveLocked) handleClick(event);
+        }}
+        onContextMenu={(event) => {
+          if (progressiveLocked) {
+            event.preventDefault();
+            return;
+          }
+          onContextMenu(event);
+        }}
       >
         {showSpinner && (
           <div
@@ -2328,6 +2379,14 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
             )}
           >
             <Loader2 size={48} className="animate-spin text-accent" />
+          </div>
+        )}
+        {progressiveLocked && progressiveOpen?.phase === 'Refining' && (
+          <div
+            className="absolute right-3 top-3 z-40 rounded-full bg-black/55 p-2 text-white pointer-events-none"
+            aria-live="polite"
+          >
+            <Loader2 size={18} className="animate-spin" aria-label="Refining preview" />
           </div>
         )}
 
@@ -2348,6 +2407,8 @@ export default function Editor({ onBackToLibrary, onContextMenu, onImageSelect, 
             brushSettings={brushSettings}
             crop={crop}
             finalPreviewUrl={finalPreviewUrl}
+            progressiveImageUrl={progressiveOpen?.placeholderUrl ?? null}
+            progressivePhase={progressiveOpen?.phase ?? null}
             handleCropComplete={handleCropComplete}
             imageRenderSize={imageRenderSize}
             interactivePatch={interactivePatch}

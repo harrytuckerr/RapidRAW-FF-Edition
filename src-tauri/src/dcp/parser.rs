@@ -95,7 +95,7 @@ pub fn parse_dcp(path: &Path) -> Result<Vec<DcpProfile>, DcpError> {
 /// Parse profile bytes already in memory (used by `parse_dcp` and the
 /// corrupted-input property test). `path` is used only for `file_path` and the
 /// `profile_name` fallback.
-fn parse_bytes(
+pub(crate) fn parse_bytes(
     data: &[u8],
     id: ProfileId,
     path: Option<&Path>,

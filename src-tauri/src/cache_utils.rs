@@ -444,6 +444,15 @@ impl DecodedImageCache {
         self.items.clear();
     }
 
+    /// Move retained entries out without dropping their images under a lock.
+    /// Logical capacity remains unchanged; later inserts rebuild Vec storage.
+    pub(crate) fn take_for_retirement(&mut self) -> Self {
+        Self {
+            capacity: self.capacity,
+            items: std::mem::take(&mut self.items),
+        }
+    }
+
     pub fn insert(
         &mut self,
         path: String,
@@ -538,5 +547,54 @@ mod profile_cache_tests {
             calculate_patch_hash(&serde_json::json!({})),
             calculate_patch_hash(&serde_json::json!({"profile":null}))
         );
+    }
+}
+
+#[cfg(test)]
+mod progressive_retirement_tests {
+    use super::*;
+    #[test]
+    fn actual_retirement_moves_entries_and_last_image_drop_after_unlock() {
+        let image = Arc::new(DynamicImage::new_rgb32f(2, 2));
+        let weak = Arc::downgrade(&image);
+        let cache = std::sync::Mutex::new(DecodedImageCache::new(2));
+        cache
+            .lock()
+            .unwrap()
+            .insert("a".into(), image, HashMap::new());
+        let retired = {
+            let mut guard = cache.lock().unwrap();
+            let retired = guard.take_for_retirement();
+            assert!(guard.get("a").is_none());
+            assert!(weak.upgrade().is_some());
+            retired
+        };
+        assert!(cache.try_lock().is_ok());
+        assert!(weak.upgrade().is_some());
+        drop(retired);
+        assert!(weak.upgrade().is_none());
+    }
+    #[test]
+    fn actual_retirement_preserves_logical_capacity_and_eviction() {
+        let mut cache = DecodedImageCache::new(2);
+        cache.insert(
+            "old".into(),
+            Arc::new(DynamicImage::new_rgb32f(1, 1)),
+            HashMap::new(),
+        );
+        let retired = cache.take_for_retirement();
+        assert_eq!(cache.capacity, 2);
+        for key in ["a", "b", "c"] {
+            cache.insert(
+                key.into(),
+                Arc::new(DynamicImage::new_rgb32f(1, 1)),
+                HashMap::new(),
+            );
+        }
+        assert!(cache.get("a").is_none());
+        assert!(cache.get("b").is_some());
+        assert!(cache.get("c").is_some());
+        assert_eq!(retired.items.len(), 1);
+        assert_eq!(retired.items[0].0, "old");
     }
 }

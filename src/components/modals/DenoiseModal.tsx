@@ -500,13 +500,14 @@ export default function DenoiseModal({
     const disabled = isProcessing || isSaving;
 
     return (
-      <div className={`w-full flex items-center gap-4 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
-        <div className="flex-1 flex items-center gap-6">
-          <div className="flex flex-col gap-1 w-[280px] mt-2 shrink-0">
+      <div className={`w-full flex flex-col gap-4 lg:flex-row lg:items-center ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+        <div className="flex min-w-0 w-full flex-col gap-4 sm:flex-row sm:items-center lg:flex-1 lg:gap-6">
+          <div className="flex min-w-0 w-full flex-col gap-1 mt-2 sm:w-[280px] sm:shrink-0">
             <Text variant={TextVariants.body} weight={TextWeights.medium}>
               {t('modals.denoise.methodLabel')}
             </Text>
             <Dropdown
+              dropUp
               options={methodOptions}
               value={method}
               onChange={(val: string) => {
@@ -516,7 +517,7 @@ export default function DenoiseModal({
               }}
             />
           </div>
-          <div className="flex-1 max-w-[280px]">
+          <div className="min-w-0 w-full sm:flex-1 lg:max-w-[280px]">
             <Slider
               label={method === 'ai' ? t('modals.denoise.qualityTileSizeLabel') : t('modals.denoise.strengthLabel')}
               value={intensity}
@@ -531,9 +532,9 @@ export default function DenoiseModal({
           </div>
         </div>
 
-        <div className="h-10 w-px bg-surface shrink-0" />
+        <div className="hidden h-10 w-px bg-surface shrink-0 lg:block" />
 
-        <div className="flex gap-2 shrink-0">
+        <div className="flex max-w-full flex-wrap justify-end gap-2 self-end lg:shrink-0">
           <button
             onClick={handleClose}
             className="px-4 py-2 rounded-md text-text-secondary hover:bg-card-active transition-colors text-sm"
@@ -575,20 +576,20 @@ export default function DenoiseModal({
 
   return (
     <div
-      className={`fixed inset-0 flex items-center justify-center z-50 bg-black/40 backdrop-blur-xs transition-opacity duration-300 ease-in-out ${
+      className={`fixed inset-0 flex items-center justify-center p-3 sm:p-6 z-50 bg-black/40 backdrop-blur-xs transition-opacity duration-300 ease-in-out ${
         show ? 'opacity-100' : 'opacity-0'
       }`}
       onMouseDown={handleBackdropMouseDown}
       onClick={handleBackdropClick}
     >
       <div
-        className={`bg-surface rounded-xl shadow-2xl p-6 w-full max-w-4xl transform transition-all duration-300 ease-out ${
+        className={`bg-surface rounded-xl shadow-2xl p-4 sm:p-6 w-full max-w-4xl max-h-full flex flex-col overflow-hidden transform transition-all duration-300 ease-out ${
           show ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 -translate-y-4'
         }`}
       >
-        <div className="flex flex-col">
-          {renderContent()}
-          <div className={`mt-4 flex justify-end gap-3 ${savedPath ? '' : 'pt-4 border-t border-surface/50'}`}>
+        <div className="flex min-h-0 flex-col">
+          <div className="min-h-0 overflow-y-auto">{renderContent()}</div>
+          <div className={`shrink-0 mt-4 flex flex-wrap justify-end gap-3 ${savedPath ? '' : 'pt-4 border-t border-surface/50'}`}>
             {renderButtons()}
           </div>
         </div>
