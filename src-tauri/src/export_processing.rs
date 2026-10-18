@@ -1,12 +1,12 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs;
-use std::io::Cursor;
+use std::io::{Cursor, Seek, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-use image::codecs::jpeg::JpegEncoder;
+use image::codecs::jpeg::{JpegEncoder, PixelDensity};
 use image::codecs::png::PngEncoder;
 use image::{
     DynamicImage, GenericImageView, GrayImage, ImageBuffer, ImageEncoder, ImageFormat, Luma,
@@ -20,6 +20,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::Emitter;
 use tauri::Manager;
+use tiff::encoder::{Rational, TiffEncoder, TiffValue, colortype};
+use tiff::tags::ResolutionUnit;
 
 use crate::AppState;
 use crate::baseline_exposure::BaselineOptions;
@@ -28,9 +30,7 @@ use crate::file_management::{
     generate_filename_from_template, parse_virtual_path, read_file_mapped,
 };
 use crate::formats::is_raw_file;
-use crate::image_loader::{
-    composite_patches_on_image, load_and_composite_with_profiles, load_base_image_from_bytes,
-};
+use crate::image_loader::{load_and_composite_with_profiles_in_worker, load_base_image_from_bytes};
 use crate::image_processing::{
     AllAdjustments, Crop, GpuContext, RenderOptions, RenderOutputPrecision, RenderRequest,
     downscale_f32_image, get_all_adjustments_from_json, get_or_init_gpu_context,
@@ -148,6 +148,8 @@ pub struct ExportSettings {
     pub destination_type: Option<String>,
     #[serde(default)]
     pub subfolder: Option<String>,
+    #[serde(default)]
+    pub dpi: Option<u16>,
 }
 
 #[derive(Clone)]
@@ -1164,12 +1166,13 @@ enum IndependentExportSource {
     },
 }
 fn independent_export_source(
+    app: &tauri::AppHandle,
     bytes: &[u8],
     path: &str,
     adjustments: &Value,
     settings: &crate::app_settings::AppSettings,
     state: &tauri::State<AppState>,
-    check: &impl Fn() -> Result<(), String>,
+    check: &(impl Fn() -> Result<(), String> + Sync),
 ) -> Result<IndependentExportSource, String> {
     let policy = crate::image_loader::AccurateRawPolicy::new(
         1,
@@ -1188,14 +1191,22 @@ fn independent_export_source(
         )
     })?;
     match decision {
-        PreparedExportDecision::Accurate(source) => Ok(IndependentExportSource::Accurate(source)),
+        PreparedExportDecision::Accurate(mut source) => {
+            checked_export_stage(check, || {
+                source
+                    .appearance
+                    .apply_denoise_for_export(app, path, check)
+                    .map_err(|e| e.to_string())
+            })?;
+            Ok(IndependentExportSource::Accurate(source))
+        }
         PreparedExportDecision::DecodedLegacy(owner) => {
             let as_shot = owner.as_shot();
             let mut adjustments = adjustments.clone();
             hydrate_adjustments(state, &mut adjustments);
             let image = checked_export_stage(check, || {
                 owner
-                    .render_current_with_adjustments(adjustments.clone(), None)
+                    .render_export_with_adjustments(app, path, adjustments.clone(), None)
                     .map_err(|e| e.to_string())
             })?;
             Ok(IndependentExportSource::Legacy {
@@ -1209,7 +1220,9 @@ fn independent_export_source(
             let mut adjustments = adjustments.clone();
             hydrate_adjustments(state, &mut adjustments);
             let image = checked_export_stage(check, || {
-                load_and_composite_with_profiles(
+                load_and_composite_with_profiles_in_worker(
+                    app,
+                    check,
                     bytes,
                     path,
                     &adjustments,
@@ -1405,12 +1418,7 @@ fn save_image_with_metadata_checked(
         .to_lowercase();
 
     let mut image_bytes = checked_export_stage(check, || {
-        encode_image_to_bytes(
-            image,
-            &extension,
-            export_settings.jpeg_quality,
-            export_settings.tiff_bit_depth,
-        )
+        encode_image_to_bytes(image, &extension, export_settings)
     })?;
 
     checked_export_stage(check, || {
@@ -1421,6 +1429,7 @@ fn save_image_with_metadata_checked(
             export_settings.keep_metadata,
             export_settings.strip_gps,
             export_xmp,
+            export_settings.dpi,
         )
     })?;
 
@@ -1514,15 +1523,14 @@ fn encode_grayscale_to_png(bitmap: &GrayImage) -> Result<Vec<u8>, String> {
     Ok(buf)
 }
 
-/// Exports are sRGB-encoded; tagging them lets color-managed apps read them correctly.
 const SRGB_ICC_PROFILE: &[u8] = include_bytes!("../icc/sRGB-v2-magic.icc");
 
 fn encode_image_to_bytes(
     image: &DynamicImage,
     output_format: &str,
-    jpeg_quality: u8,
-    tiff_bit_depth: TiffBitDepth,
+    export_settings: &ExportSettings,
 ) -> Result<Vec<u8>, String> {
+    let jpeg_quality = export_settings.jpeg_quality;
     let mut image_bytes = Vec::new();
     let mut cursor = Cursor::new(&mut image_bytes);
 
@@ -1574,6 +1582,9 @@ fn encode_image_to_bytes(
             encoder
                 .set_icc_profile(SRGB_ICC_PROFILE.to_vec())
                 .map_err(|e| e.to_string())?;
+            if let Some(dpi) = export_settings.dpi {
+                encoder.set_pixel_density(PixelDensity::dpi(dpi));
+            }
             rgb_image
                 .write_with_encoder(encoder)
                 .map_err(|e| e.to_string())?;
@@ -1592,15 +1603,29 @@ fn encode_image_to_bytes(
             image_to_encode
                 .write_with_encoder(encoder)
                 .map_err(|e| e.to_string())?;
+            if let Some(dpi) = export_settings.dpi {
+                insert_png_phys_chunk(&mut image_bytes, dpi);
+            }
         }
         "tif" | "tiff" => {
-            let image_to_encode = match tiff_bit_depth {
-                TiffBitDepth::Eight => DynamicImage::ImageRgb8(image.to_rgb8()),
-                TiffBitDepth::Sixteen => DynamicImage::ImageRgb16(image.to_rgb16()),
-            };
-            image_to_encode
-                .write_to(&mut cursor, image::ImageFormat::Tiff)
-                .map_err(|e| e.to_string())?;
+            let (width, height) = image.dimensions();
+            let mut encoder = TiffEncoder::new(&mut cursor).map_err(|e| e.to_string())?;
+            match export_settings.tiff_bit_depth {
+                TiffBitDepth::Eight => write_tiff::<colortype::RGB8, _>(
+                    &mut encoder,
+                    width,
+                    height,
+                    image.to_rgb8().as_raw(),
+                    export_settings.dpi,
+                )?,
+                TiffBitDepth::Sixteen => write_tiff::<colortype::RGB16, _>(
+                    &mut encoder,
+                    width,
+                    height,
+                    image.to_rgb16().as_raw(),
+                    export_settings.dpi,
+                )?,
+            }
         }
         "avif" => {
             image
@@ -1610,6 +1635,40 @@ fn encode_image_to_bytes(
         _ => return Err(format!("Unsupported file format: {}", output_format)),
     };
     Ok(image_bytes)
+}
+
+fn write_tiff<C: colortype::ColorType, W: Write + Seek>(
+    encoder: &mut TiffEncoder<W>,
+    width: u32,
+    height: u32,
+    data: &[C::Inner],
+    dpi: Option<u16>,
+) -> Result<(), String>
+where
+    [C::Inner]: TiffValue,
+{
+    let mut image = encoder
+        .new_image::<C>(width, height)
+        .map_err(|e| e.to_string())?;
+    if let Some(dpi) = dpi {
+        image.resolution(
+            ResolutionUnit::Inch,
+            Rational {
+                n: dpi.into(),
+                d: 1,
+            },
+        );
+    }
+    image.write_data(data).map_err(|e| e.to_string())
+}
+
+fn insert_png_phys_chunk(image_bytes: &mut Vec<u8>, dpi: u16) {
+    let pixels_per_meter = (f64::from(dpi) / 0.0254).round() as u32;
+    let mut data = Vec::with_capacity(9);
+    data.extend_from_slice(&pixels_per_meter.to_be_bytes());
+    data.extend_from_slice(&pixels_per_meter.to_be_bytes());
+    data.push(1);
+    exif_processing::insert_png_chunk(image_bytes, b"pHYs", &data);
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2400,6 +2459,7 @@ pub(crate) async fn export_images_impl(
                         if let Some(request) = &current_request
                             && request.is_keyed()
                         {
+                            request.ensure_denoise_in_worker(&app_handle_clone)?;
                             return request.with_full_composition(|composed| {
                                 write_composed_export(
                                     composed,
@@ -2424,7 +2484,9 @@ pub(crate) async fn export_images_impl(
                                     Path::new(&source_path_str),
                                     &check,
                                     |bytes| {
-                                        load_and_composite_with_profiles(
+                                        load_and_composite_with_profiles_in_worker(
+                                            &app_handle_clone,
+                                            &check,
                                             bytes,
                                             &source_path_str,
                                             &js_adjustments,
@@ -2438,9 +2500,12 @@ pub(crate) async fn export_images_impl(
                                 )?
                             } else {
                                 checked_export_stage(&check, || {
-                                    composite_patches_on_image(
+                                    crate::image_loader::prepare_base_image_in_worker(
+                                        &app_handle_clone,
                                         &request.loaded().image,
+                                        &request.loaded().path,
                                         &js_adjustments,
+                                        &check,
                                     )
                                     .map_err(|e| format!("Failed to composite AI patches: {}", e))
                                 })?
@@ -2452,6 +2517,7 @@ pub(crate) async fn export_images_impl(
                                 &check,
                                 |bytes| {
                                     independent_export_source(
+                                        &app_handle_clone,
                                         bytes,
                                         &source_path_str,
                                         &js_adjustments,
@@ -2749,6 +2815,7 @@ pub async fn run_headless_export(
         preserve_folders: true,
         destination_type: None,
         subfolder: None,
+        dpi: None,
     };
 
     let mut custom_adjustments = None;
@@ -2819,13 +2886,17 @@ pub fn cancel_export(
 }
 
 fn independent_estimate_source(
+    app: &tauri::AppHandle,
     bytes: &[u8],
     path: &str,
     adjustments: &Value,
     settings: &crate::app_settings::AppSettings,
     state: &tauri::State<AppState>,
-    check: &impl Fn() -> Result<(), String>,
+    check: &(impl Fn() -> Result<(), String> + Sync),
 ) -> Result<IndependentExportSource, String> {
+    if crate::ai_denoise::is_requested(adjustments) {
+        return independent_export_source(app, bytes, path, adjustments, settings, state, check);
+    }
     let policy = crate::image_loader::AccurateRawPolicy::new(
         1,
         rawler::imgop::sensor::xtrans::external::XTransPasses::One.scratch_bytes(),
@@ -2895,12 +2966,7 @@ fn estimate_rendered_export_size(
     check: &impl Fn() -> Result<(), String>,
 ) -> Result<usize, String> {
     let preview_bytes = checked_export_stage(check, || {
-        encode_image_to_bytes(
-            processed_preview,
-            output_format,
-            export_settings.jpeg_quality,
-            export_settings.tiff_bit_depth,
-        )
+        encode_image_to_bytes(processed_preview, output_format, &export_settings)
     })?;
     let preview_byte_size = preview_bytes.len();
     let (full_w, full_h) = full_size;
@@ -3007,12 +3073,8 @@ fn estimate_legacy_independent_image(
         render_output_precision(output_format, export_settings),
     )?;
 
-    let preview_bytes = encode_image_to_bytes(
-        &processed_preview,
-        &output_format,
-        export_settings.jpeg_quality,
-        export_settings.tiff_bit_depth,
-    )?;
+    let preview_bytes =
+        encode_image_to_bytes(&processed_preview, &output_format, &export_settings)?;
     let single_image_estimated_size = preview_bytes.len();
 
     let full_w = (shrunk_w as f32 / raw_scale_factor).round() as u32;
@@ -3042,219 +3104,59 @@ pub async fn estimate_export_sizes(
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<usize, String> {
-    if output_format.eq_ignore_ascii_case("cube") || paths.is_empty() {
-        if let Some(key) = expected_open_key.as_ref() {
-            let path = current_edit_path
-                .as_deref()
-                .filter(|path| paths.first().is_some_and(|first| first == path))
-                .ok_or("Keyed estimate requires the exact current virtual path")?;
-            let source = state
-                .capture_consumer_source(Some(key), Some(path))
-                .map_err(|e| e.to_string())?;
-            source.check().map_err(|e| e.to_string())?;
+    drop(state);
+    tokio::task::spawn_blocking(move || {
+        let state = app_handle.state::<AppState>();
+        if output_format.eq_ignore_ascii_case("cube") || paths.is_empty() {
+            if let Some(key) = expected_open_key.as_ref() {
+                let path = current_edit_path
+                    .as_deref()
+                    .filter(|path| paths.first().is_some_and(|first| first == path))
+                    .ok_or("Keyed estimate requires the exact current virtual path")?;
+                let source = state
+                    .capture_consumer_source(Some(key), Some(path))
+                    .map_err(|e| e.to_string())?;
+                source.check().map_err(|e| e.to_string())?;
+            }
+            return Ok(if paths.is_empty() {
+                0
+            } else {
+                1_050_000 * paths.len()
+            });
         }
-        return Ok(if paths.is_empty() {
-            0
+        let first_path = &paths[0];
+        let (source_path, sidecar_path) = parse_virtual_path(first_path);
+        let source_path_str = source_path.to_string_lossy().to_string();
+        let settings = load_settings(app_handle.clone()).unwrap_or_default();
+        let is_current_edit = current_edit_path.as_deref() == Some(first_path.as_str());
+        if expected_open_key.is_some() && (!is_current_edit || current_edit_adjustments.is_none()) {
+            return Err(
+                "Keyed estimate requires the exact current virtual path and adjustments".into(),
+            );
+        }
+        let request = if is_current_edit {
+            Some(state.capture_consumer_request(
+                expected_open_key.as_ref(),
+                Some(first_path.as_str()),
+                current_edit_adjustments.clone(),
+                settings.clone(),
+            )?)
         } else {
-            1_050_000 * paths.len()
-        });
-    }
-    let first_path = &paths[0];
-    let (source_path, sidecar_path) = parse_virtual_path(first_path);
-    let source_path_str = source_path.to_string_lossy().to_string();
-    let settings = load_settings(app_handle.clone()).unwrap_or_default();
-    let is_current_edit = current_edit_path.as_deref() == Some(first_path.as_str());
-    if expected_open_key.is_some() && (!is_current_edit || current_edit_adjustments.is_none()) {
-        return Err(
-            "Keyed estimate requires the exact current virtual path and adjustments".into(),
-        );
-    }
-    let request = if is_current_edit {
-        Some(state.capture_consumer_request(
-            expected_open_key.as_ref(),
-            Some(first_path.as_str()),
-            current_edit_adjustments.clone(),
-            settings.clone(),
-        )?)
-    } else {
-        None
-    };
-    let check = || {
-        if let Some(request) = &request {
-            request.check()?;
-        }
-        Ok(())
-    };
-    let context = checked_export_stage(&check, || get_or_init_gpu_context(&state, &app_handle))?;
-    let is_raw = is_raw_file(&source_path_str);
-    let single_image_extrapolated_size = if let Some(request) = &request {
-        if request.is_keyed() {
-            request.with_full_composition(|composed| {
-                let processed = render_composed_export(
-                    composed,
-                    &context,
-                    &export_settings,
-                    &output_format,
-                    &check,
-                )?;
-                estimate_rendered_export_size(
-                    &processed,
-                    composed.pixels().dimensions(),
-                    &output_format,
-                    &export_settings,
-                    &check,
-                )
-            })?
-        } else if current_edit_adjustments.is_some() {
-            checked_export_stage(&check, || {
-                let settings = request.settings();
-                Ok({
-                    let loaded_image = request.loaded().clone();
-                    let mut adjustments_clone = current_edit_adjustments.clone().unwrap();
-                    hydrate_adjustments(&state, &mut adjustments_clone);
-
-                    let new_transform_hash = calculate_transform_hash(&adjustments_clone);
-                    let cached_preview_lock = state.cached_preview.lock().unwrap();
-                    let preview_dim = settings.editor_preview_resolution.unwrap_or(1920);
-
-                    let (preview_image, scale, unscaled_crop_offset) =
-                        if let Some(cached) = &*cached_preview_lock {
-                            if cached.transform_hash == new_transform_hash
-                                && cached.preview_dim == preview_dim
-                            {
-                                let img = Arc::clone(&cached.image);
-                                let s = cached.scale;
-                                let offset = cached.unscaled_crop_offset;
-                                drop(cached_preview_lock);
-                                let owned_img =
-                                    Arc::try_unwrap(img).unwrap_or_else(|arc| (*arc).clone());
-                                (owned_img, s, offset)
-                            } else {
-                                drop(cached_preview_lock);
-                                generate_transformed_preview(
-                                    &state,
-                                    &loaded_image,
-                                    &adjustments_clone,
-                                    preview_dim,
-                                )?
-                            }
-                        } else {
-                            drop(cached_preview_lock);
-                            generate_transformed_preview(
-                                &state,
-                                &loaded_image,
-                                &adjustments_clone,
-                                preview_dim,
-                            )?
-                        };
-
-                    let (img_w, img_h) = preview_image.dimensions();
-                    let mask_definitions: Vec<MaskDefinition> = adjustments_clone
-                        .get("masks")
-                        .and_then(|m| serde_json::from_value(m.clone()).ok())
-                        .unwrap_or_default();
-
-                    let scaled_crop_offset = (
-                        unscaled_crop_offset.0 * scale,
-                        unscaled_crop_offset.1 * scale,
-                    );
-
-                    let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
-                        .iter()
-                        .filter_map(|def| {
-                            get_cached_or_generate_mask(
-                                &state,
-                                &loaded_image.path,
-                                def,
-                                img_w,
-                                img_h,
-                                scale,
-                                scaled_crop_offset,
-                                &adjustments_clone,
-                            )
-                        })
-                        .collect();
-
-                    let render =
-                        crate::image_processing::resolve_render_options(request.settings(), is_raw);
-                    let mut all_adjustments = get_all_adjustments_from_json(
-                        &adjustments_clone,
-                        is_raw,
-                        loaded_image.as_shot,
-                        render,
-                    );
-                    all_adjustments.global.show_clipping = 0;
-
-                    let lut = adjustments_clone["lutPath"]
-                        .as_str()
-                        .and_then(|p| get_or_load_lut(&state, p).ok());
-                    let unique_hash =
-                        calculate_full_job_hash(&loaded_image.path, &adjustments_clone)
-                            .wrapping_add(1);
-
-                    let processed_preview = process_and_get_dynamic_image_with_precision(
-                        &context,
-                        &state,
-                        &preview_image,
-                        unique_hash,
-                        RenderRequest {
-                            adjustments: all_adjustments,
-                            mask_bitmaps: &mask_bitmaps,
-                            lut,
-                            roi: None,
-                            dcp_textures: None,
-                        },
-                        "estimate_export_size",
-                        render_output_precision(&output_format, &export_settings),
-                    )?;
-
-                    let preview_bytes = encode_image_to_bytes(
-                        &processed_preview,
-                        &output_format,
-                        export_settings.jpeg_quality,
-                        export_settings.tiff_bit_depth,
-                    )?;
-                    let preview_byte_size = preview_bytes.len();
-
-                    let (transformed_full_res, _) =
-                        apply_all_transformations(&loaded_image.image, &adjustments_clone);
-                    let (full_w, full_h) = transformed_full_res.dimensions();
-
-                    let (final_full_w, final_full_h) =
-                        compute_export_output_size(full_w, full_h, &export_settings);
-
-                    let (processed_preview_w, processed_preview_h) = processed_preview.dimensions();
-                    let pixel_ratio = if processed_preview_w > 0 && processed_preview_h > 0 {
-                        (final_full_w as f64 * final_full_h as f64)
-                            / (processed_preview_w as f64 * processed_preview_h as f64)
-                    } else {
-                        1.0
-                    };
-
-                    (preview_byte_size as f64 * pixel_ratio) as usize
-                })
-            })?
-        } else {
-            return Err("Current-edit estimate requires captured adjustments".into());
-        }
-    } else {
-        // Independent file estimates stay usable during a keyed editor open.
-        let metadata = checked_export_stage(&check, || {
-            Ok(crate::exif_processing::load_sidecar(&sidecar_path))
-        })?;
-        let source = with_export_file_bytes(&source_path, &check, |bytes| {
-            independent_estimate_source(
-                bytes,
-                &source_path_str,
-                &metadata.adjustments,
-                &settings,
-                &state,
-                &check,
-            )
-        })?;
-        match source {
-            IndependentExportSource::Accurate(source) => {
-                source.with_composition(&check, |composed| {
+            None
+        };
+        let check = || {
+            if let Some(request) = &request {
+                request.check()?;
+            }
+            Ok(())
+        };
+        let context =
+            checked_export_stage(&check, || get_or_init_gpu_context(&state, &app_handle))?;
+        let is_raw = is_raw_file(&source_path_str);
+        let single_image_extrapolated_size = if let Some(request) = &request {
+            if request.is_keyed() {
+                request.ensure_denoise_in_worker(&app_handle)?;
+                request.with_full_composition(|composed| {
                     let processed = render_composed_export(
                         composed,
                         &context,
@@ -3270,32 +3172,207 @@ pub async fn estimate_export_sizes(
                         &check,
                     )
                 })?
+            } else if current_edit_adjustments.is_some() {
+                request.ensure_denoise_in_worker(&app_handle)?;
+                let denoise = request.denoise_lease()?;
+                checked_export_stage(&check, || {
+                    let settings = request.settings();
+                    Ok({
+                        let loaded_image = request.loaded().clone();
+                        let mut adjustments_clone = current_edit_adjustments.clone().unwrap();
+                        hydrate_adjustments(&state, &mut adjustments_clone);
+
+                        let new_transform_hash = calculate_transform_hash(&adjustments_clone);
+                        let cached_preview_lock = state.cached_preview.lock().unwrap();
+                        let preview_dim = settings.editor_preview_resolution.unwrap_or(1920);
+
+                        let (preview_image, scale, unscaled_crop_offset) =
+                            if let Some(cached) = &*cached_preview_lock {
+                                if cached.transform_hash == new_transform_hash
+                                    && cached.preview_dim == preview_dim
+                                {
+                                    let img = Arc::clone(&cached.image);
+                                    let s = cached.scale;
+                                    let offset = cached.unscaled_crop_offset;
+                                    drop(cached_preview_lock);
+                                    let owned_img =
+                                        Arc::try_unwrap(img).unwrap_or_else(|arc| (*arc).clone());
+                                    (owned_img, s, offset)
+                                } else {
+                                    drop(cached_preview_lock);
+                                    crate::generate_transformed_preview_with_denoise(
+                                        &state,
+                                        &loaded_image,
+                                        &adjustments_clone,
+                                        preview_dim,
+                                        denoise.as_ref(),
+                                    )?
+                                }
+                            } else {
+                                drop(cached_preview_lock);
+                                crate::generate_transformed_preview_with_denoise(
+                                    &state,
+                                    &loaded_image,
+                                    &adjustments_clone,
+                                    preview_dim,
+                                    denoise.as_ref(),
+                                )?
+                            };
+
+                        let (img_w, img_h) = preview_image.dimensions();
+                        let mask_definitions: Vec<MaskDefinition> = adjustments_clone
+                            .get("masks")
+                            .and_then(|m| serde_json::from_value(m.clone()).ok())
+                            .unwrap_or_default();
+
+                        let scaled_crop_offset = (
+                            unscaled_crop_offset.0 * scale,
+                            unscaled_crop_offset.1 * scale,
+                        );
+
+                        let mask_bitmaps: Vec<ImageBuffer<Luma<u8>, Vec<u8>>> = mask_definitions
+                            .iter()
+                            .filter_map(|def| {
+                                get_cached_or_generate_mask(
+                                    &state,
+                                    &loaded_image.path,
+                                    def,
+                                    img_w,
+                                    img_h,
+                                    scale,
+                                    scaled_crop_offset,
+                                    &adjustments_clone,
+                                )
+                            })
+                            .collect();
+
+                        let render = crate::image_processing::resolve_render_options(
+                            request.settings(),
+                            is_raw,
+                        );
+                        let mut all_adjustments = get_all_adjustments_from_json(
+                            &adjustments_clone,
+                            is_raw,
+                            loaded_image.as_shot,
+                            render,
+                        );
+                        all_adjustments.global.show_clipping = 0;
+
+                        let lut = adjustments_clone["lutPath"]
+                            .as_str()
+                            .and_then(|p| get_or_load_lut(&state, p).ok());
+                        let unique_hash =
+                            calculate_full_job_hash(&loaded_image.path, &adjustments_clone)
+                                .wrapping_add(1);
+
+                        let processed_preview = process_and_get_dynamic_image_with_precision(
+                            &context,
+                            &state,
+                            &preview_image,
+                            unique_hash,
+                            RenderRequest {
+                                adjustments: all_adjustments,
+                                mask_bitmaps: &mask_bitmaps,
+                                lut,
+                                roi: None,
+                                dcp_textures: None,
+                            },
+                            "estimate_export_size",
+                            render_output_precision(&output_format, &export_settings),
+                        )?;
+
+                        let preview_bytes = encode_image_to_bytes(
+                            &processed_preview,
+                            &output_format,
+                            &export_settings,
+                        )?;
+                        let preview_byte_size = preview_bytes.len();
+
+                        let (transformed_full_res, _) =
+                            apply_all_transformations(&loaded_image.image, &adjustments_clone);
+                        let (full_w, full_h) = transformed_full_res.dimensions();
+
+                        let (final_full_w, final_full_h) =
+                            compute_export_output_size(full_w, full_h, &export_settings);
+
+                        let (processed_preview_w, processed_preview_h) =
+                            processed_preview.dimensions();
+                        let pixel_ratio = if processed_preview_w > 0 && processed_preview_h > 0 {
+                            (final_full_w as f64 * final_full_h as f64)
+                                / (processed_preview_w as f64 * processed_preview_h as f64)
+                        } else {
+                            1.0
+                        };
+
+                        (preview_byte_size as f64 * pixel_ratio) as usize
+                    })
+                })?
+            } else {
+                return Err("Current-edit estimate requires captured adjustments".into());
             }
-            IndependentExportSource::Legacy {
-                image,
-                adjustments,
-                as_shot,
-                raw_scale,
-            } => checked_export_stage(&check, || {
-                estimate_legacy_independent_image(
-                    image,
-                    raw_scale,
-                    adjustments,
-                    &settings,
-                    &context,
-                    &state,
+        } else {
+            // Independent file estimates stay usable during a keyed editor open.
+            let metadata = checked_export_stage(&check, || {
+                Ok(crate::exif_processing::load_sidecar(&sidecar_path))
+            })?;
+            let source = with_export_file_bytes(&source_path, &check, |bytes| {
+                independent_estimate_source(
                     &app_handle,
+                    bytes,
                     &source_path_str,
-                    is_raw,
-                    as_shot,
-                    &output_format,
-                    &export_settings,
+                    &metadata.adjustments,
+                    &settings,
+                    &state,
+                    &check,
                 )
-            })?,
-        }
-    };
-    check()?;
-    Ok(single_image_extrapolated_size * paths.len())
+            })?;
+            match source {
+                IndependentExportSource::Accurate(source) => {
+                    source.with_composition(&check, |composed| {
+                        let processed = render_composed_export(
+                            composed,
+                            &context,
+                            &export_settings,
+                            &output_format,
+                            &check,
+                        )?;
+                        estimate_rendered_export_size(
+                            &processed,
+                            composed.pixels().dimensions(),
+                            &output_format,
+                            &export_settings,
+                            &check,
+                        )
+                    })?
+                }
+                IndependentExportSource::Legacy {
+                    image,
+                    adjustments,
+                    as_shot,
+                    raw_scale,
+                } => checked_export_stage(&check, || {
+                    estimate_legacy_independent_image(
+                        image,
+                        raw_scale,
+                        adjustments,
+                        &settings,
+                        &context,
+                        &state,
+                        &app_handle,
+                        &source_path_str,
+                        is_raw,
+                        as_shot,
+                        &output_format,
+                        &export_settings,
+                    )
+                })?,
+            }
+        };
+        check()?;
+        Ok(single_image_extrapolated_size * paths.len())
+    })
+    .await
+    .map_err(|e| format!("Export estimate worker failed: {e}"))?
 }
 
 #[cfg(test)]

@@ -11,14 +11,8 @@ import shlex
 import subprocess
 import sys
 
-PINS = {
-    'tauri-plugin-http': '2.7.0', 'tauri-plugin-fs': '2.5.2',
-    'tauri-plugin-store': '2.4.0', 'tauri': '2.11.5',
-    'tauri-runtime-wry': '2.11.4', 'tauri-runtime': '2.11.3',
-    'wry': '0.55.1', 'tao': '0.35.3', 'tauri-build': '2.6.3',
-    'tauri-macros': '2.6.3', 'tauri-plugin': '2.6.3',
-    'tauri-codegen': '2.6.3', 'tauri-utils': '2.9.3',
-}
+PINS = {'tauri-plugin-http': '2.8.0', 'tauri-plugin-fs': '2.6.0', 'tauri-plugin-store': '2.5.0', 'tauri': '2.12.1', 'tauri-runtime-wry': '2.12.1', 'tauri-runtime': '2.12.1', 'wry': '0.57.0', 'tao': '0.37.1', 'tauri-build': '2.7.1', 'tauri-macros': '2.7.1', 'tauri-plugin': '2.7.1', 'tauri-codegen': '2.7.1', 'tauri-utils': '2.10.1'}
+NPM_PINS = {'cli': '2.12.1', 'api': '2.12.1', 'plugin-http': '2.8.0'}
 LOCKS = {'Cargo.lock': 'src-tauri/Cargo.lock', 'package-lock.json': 'package-lock.json'}
 MARKER = '.android-workspace.json'
 
@@ -40,7 +34,7 @@ def check_pins(root):
         if [v for n, v in packages if n == name] != [version]:
             raise SystemExit(f'Android lock must pin {name} to {version}')
     packages = json.loads((root / 'package-lock.json').read_text())['packages']
-    for name, version in {'cli': '2.11.4', 'api': '2.11.1', 'plugin-http': '2.7.0'}.items():
+    for name, version in NPM_PINS.items():
         if packages[f'node_modules/@tauri-apps/{name}']['version'] != version:
             raise SystemExit(f'Android npm lock must pin {name} to {version}')
 
@@ -92,11 +86,7 @@ def main():
         for name, entry in source_files.items():
             if not (source / name).is_file() or digest(source / name) != entry['sha256']:
                 raise SystemExit(f'Source changed during copy: {name}; use a fresh workspace')
-        package = json.loads((work / 'package.json').read_text())
-        package['dependencies']['@tauri-apps/api'] = '2.11.1'
-        package['dependencies']['@tauri-apps/plugin-http'] = '2.7.0'
-        package['devDependencies']['@tauri-apps/cli'] = '2.11.4'
-        (work / 'package.json').write_text(json.dumps(package, indent=2) + '\n')
+        # The merged upstream Android stack shares the reviewed source manifests.
         receipt = {
             'schema': 2,
             'source': str(source),

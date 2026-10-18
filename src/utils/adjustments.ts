@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { SubMask, SubMaskMode } from '../components/panel/right/Masks';
 import type { AdjustmentLayout, AppSettings } from '../components/ui/AppProperties';
 import type { WhiteBalance } from './whiteBalance';
+import defaultAdjustments from './defaultAdjustments.json';
 
 export enum ActiveChannel {
   Blue = 'blue',
@@ -64,10 +65,15 @@ export enum ColorGrading {
 }
 
 export enum DetailsAdjustment {
+  AiDenoiseAmount = 'aiDenoiseAmount',
+  AiDenoiseDetail = 'aiDenoiseDetail',
+  AiDenoiseEnabled = 'aiDenoiseEnabled',
   Clarity = 'clarity',
   Dehaze = 'dehaze',
   Structure = 'structure',
   Centré = 'centré',
+  CentréX = 'centréX',
+  CentréY = 'centréY',
   ColorNoiseReduction = 'colorNoiseReduction',
   LumaNoiseReduction = 'lumaNoiseReduction',
   Sharpness = 'sharpness',
@@ -87,6 +93,8 @@ export enum Effect {
   LutSize = 'lutSize',
   LutIsSceneReferred = 'lutIsSceneReferred',
   VignetteAmount = 'vignetteAmount',
+  VignetteCenterX = 'vignetteCenterX',
+  VignetteCenterY = 'vignetteCenterY',
   VignetteFeather = 'vignetteFeather',
   VignetteMidpoint = 'vignetteMidpoint',
   VignetteRoundness = 'vignetteRoundness',
@@ -275,13 +283,19 @@ export const pointColourV1 = (input: unknown): PointColourV1 | null => {
 
 export interface Adjustments {
   pointColour?: PointColourV1 | Record<string, unknown> | null;
+  activeTools: ActiveTools;
   [index: string]: any;
+  aiDenoiseAmount: number;
+  aiDenoiseDetail: number;
+  aiDenoiseEnabled: boolean;
   aiPatches: Array<AiPatch>;
   aspectRatio: number | null;
   baselineExposure: boolean;
   blacks: number;
   brightness: number;
   centré: number;
+  centréX: number;
+  centréY: number;
   clarity: number;
   chromaticAberrationBlueYellow: number;
   chromaticAberrationRedCyan: number;
@@ -367,7 +381,6 @@ export interface Adjustments {
   profile: ProfileSelection;
   rotation: number;
   saturation: number;
-  sectionVisibility: SectionVisibility;
   shadows: number;
   sharpness: number;
   sharpnessThreshold: number;
@@ -386,6 +399,8 @@ export interface Adjustments {
   transformYOffset: number;
   vibrance: number;
   vignetteAmount: number;
+  vignetteCenterX: number;
+  vignetteCenterY: number;
   vignetteFeather: number;
   vignetteMidpoint: number;
   vignetteRoundness: number;
@@ -451,6 +466,7 @@ interface Hsl {
 }
 
 export interface MaskAdjustments {
+  activeTools: ActiveTools;
   [index: string]: any;
   blacks: number;
   brightness: number;
@@ -473,7 +489,6 @@ export interface MaskAdjustments {
   id?: string;
   lumaNoiseReduction: number;
   saturation: number;
-  sectionVisibility: SectionVisibility;
   shadows: number;
   sharpness: number;
   sharpnessThreshold: number;
@@ -536,14 +551,7 @@ export interface Sections {
   effects: Array<string>;
 }
 
-export interface SectionVisibility {
-  [index: string]: boolean;
-  basic: boolean;
-  curves: boolean;
-  color: boolean;
-  details: boolean;
-  effects: boolean;
-}
+export type ActiveTools = Record<string, boolean>;
 
 export const COLOR_LABELS: Array<Color> = [
   { name: 'red', color: '#ef4444' },
@@ -560,16 +568,6 @@ const INITIAL_COLOR_GRADING: ColorGradingProps = {
   highlights: { hue: 0, saturation: 0, luminance: 0 },
   midtones: { hue: 0, saturation: 0, luminance: 0 },
   shadows: { hue: 0, saturation: 0, luminance: 0 },
-};
-
-const INITIAL_COLOR_CALIBRATION: ColorCalibration = {
-  shadowsTint: 0,
-  redHue: 0,
-  redSaturation: 0,
-  greenHue: 0,
-  greenSaturation: 0,
-  blueHue: 0,
-  blueSaturation: 0,
 };
 
 export const DEFAULT_PARAMETRIC_CURVE_SETTINGS: ParametricCurveSettings = {
@@ -613,6 +611,7 @@ export const getDefaultCurves = (): Curves => ({
 export const DEFAULT_PARAMETRIC_CURVE = getDefaultParametricCurve();
 
 export const INITIAL_MASK_ADJUSTMENTS: MaskAdjustments = {
+  activeTools: {},
   blacks: 0,
   brightness: 0,
   clarity: 0,
@@ -642,13 +641,6 @@ export const INITIAL_MASK_ADJUSTMENTS: MaskAdjustments = {
   hue: 0,
   lumaNoiseReduction: 0,
   saturation: 0,
-  sectionVisibility: {
-    basic: true,
-    curves: true,
-    color: true,
-    details: true,
-    effects: true,
-  },
   shadows: 0,
   sharpness: 0,
   sharpnessThreshold: 15,
@@ -668,133 +660,13 @@ export const INITIAL_MASK_CONTAINER: MaskContainer = {
   visible: true,
 };
 
-export const INITIAL_ADJUSTMENTS: Adjustments = {
-  pointColour: null,
-  aiPatches: [],
-  aspectRatio: null,
-  baselineExposure: true,
-  blacks: 0,
-  brightness: 0,
-  centré: 0,
-  clarity: 0,
-  chromaticAberrationBlueYellow: 0,
-  chromaticAberrationRedCyan: 0,
-  colorCalibration: { ...INITIAL_COLOR_CALIBRATION },
-  colorGrading: { ...INITIAL_COLOR_GRADING },
-  colorNoiseReduction: 0,
-  contrast: 0,
-  crop: null,
-  curves: getDefaultCurves(),
-  pointCurves: getDefaultCurves(),
-  parametricCurve: getDefaultParametricCurve(),
-  curveMode: 'point',
-  dehaze: 0,
-  exposure: 0,
-  flipHorizontal: false,
-  flipVertical: false,
-  flareAmount: 0,
-  glowAmount: 0,
-  grainAmount: 0,
-  grainRoughness: 50,
-  grainSize: 25,
-  guidedPerspective: { enabled: false, lines: [], autoCrop: true },
-  halationAmount: 0,
-  highlights: 0,
-  hsl: {
-    aquas: { hue: 0, saturation: 0, luminance: 0 },
-    blues: { hue: 0, saturation: 0, luminance: 0 },
-    greens: { hue: 0, saturation: 0, luminance: 0 },
-    magentas: { hue: 0, saturation: 0, luminance: 0 },
-    oranges: { hue: 0, saturation: 0, luminance: 0 },
-    purples: { hue: 0, saturation: 0, luminance: 0 },
-    reds: { hue: 0, saturation: 0, luminance: 0 },
-    yellows: { hue: 0, saturation: 0, luminance: 0 },
-  },
-  hue: 0,
-  lensBlurAmount: 40,
-  lensBlurDiffusion: 0,
-  lensBlurShape: 'circle',
-  lensBlurDepthMap: null,
-  lensBlurEnabled: false,
-  lensBlurMaxDepth: 100,
-  lensBlurMaxFade: 20,
-  lensBlurMinDepth: 20,
-  lensBlurMinFade: 20,
-  relightEnabled: false,
-  relightNormalMap: null,
-  relightLights: [],
-  relightAmbient: 0,
-  relightSoftness: 25,
-  relightShine: 0,
-  relightShadows: false,
-  relightShadowSoftness: 15,
-  fogEnabled: false,
-  fogDepthMap: null,
-  fogAmount: 50,
-  fogStart: 0,
-  fogDensity: 50,
-  fogHeight: 0,
-  fogVariation: 25,
-  fogGlow: 25,
-  fogTemperature: 0,
-  fogTint: 0,
-  lensCorrectionMode: 'manual',
-  lensDistortionAmount: 100,
-  lensVignetteAmount: 100,
-  lensTcaAmount: 100,
-  lensDistortionEnabled: true,
-  lensTcaEnabled: true,
-  lensVignetteEnabled: true,
-  lensDistortionParams: null,
-  lensMaker: null,
-  lensModel: null,
-  lumaNoiseReduction: 0,
-  lutData: null,
-  lutIntensity: 100,
-  lutName: null,
-  lutPath: null,
-  lutSize: 0,
-  lutIsSceneReferred: false,
-  masks: [],
-  orientationSteps: 0,
-  profile: {
-    base: null,
-    look: null,
-    amount: 100,
-  },
-  rotation: 0,
-  saturation: 0,
-  sectionVisibility: {
-    basic: true,
-    curves: true,
-    color: true,
-    details: true,
-    effects: true,
-  },
-  shadows: 0,
-  sharpness: 0,
-  sharpnessThreshold: 15,
-  showClipping: false,
-  structure: 0,
-  temperature: 0,
-  tint: 0,
-  toneMapper: 'basic',
-  transformDistortion: 0,
-  transformVertical: 0,
-  transformHorizontal: 0,
-  transformRotate: 0,
-  transformAspect: 0,
-  transformScale: 100,
-  transformXOffset: 0,
-  transformYOffset: 0,
-  vibrance: 0,
-  vignetteAmount: 0,
-  vignetteFeather: 50,
-  vignetteMidpoint: 50,
-  vignetteRoundness: 0,
-  whiteBalance: null,
-  whites: 0,
-};
+// Adjustments has an index signature, so keyof alone would accept any object.
+type DeclaredKeys<T> = keyof { [K in keyof T as string extends K ? never : K]: T[K] };
+
+export const INITIAL_ADJUSTMENTS: Adjustments = defaultAdjustments satisfies Record<
+  DeclaredKeys<Adjustments>,
+  unknown
+> as unknown as Adjustments;
 
 const deepCloneCurves = (curves: any): Curves => ({
   blue: curves?.blue?.map((p: Coord) => ({ ...p })) || [
@@ -864,10 +736,8 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
           ? deepCloneParametric(containerAdjustments.parametricCurve)
           : getDefaultParametricCurve(),
         curveMode: containerAdjustments.curveMode || INITIAL_MASK_ADJUSTMENTS.curveMode,
-        sectionVisibility: {
-          ...INITIAL_MASK_ADJUSTMENTS.sectionVisibility,
-          ...(containerAdjustments.sectionVisibility || {}),
-        },
+        activeTools: getActiveTools(containerAdjustments),
+        sectionVisibility: undefined,
         sharpnessThreshold: containerAdjustments.sharpnessThreshold ?? INITIAL_MASK_ADJUSTMENTS.sharpnessThreshold,
       },
       subMasks: normalizedSubMasks,
@@ -962,10 +832,8 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
     curveMode: loadedAdjustments.curveMode || INITIAL_ADJUSTMENTS.curveMode,
     masks: normalizedMasks,
     aiPatches: normalizedAiPatches,
-    sectionVisibility: {
-      ...INITIAL_ADJUSTMENTS.sectionVisibility,
-      ...(loadedAdjustments.sectionVisibility || {}),
-    },
+    activeTools: getActiveTools(loadedAdjustments),
+    sectionVisibility: undefined,
     sharpnessThreshold: loadedAdjustments.sharpnessThreshold ?? INITIAL_ADJUSTMENTS.sharpnessThreshold,
     profile: loadedAdjustments.profile
       ? {
@@ -1026,6 +894,8 @@ export const ADJUSTMENT_GROUPS: Record<string, AdjustmentGroup[]> = {
         DetailsAdjustment.Structure,
         DetailsAdjustment.Dehaze,
         DetailsAdjustment.Centré,
+        DetailsAdjustment.CentréX,
+        DetailsAdjustment.CentréY,
       ],
     },
     {
@@ -1044,7 +914,14 @@ export const ADJUSTMENT_GROUPS: Record<string, AdjustmentGroup[]> = {
   effects: [
     {
       label: 'modals.copyPaste.groups.vignette',
-      keys: [Effect.VignetteAmount, Effect.VignetteFeather, Effect.VignetteMidpoint, Effect.VignetteRoundness],
+      keys: [
+        Effect.VignetteAmount,
+        Effect.VignetteFeather,
+        Effect.VignetteMidpoint,
+        Effect.VignetteRoundness,
+        Effect.VignetteCenterX,
+        Effect.VignetteCenterY,
+      ],
     },
     { label: 'modals.copyPaste.groups.grain', keys: [Effect.GrainAmount, Effect.GrainRoughness, Effect.GrainSize] },
     {
@@ -1137,10 +1014,15 @@ export const ADJUSTMENT_SECTIONS: Sections = {
     DetailsAdjustment.Dehaze,
     DetailsAdjustment.Structure,
     DetailsAdjustment.Centré,
+    DetailsAdjustment.CentréX,
+    DetailsAdjustment.CentréY,
     DetailsAdjustment.Sharpness,
     DetailsAdjustment.SharpnessThreshold,
     DetailsAdjustment.LumaNoiseReduction,
     DetailsAdjustment.ColorNoiseReduction,
+    DetailsAdjustment.AiDenoiseEnabled,
+    DetailsAdjustment.AiDenoiseAmount,
+    DetailsAdjustment.AiDenoiseDetail,
     DetailsAdjustment.ChromaticAberrationRedCyan,
     DetailsAdjustment.ChromaticAberrationBlueYellow,
   ],
@@ -1160,6 +1042,8 @@ export const ADJUSTMENT_SECTIONS: Sections = {
     Effect.VignetteFeather,
     Effect.VignetteMidpoint,
     Effect.VignetteRoundness,
+    Effect.VignetteCenterX,
+    Effect.VignetteCenterY,
     Effect.LensBlurEnabled,
     Effect.LensBlurAmount,
     Effect.lensBlurDiffusion,
@@ -1214,6 +1098,7 @@ export const withAdjustmentLayout = (settings: AppSettings, changes: Partial<Adj
 export interface AdjustmentSectionTool {
   id: string;
   label: string;
+  subTools?: Array<string>;
 }
 
 export const ADJUSTMENT_SECTION_TOOLS: Record<string, Array<AdjustmentSectionTool>> = {
@@ -1233,15 +1118,58 @@ export const ADJUSTMENT_SECTION_TOOLS: Record<string, Array<AdjustmentSectionToo
   ],
   effects: [
     { id: 'creative', label: 'adjustments.effects.creative' },
-    { id: 'spatial', label: 'adjustments.effects.spatial' },
+    { id: 'spatial', label: 'adjustments.effects.spatial', subTools: ['lensBlur', 'relight', 'fog'] },
     { id: 'lut', label: 'adjustments.effects.lut' },
     { id: 'vignette', label: 'adjustments.effects.vignette' },
     { id: 'grain', label: 'adjustments.effects.grain' },
   ],
 };
 
+export const ALL_ADJUSTMENT_TOOLS = Object.values(ADJUSTMENT_SECTION_TOOLS).flat();
+
+export const ADJUSTMENT_TOOLS_BY_ID: Record<string, AdjustmentSectionTool> = Object.fromEntries(
+  ALL_ADJUSTMENT_TOOLS.map((tool) => [tool.id, tool]),
+);
+
 export const getAdjustmentSectionToolIds = (section: string): string[] =>
   (ADJUSTMENT_SECTION_TOOLS[section] ?? []).map((tool) => tool.id);
+
+const getToolIds = (id: string): Array<string> => {
+  const expand = (tool: AdjustmentSectionTool) => tool.subTools ?? [tool.id];
+  const sectionTools = ADJUSTMENT_SECTION_TOOLS[id];
+  if (sectionTools) {
+    return sectionTools.flatMap(expand);
+  }
+  const tool = ADJUSTMENT_TOOLS_BY_ID[id];
+  return tool ? expand(tool) : [id];
+};
+
+export const isToolActive = (activeTools: ActiveTools, id: string): boolean =>
+  getToolIds(id).some((tool) => activeTools[tool] !== false);
+
+export const setToolActive = (activeTools: ActiveTools, id: string, active: boolean): ActiveTools => ({
+  ...activeTools,
+  ...Object.fromEntries(getToolIds(id).map((tool) => [tool, active])),
+});
+
+export const toggleToolActive = (activeTools: ActiveTools, id: string): ActiveTools =>
+  setToolActive(activeTools, id, !isToolActive(activeTools, id));
+
+interface ToolStateSource {
+  activeTools?: ActiveTools;
+  sectionVisibility?: Record<string, boolean>;
+}
+
+export const getActiveTools = (adjustments: ToolStateSource): ActiveTools =>
+  adjustments.activeTools ??
+  Object.entries(adjustments.sectionVisibility ?? {})
+    .filter(([, visible]) => !visible)
+    .reduce((activeTools, [id]) => setToolActive(activeTools, id, false), {});
+
+export const mergeActiveTools = (base: ToolStateSource, overrides: ToolStateSource): ActiveTools => ({
+  ...getActiveTools(base),
+  ...getActiveTools(overrides),
+});
 
 export const getAdjustmentToolOrder = (section: string, toolOrder?: Record<string, string[]>): string[] =>
   reconcileOrder(getAdjustmentSectionToolIds(section), toolOrder?.[section]);

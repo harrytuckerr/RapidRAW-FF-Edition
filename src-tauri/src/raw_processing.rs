@@ -12,6 +12,7 @@ use rawler::{
     rawimage::{RawImage, RawPhotometricInterpretation},
     rawsource::RawSource,
 };
+use rayon::prelude::*;
 use std::sync::{
     Arc,
     atomic::{AtomicUsize, Ordering},
@@ -511,7 +512,7 @@ fn finish_development(
 
     match &mut developed_intermediate {
         Intermediate::Monochrome(pixels) => {
-            pixels.data.iter_mut().for_each(|p| {
+            pixels.data.par_iter_mut().for_each(|p| {
                 let mut linear_val = *p * rescale_factor;
                 if is_linear_format && apply_ungamma {
                     linear_val = srgb_to_linear(linear_val.max(0.0));
@@ -520,7 +521,7 @@ fn finish_development(
             });
         }
         Intermediate::ThreeColor(pixels) => {
-            pixels.data.iter_mut().for_each(|p| {
+            pixels.data.par_iter_mut().for_each(|p| {
                 let mut r = (p[0] * rescale_factor).max(0.0);
                 let mut g = (p[1] * rescale_factor).max(0.0);
                 let mut b = (p[2] * rescale_factor).max(0.0);
@@ -544,7 +545,7 @@ fn finish_development(
             });
         }
         Intermediate::FourColor(pixels) => {
-            pixels.data.iter_mut().for_each(|p| {
+            pixels.data.par_iter_mut().for_each(|p| {
                 p.iter_mut().for_each(|c| {
                     let mut linear_val = *c * rescale_factor;
                     if is_linear_format && apply_ungamma {
@@ -560,18 +561,10 @@ fn finish_development(
 
     let dynamic_image = match developed_intermediate {
         Intermediate::ThreeColor(pixels) => {
-            let buffer = ImageBuffer::<Rgba<f32>, _>::from_fn(width, height, |x, y| {
-                let p = pixels.data[(y * width + x) as usize];
-                Rgba([p[0], p[1], p[2], 1.0])
-            });
-            DynamicImage::ImageRgba32F(buffer)
+            DynamicImage::ImageRgba32F(rgb_pixels_to_rgba(&pixels.data, width, height)?)
         }
         Intermediate::Monochrome(pixels) => {
-            let buffer = ImageBuffer::<Rgba<f32>, _>::from_fn(width, height, |x, y| {
-                let p = pixels.data[(y * width + x) as usize];
-                Rgba([p, p, p, 1.0])
-            });
-            DynamicImage::ImageRgba32F(buffer)
+            DynamicImage::ImageRgba32F(mono_pixels_to_rgba(&pixels.data, width, height)?)
         }
         _ => {
             return Err(anyhow!("Unsupported intermediate format for conversion"));
@@ -631,6 +624,44 @@ fn as_shot_white_balance(raw_image: &RawImage, file_bytes: &[u8]) -> Option<Whit
         .get(&Illuminant::D65)
         .or_else(|| matrices.values().next())?;
     WhiteBalance::from_camera_neutral(color_matrix, &neutral)
+}
+
+fn rgb_pixels_to_rgba(
+    data: &[[f32; 3]],
+    width: u32,
+    height: u32,
+) -> Result<ImageBuffer<Rgba<f32>, Vec<f32>>> {
+    let mut rgba = vec![0.0f32; checked_rgba_sample_count(data.len(), width, height)?];
+    rgba.par_chunks_exact_mut(4)
+        .zip(data.par_iter())
+        .for_each(|(dst, p)| dst.copy_from_slice(&[p[0], p[1], p[2], 1.0]));
+    ImageBuffer::from_raw(width, height, rgba)
+        .ok_or_else(|| anyhow!("Developed image size does not match its dimensions"))
+}
+
+fn mono_pixels_to_rgba(
+    data: &[f32],
+    width: u32,
+    height: u32,
+) -> Result<ImageBuffer<Rgba<f32>, Vec<f32>>> {
+    let mut rgba = vec![0.0f32; checked_rgba_sample_count(data.len(), width, height)?];
+    rgba.par_chunks_exact_mut(4)
+        .zip(data.par_iter())
+        .for_each(|(dst, &p)| dst.copy_from_slice(&[p, p, p, 1.0]));
+    ImageBuffer::from_raw(width, height, rgba)
+        .ok_or_else(|| anyhow!("Developed image size does not match its dimensions"))
+}
+
+fn checked_rgba_sample_count(pixel_count: usize, width: u32, height: u32) -> Result<usize> {
+    let dimension_pixels = (width as usize)
+        .checked_mul(height as usize)
+        .ok_or_else(|| anyhow!("Developed image dimensions overflow"))?;
+    if dimension_pixels != pixel_count {
+        return Err(anyhow!("Developed image size does not match its dimensions"));
+    }
+    pixel_count
+        .checked_mul(4)
+        .ok_or_else(|| anyhow!("Developed RGBA image size overflow"))
 }
 
 pub fn get_fast_demosaic_scale_factor(
@@ -981,6 +1012,94 @@ mod prepared_tests {
                 expected
             );
         }
+    }
+
+    #[test]
+    fn parallel_rgb_finish_matches_original_serial_pixel_order() {
+        let raw = fixture("RGGB", 64, 64);
+        let source = vec![
+            [-0.0, 0.25, 0.75],
+            [0.9, 0.1, 0.9],
+            [1.7, 1.6, 0.1],
+            [f32::NAN, f32::INFINITY, f32::NEG_INFINITY],
+        ];
+
+        for has_dcp_profile in [false, true] {
+            let policy = development_policy(&raw, false, "auto", has_dcp_profile).unwrap();
+            let mut serial = source.clone();
+            for pixel in &mut serial {
+                let mut r = (pixel[0] * 2.0).max(0.0);
+                let mut g = (pixel[1] * 2.0).max(0.0);
+                let mut b = (pixel[2] * 2.0).max(0.0);
+                if policy.is_linear_format && policy.apply_ungamma {
+                    r = srgb_to_linear(r.max(0.0));
+                    g = srgb_to_linear(g.max(0.0));
+                    b = srgb_to_linear(b.max(0.0));
+                }
+                let (r, g, b) = if has_dcp_profile {
+                    (r, g, b)
+                } else {
+                    recover_clipped_pixel(r, g, b)
+                };
+                pixel[0] = r.clamp(0.0, 1000.0);
+                pixel[1] = g.clamp(0.0, 1000.0);
+                pixel[2] = b.clamp(0.0, 1000.0);
+            }
+            let expected: Vec<u32> = serial
+                .iter()
+                .flat_map(|p| [p[0], p[1], p[2], 1.0])
+                .map(f32::to_bits)
+                .collect();
+            let meta = RawImageMeta {
+                wb_coeffs: raw.wb_coeffs,
+                make: raw.make.clone(),
+                model: raw.model.clone(),
+                clean_model: raw.clean_model.clone(),
+            };
+            let pixels = rawler::pixarray::Color2D::new_with(source.clone(), 4, 1);
+            let (actual, _, _) = finish_development(
+                Intermediate::ThreeColor(pixels),
+                &policy,
+                Orientation::Normal,
+                meta,
+                2.0,
+                &None,
+            )
+            .unwrap();
+            let actual: Vec<u32> = actual
+                .to_rgba32f()
+                .into_raw()
+                .into_iter()
+                .map(f32::to_bits)
+                .collect();
+            assert_eq!(actual, expected, "has_dcp_profile={has_dcp_profile}");
+        }
+    }
+
+    #[test]
+    fn parallel_rgb_and_mono_rgba_conversions_match_serial_bits() {
+        let rgb = vec![
+            [f32::NEG_INFINITY, -0.0, f32::NAN],
+            [65504.0, 70000.0, 1.0e-8],
+        ];
+        let expected_rgb = ImageBuffer::<Rgba<f32>, _>::from_fn(2, 1, |x, _| {
+            let p = rgb[x as usize];
+            Rgba([p[0], p[1], p[2], 1.0])
+        });
+        let actual_rgb = rgb_pixels_to_rgba(&rgb, 2, 1).unwrap();
+        let bits = |values: &[f32]| values.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+        assert_eq!(bits(expected_rgb.as_raw()), bits(actual_rgb.as_raw()));
+
+        let mono = vec![f32::NAN, -0.0, f32::INFINITY, 70000.0];
+        let expected_mono = ImageBuffer::<Rgba<f32>, _>::from_fn(2, 2, |x, y| {
+            let p = mono[(y * 2 + x) as usize];
+            Rgba([p, p, p, 1.0])
+        });
+        let actual_mono = mono_pixels_to_rgba(&mono, 2, 2).unwrap();
+        assert_eq!(bits(expected_mono.as_raw()), bits(actual_mono.as_raw()));
+
+        assert!(rgb_pixels_to_rgba(&rgb, 3, 1).is_err());
+        assert!(mono_pixels_to_rgba(&mono, 1, 1).is_err());
     }
 
     #[test]

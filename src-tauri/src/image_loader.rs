@@ -20,6 +20,7 @@ use rawler::Orientation;
 use rayon::prelude::*;
 use serde::Deserialize;
 use serde_json::Value;
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs;
 use std::panic;
@@ -30,6 +31,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 use std::time::Instant;
+use tauri::Manager;
 
 #[derive(serde::Serialize)]
 pub struct LoadImageResult {
@@ -98,7 +100,34 @@ pub fn load_and_composite(
 ) -> Result<DynamicImage> {
     let base_image =
         load_base_image_from_bytes(base_image, path, use_fast_raw_dev, settings, cancel_token)?;
-    composite_patches_on_image(&base_image, adjustments)
+    prepare_base_image(&base_image, path, adjustments)
+}
+
+pub fn prepare_base_image(
+    base_image: &DynamicImage,
+    path: &str,
+    adjustments: &Value,
+) -> Result<DynamicImage> {
+    prepare_base_image_with_lease(base_image, path, adjustments, None)
+}
+
+fn prepare_base_image_with_lease(
+    base_image: &DynamicImage,
+    path: &str,
+    adjustments: &Value,
+    lease: Option<&crate::ai_denoise::DenoiseLease>,
+) -> Result<DynamicImage> {
+    let has_patches = adjustments
+        .get("aiPatches")
+        .and_then(|v| v.as_array())
+        .is_some_and(|a| !a.is_empty());
+
+    match crate::ai_denoise::apply_ai_denoise_with_lease(base_image, path, adjustments, lease)
+        .map_err(anyhow::Error::msg)?
+    {
+        std::borrow::Cow::Owned(denoised) if !has_patches => Ok(denoised),
+        denoised => composite_patches_on_image(&denoised, adjustments),
+    }
 }
 
 /// Profile-aware entry point used by exported and thumbnail images. A selected
@@ -112,6 +141,72 @@ pub fn load_and_composite_with_profiles(
     settings: &AppSettings,
     registry: &crate::dcp::registry::ProfileRegistry,
     cancel: Option<(Arc<AtomicUsize>, usize)>,
+) -> Result<DynamicImage> {
+    with_unpatched_profile_base(
+        bytes,
+        path,
+        adjustments,
+        fast,
+        settings,
+        registry,
+        cancel,
+        |image| prepare_base_image(image, path, adjustments),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn load_and_composite_with_profiles_in_worker(
+    app: &tauri::AppHandle,
+    external_check: &(dyn Fn() -> std::result::Result<(), String> + Sync),
+    bytes: &[u8],
+    path: &str,
+    adjustments: &Value,
+    fast: bool,
+    settings: &AppSettings,
+    registry: &crate::dcp::registry::ProfileRegistry,
+    cancel: Option<(Arc<AtomicUsize>, usize)>,
+) -> Result<DynamicImage> {
+    let check = || {
+        external_check()?;
+        check_prepared_cancel(&cancel).map_err(|e| e.to_string())
+    };
+    check().map_err(anyhow::Error::msg)?;
+    with_unpatched_profile_base(
+        bytes,
+        path,
+        adjustments,
+        fast,
+        settings,
+        registry,
+        cancel.clone(),
+        |image| prepare_base_image_in_worker(app, image, path, adjustments, &check),
+    )
+}
+
+pub(crate) fn prepare_base_image_in_worker(
+    app: &tauri::AppHandle,
+    image: &DynamicImage,
+    path: &str,
+    adjustments: &Value,
+    check: &(dyn Fn() -> std::result::Result<(), String> + Sync),
+) -> Result<DynamicImage> {
+    let lease = crate::ai_denoise::ensure_worker_base(app, image, path, adjustments, check)
+        .map_err(anyhow::Error::msg)?;
+    check().map_err(anyhow::Error::msg)?;
+    let result = prepare_base_image_with_lease(image, path, adjustments, lease.as_ref());
+    check().map_err(anyhow::Error::msg)?;
+    result
+}
+
+fn with_unpatched_profile_base(
+    bytes: &[u8],
+    path: &str,
+    adjustments: &Value,
+    fast: bool,
+    settings: &AppSettings,
+    registry: &crate::dcp::registry::ProfileRegistry,
+    cancel: Option<(Arc<AtomicUsize>, usize)>,
+    work: impl FnOnce(&DynamicImage) -> Result<DynamicImage>,
 ) -> Result<DynamicImage> {
     check_image_content(bytes, path, &cancel)?;
 
@@ -130,10 +225,11 @@ pub fn load_and_composite_with_profiles(
         )
         .map_err(anyhow::Error::msg)?
         {
-            return composite_patches_on_image(&image, adjustments);
+            return work(&image);
         }
     }
-    load_and_composite(bytes, path, adjustments, fast, settings, cancel)
+    let image = load_base_image_from_bytes(bytes, path, fast, settings, cancel)?;
+    work(&image)
 }
 
 /// Explicit execution limits for the inactive accurate source path. No global
@@ -455,6 +551,32 @@ impl DecodedLegacyAppearance {
         self,
         cancel: crate::raw_processing::RawCancel,
     ) -> Result<DynamicImage> {
+        let (base, adjustments) = self.render_current_base(cancel.clone())?;
+        let image = composite_patches_on_image(&base, &adjustments)?;
+        check_prepared_cancel(&cancel)?;
+        Ok(image)
+    }
+
+    pub(crate) fn render_export_with_adjustments(
+        mut self,
+        app: &tauri::AppHandle,
+        path: &str,
+        adjustments: Value,
+        cancel: crate::raw_processing::RawCancel,
+    ) -> Result<DynamicImage> {
+        self.inputs.adjustments = adjustments;
+        let (base, adjustments) = self.render_current_base(cancel.clone())?;
+        let image = prepare_base_image_in_worker(app, &base, path, &adjustments, &|| {
+            check_prepared_cancel(&cancel).map_err(|e| e.to_string())
+        })?;
+        check_prepared_cancel(&cancel)?;
+        Ok(image)
+    }
+
+    fn render_current_base(
+        self,
+        cancel: crate::raw_processing::RawCancel,
+    ) -> Result<(DynamicImage, Value)> {
         check_prepared_cancel(&cancel)?;
         let base = if let Some(assets) = &self.assets {
             crate::dcp::pipeline::render_prepared_selected_profile(
@@ -486,9 +608,7 @@ impl DecodedLegacyAppearance {
             image
         };
         check_prepared_cancel(&cancel)?;
-        let image = composite_patches_on_image(&base, &self.inputs.adjustments)?;
-        check_prepared_cancel(&cancel)?;
-        Ok(image)
+        Ok((base, self.inputs.adjustments))
     }
     /// Match the old independent estimate's NORMAL fast base: no selected
     /// profile, patch or accurate suppression stage. Consume the actual decode.
@@ -1508,10 +1628,8 @@ pub async fn load_image(
         .progressive_open
         .legacy_render_lease()
         .map_err(|e| e.to_string())?;
-    let my_generation = begin_original_image_load_checked(
-        &state.load_image_generation,
-        &state.original_image,
-    )?;
+    let my_generation =
+        begin_original_image_load_checked(&state.load_image_generation, &state.original_image)?;
     drop(admission);
     state
         .progressive_open
@@ -4695,6 +4813,58 @@ mod prepared_appearance_tests {
                 (o, k, result)
             }
             #[tokio::test]
+            async fn nd03_real_captured_owner_survives_preview_cancel_rejects_new_source() {
+                let (registry, id, _, _) = selected();
+                let registry = Arc::new(registry);
+                let edit = json!({"profile":{"base":id,"look":"composition-look","amount":100}});
+                let (owner, key, _images) =
+                    ready(&synthetic_dng(true, 1), edit.clone(), Arc::clone(&registry)).await;
+                let preview =
+                    request(&owner, key, Some(edit.clone()), settings(), &registry).unwrap();
+                let inference =
+                    request(&owner, key, Some(edit.clone()), settings(), &registry).unwrap();
+                let original = inference.denoise_request_key().unwrap();
+                assert_eq!(original, preview.denoise_request_key().unwrap());
+                preview.cancel();
+                assert!(preview.check().is_err());
+                assert!(inference.check().is_ok());
+                let mut exposure = edit.clone();
+                exposure["exposure"] = json!(2);
+                let next = request(&owner, key, Some(exposure), settings(), &registry).unwrap();
+                assert_eq!(original, next.denoise_request_key().unwrap());
+                let mut changed = edit;
+                changed["profile"]["amount"] = json!(50);
+                let profile = request(&owner, key, Some(changed), settings(), &registry).unwrap();
+                assert_ne!(original, profile.denoise_request_key().unwrap());
+                let borrowed =
+                    request(&owner, key, Some(json!({})), settings(), &registry).unwrap();
+                assert!(matches!(
+                    borrowed.request_base_without_denoise().unwrap().image,
+                    Cow::Borrowed(_)
+                ));
+                assert!(matches!(
+                    inference.request_base_without_denoise().unwrap().image,
+                    Cow::Owned(_)
+                ));
+                let weak = Arc::downgrade(&inference);
+                // A completed open is terminal: cancel is deliberately a no-op.
+                assert_eq!(
+                    owner.cancel(key).unwrap(),
+                    crate::progressive_open::CancelResult::AlreadyFinished
+                );
+                assert!(inference.check().is_ok());
+                // Reservation retires the same-path old source before snapshot work.
+                // Keep its render leases held: snapshot work must wait for those leases.
+                let replacement = owner
+                    .reserve(B, inference.loaded().path.clone())
+                    .unwrap();
+                assert_ne!(replacement, key);
+                assert!(inference.check().is_err());
+                assert!(next.check().is_err());
+                drop(inference);
+                assert!(weak.upgrade().is_none());
+            }
+            #[tokio::test]
             #[ignore = "actual GPU and generated RAW; separate explicit grant required"]
             async fn pc05_genuine_selected_owner_preview_export_and_filter_count() {
                 let (context, errors) = crate::gpu_processing::point_colour_test_context();
@@ -4740,6 +4910,7 @@ mod prepared_appearance_tests {
                                 preserve_folders: false,
                                 destination_type: None,
                                 subfolder: None,
+                                dpi: Some(300),
                             };
                             settings.tiff_bit_depth = match precision {
                                 crate::gpu_processing::RenderOutputPrecision::EightBit => {
@@ -6954,6 +7125,7 @@ mod prepared_appearance_tests {
                     }))
                     .expect("actual offscreen adapter required");
                 assert_ne!(adapter.get_info().device_type, wgpu::DeviceType::Cpu);
+                let adapter_info = adapter.get_info();
                 assert!(
                     adapter
                         .get_downlevel_capabilities()
@@ -6981,6 +7153,7 @@ mod prepared_appearance_tests {
                         device: Arc::new(device),
                         queue: Arc::new(queue),
                         limits,
+                        adapter_info,
                         display: Arc::new(Mutex::new(None)),
                     },
                     errors,
@@ -7716,15 +7889,17 @@ fn snapshot_fit_gpu(
                 Arc::clone(&context.device),
                 Arc::clone(&context.queue),
                 context.limits.clone(),
+                context.adapter_info.clone(),
             )
         })
     };
     // The app slot is unlocked before either display Arc or H5 is constructed.
     Ok(handles.map(
-        |(device, queue, limits)| crate::image_processing::GpuContext {
+        |(device, queue, limits, adapter_info)| crate::image_processing::GpuContext {
             device,
             queue,
             limits,
+            adapter_info,
             display: Arc::new(std::sync::Mutex::new(None)),
         },
     ))
@@ -8431,6 +8606,7 @@ enum RequestView {
 /// or in the source owner, and never substitutes a detached image for its lease.
 pub(crate) struct ConsumerRequest {
     source: crate::app_state::ConsumerSource,
+    denoise_lease: std::sync::Mutex<Option<crate::ai_denoise::DenoiseLease>>,
     view: Option<RequestView>,
     adjustments: Value,
     settings: AppSettings,
@@ -8517,6 +8693,7 @@ impl ConsumerRequest {
         source.check().map_err(E::Open)?;
         Ok(Arc::new(Self {
             source,
+            denoise_lease: std::sync::Mutex::new(None),
             view,
             adjustments,
             settings,
@@ -8580,7 +8757,9 @@ impl ConsumerRequest {
     }
     // Normal consumers borrow the genuinely committed pristine AccurateOne
     // base. Selected requests alone use their explicit held-asset producer.
-    fn request_base(&self) -> std::result::Result<PreparedAppearanceBase<'_>, String> {
+    fn request_base_without_denoise(
+        &self,
+    ) -> std::result::Result<PreparedAppearanceBase<'_>, String> {
         self.check()?;
         let appearance = self.appearance()?;
         if appearance.assets.is_none() {
@@ -8604,6 +8783,125 @@ impl ConsumerRequest {
                 .render_unpatched_base(AppearancePass::AccurateOne, self.raw_cancel())
                 .map_err(|e| e.to_string())
         }
+    }
+    fn request_base(&self) -> std::result::Result<PreparedAppearanceBase<'_>, String> {
+        let mut base = self.request_base_without_denoise()?;
+        let lease = self.denoise_lease()?;
+        let denoised = crate::ai_denoise::apply_ai_denoise_with_lease(
+            base.image.as_ref(),
+            &self.loaded().path,
+            &self.adjustments,
+            lease.as_ref(),
+        )?;
+        if let Cow::Owned(image) = denoised {
+            base.image = Cow::Owned(image);
+        }
+        self.check()?;
+        Ok(base)
+    }
+
+    pub(crate) fn retain_denoise_lease(
+        &self,
+        lease: crate::ai_denoise::DenoiseLease,
+    ) -> std::result::Result<(), String> {
+        self.check()?;
+        lease.check_runtime(&self.denoise_request_key()?)?;
+        let retired = self
+            .denoise_lease
+            .lock()
+            .map_err(|_| "AI result owner poisoned")?
+            .replace(lease);
+        drop(retired);
+        self.check()
+    }
+    pub(crate) fn denoise_lease(
+        &self,
+    ) -> std::result::Result<Option<crate::ai_denoise::DenoiseLease>, String> {
+        self.check()?;
+        let held = self
+            .denoise_lease
+            .lock()
+            .map_err(|_| "AI result owner poisoned")?
+            .clone();
+        if let Some(held) = &held {
+            held.check_epoch()?;
+        }
+        Ok(held)
+    }
+
+    pub(crate) fn denoise_request_key(&self) -> std::result::Result<String, String> {
+        self.check()?;
+        let mut h = blake3::Hasher::new();
+        h.update(self.loaded().path.as_bytes());
+        h.update(&(Arc::as_ptr(&self.loaded().image) as usize).to_le_bytes());
+        match &self.source {
+            crate::app_state::ConsumerSource::Accurate(snapshot) => {
+                h.update(
+                    serde_json::to_string(&snapshot.identity().open_key())
+                        .map_err(|e| e.to_string())?
+                        .as_bytes(),
+                );
+            }
+            crate::app_state::ConsumerSource::Legacy { generation, .. } => {
+                h.update(&generation.1.to_le_bytes());
+            }
+        }
+        let mut profile = self.adjustments["profile"].clone();
+        profile.sort_all_objects();
+        h.update(profile.to_string().as_bytes());
+        if let Ok(appearance) = self.appearance() {
+            h.update(
+                format!(
+                    "{:?}",
+                    appearance.assets.as_ref().map(|a| a.content_identity())
+                )
+                .as_bytes(),
+            );
+        }
+        h.update(crate::ai_processing::DENOISE_SHA256.as_bytes());
+        Ok(h.finalize().to_hex().to_string())
+    }
+
+    /// The same held normal/selected source, before patches and geometry. This
+    /// is called on a separately captured inference request, never registered as
+    /// the replaceable preview request. No detached JPEG/pristine substitution.
+    pub(crate) fn denoise_input(
+        &self,
+        state: &tauri::State<crate::app_state::AppState>,
+    ) -> std::result::Result<Arc<DynamicImage>, String> {
+        self.stage(|| {
+            if self.is_keyed() {
+                let base = self.request_base_without_denoise()?;
+                Ok(match base.image {
+                    Cow::Borrowed(_) => Arc::clone(&self.loaded().image),
+                    Cow::Owned(image) => Arc::new(image),
+                })
+            } else {
+                crate::profile_base_image(state, self.loaded(), &self.adjustments)
+            }
+        })
+    }
+    pub(crate) fn ensure_denoise_in_worker(
+        &self,
+        app: &tauri::AppHandle,
+    ) -> std::result::Result<(), String> {
+        self.check()?;
+        if !crate::ai_denoise::is_requested(&self.adjustments) {
+            return Ok(());
+        }
+        let state = app.state::<AppState>();
+        let base = self.denoise_input(&state)?;
+        let lease = crate::ai_denoise::ensure_worker_base(
+            app,
+            &base,
+            &self.loaded().path,
+            &self.adjustments,
+            &|| self.check(),
+        )?;
+        if let Some(lease) = lease {
+            self.retain_denoise_lease(lease)?;
+        }
+        self.check()
     }
     pub(crate) fn unpatched(&self) -> std::result::Result<DynamicImage, String> {
         self.stage(|| self.request_base().map(|base| base.image.into_owned()))
@@ -8821,6 +9119,33 @@ impl PreparedOpenAppearance {
     }
 }
 impl PreparedStandaloneAppearance {
+    pub(crate) fn apply_denoise_for_export(
+        &mut self,
+        app: &tauri::AppHandle,
+        path: &str,
+        check: &(dyn Fn() -> std::result::Result<(), String> + Sync),
+    ) -> Result<()> {
+        let lease = crate::ai_denoise::ensure_worker_base(
+            app,
+            &self.pixels,
+            path,
+            self.appearance.adjustments(),
+            check,
+        )
+        .map_err(anyhow::Error::msg)?;
+        if let Cow::Owned(image) = crate::ai_denoise::apply_ai_denoise_with_lease(
+            &self.pixels,
+            path,
+            self.appearance.adjustments(),
+            lease.as_ref(),
+        )
+        .map_err(anyhow::Error::msg)?
+        {
+            self.pixels = image;
+        }
+        check().map_err(anyhow::Error::msg)?;
+        Ok(())
+    }
     pub(crate) fn base(&self) -> PreparedAppearanceBase<'_> {
         PreparedAppearanceBase {
             image: std::borrow::Cow::Borrowed(&self.pixels),
@@ -9052,6 +9377,9 @@ impl ConsumerRequest {
             "source_legacy_type":appearance.source.settings.group_preferred_type,
         });
         canonicalize_preview_settings(&mut settings);
+        if crate::ai_denoise::is_requested(assets.adjustments()) {
+            adjustments["_denoiseCacheEpoch"] = serde_json::json!(crate::ai_denoise::cache_epoch());
+        }
         adjustments.sort_all_objects();
         let (Ok(settings), Ok(adjustments)) = (
             serde_json::to_vec(&settings),

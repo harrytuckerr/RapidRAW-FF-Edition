@@ -1,18 +1,18 @@
 {
   "source_manifest_sha256": "5815b4c6bca1330a193d3e986cf27b4912a88138b302e53741567a7a15e4268a",
   "locks": {
-    "Cargo.lock": "c773e00fd93979810c633694e67be6029b433dceea126b7d8a645266b5f58c85",
-    "package-lock.json": "2d322ae4c3f315094d76af8e48a6da4c4191b3d8187fc28a9465e5eb8174e069"
+    "Cargo.lock": "d4dca6478f5e66ef092f0b22bef0346aaa67e4141bd3ec496b75386bfaa0229d",
+    "package-lock.json": "2003166d57eeabcfc68d8b190556ccdebeb4206c508ca68d8d28b37336de21fb"
   },
   "npm_root_pins": {
     "@tauri-apps/api": "2.11.1",
     "@tauri-apps/cli": "2.11.4",
     "@tauri-apps/plugin-http": "2.7.0"
   },
-  "nested_http_api": "2.12.4 (HTTP plugin declares ^2.12.0)",
+  "nested_http_api": "Current unified root API 2.12.1; historical nested API detail is retained in earlier Git revisions.",
   "npm_store_fs": "absent from source manifest and resolved tree; not added",
   "cargo_pins_unchanged": true,
-  "status": "Source-map-js 1.2.2 and local GLib 0.18.5 backport retained; Rustls alone updated from 0.23.43 to 0.23.45 in both Cargo locks. Targeted host Rustls regressions Pass; rebuilt release packages remain Not exercised.",
+  "status": "Current upstream-sync graph: Tauri2.12/Tao0.37, preserved dependency-security updates, and immutable public Fuji RAW revision. Source/helper checks only; Android package/device acceptance is recorded separately.",
   "source_manifest_scope": "Historical dependency-resolution source manifest; retained provenance, not the current application source manifest.",
   "cargo_declaration_amendment": {
     "source_commit": "b75d096b4ef2001377cfc628835a6bd160601c28",
@@ -64,5 +64,33 @@
     "amended_android_cargo_lock_sha256": "c773e00fd93979810c633694e67be6029b433dceea126b7d8a645266b5f58c85",
     "other_package_versions_and_dependency_edges_unchanged": true,
     "validation": "Official checksum and static graph/range checks verified; desktop/private Android no-deps locked metadata Pass. Independent host public-API in-memory optimized tests: 4 Pass, 0 Fail, including aligned controls and exact same-record encryption-boundary rejection on client/Acceptor. ring+std TLS1.3 only; not upstream re-encrypted full-flight execution, full feature-unified app, certificate/full TLS/provider or Android package acceptance."
+  },
+  "npm_pins": {
+    "@tauri-apps/cli": "2.12.1",
+    "@tauri-apps/api": "2.12.1",
+    "@tauri-apps/plugin-http": "2.8.0"
+  },
+  "upstream_sync": {
+    "upstream": "6e2631ad0885fcc7622c95d1d18a6f9146b96b91",
+    "rawler": "https://github.com/harrytuckerr/RapidRAW-DngLab.git",
+    "rawler_rev": "43457211d28f11362932ec3e5602d7142a174722",
+    "rust_pins": {
+      "tauri-plugin-http": "2.8.0",
+      "tauri-plugin-fs": "2.6.0",
+      "tauri-plugin-store": "2.5.0",
+      "tauri": "2.12.1",
+      "tauri-runtime-wry": "2.12.1",
+      "tauri-runtime": "2.12.1",
+      "wry": "0.57.0",
+      "tao": "0.37.1",
+      "tauri-build": "2.7.1",
+      "tauri-macros": "2.7.1",
+      "tauri-plugin": "2.7.1",
+      "tauri-codegen": "2.7.1",
+      "tauri-utils": "2.10.1"
+    },
+    "current_source_manifest_matches_bundle": true,
+    "previous_metadata_sha256": "08b5f11a41fc51702631a30cf5016fc5c04a00a5c799947b5c0a5ac40445cf44",
+    "runtime": "Not exercised"
   }
 }

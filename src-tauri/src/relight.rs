@@ -294,12 +294,7 @@ pub fn apply_relight<'a>(
 /// renderer below: absent/non-boolean visibility is treated as visible, and
 /// ambient is compared only after its existing f64-to-f32 conversion.
 pub(crate) fn requires_normal_map(adjustments: &serde_json::Value) -> bool {
-    let effects_visible = adjustments
-        .get("sectionVisibility")
-        .and_then(|v| v.get("effects"))
-        .and_then(|s| s.as_bool())
-        .unwrap_or(true);
-    if !adjustments["relightEnabled"].as_bool().unwrap_or(false) || !effects_visible {
+    if !crate::image_processing::is_effect_enabled(adjustments, "relight", "relightEnabled") {
         return false;
     }
 

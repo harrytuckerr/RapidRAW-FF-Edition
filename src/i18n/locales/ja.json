@@ -106,6 +106,8 @@
       "resetPoint": "{{channel}} ポイントカーブをリセット"
     },
     "details": {
+      "aiDenoise": "AIノイズ除去",
+      "aiDenoiseDetail": "ディテール",
       "blueYellow": "ブルー/イエロー",
       "centre": "中央",
       "chromaticAberration": "色収差",
@@ -150,6 +152,7 @@
       "relightColor": "ライトの色",
       "relightCone": "コーン",
       "relightDepth": "奥行き",
+      "relightDuplicateLight": "ライトを複製",
       "relightElevation": "仰角",
       "relightFalloff": "減衰",
       "relightHint": "ライトを追加または選択し、画像上をクリックまたはドラッグして配置します。",
@@ -219,6 +222,7 @@
     "editor": {
       "autoAdjust": "画像を自動補正",
       "autoLensCorrection": "自動レンズ補正",
+      "autoStraighten": "自動角度補正",
       "cancel": "キャンセル",
       "colorLabel": "カラーラベル",
       "confirmReset": "リセットを確認",
@@ -288,6 +292,8 @@
       "autoAdjust_other": "画像を自動補正",
       "autoLensCorrection_one": "自動レンズ補正",
       "autoLensCorrection_other": "自動レンズ補正",
+      "autoStraighten_one": "画像を自動角度補正",
+      "autoStraighten_other": "画像を自動角度補正",
       "collage_one": "画像にフレームを追加",
       "collage_other": "コラージュを作成",
       "confirmDelete": "削除を確認",
@@ -412,6 +418,7 @@
       },
       "createNewTitle": "新しい生成編集を作成",
       "createNewTooltip": "新しい {{name}} 編集を作成",
+      "denoising": "AIノイズ除去を実行中...",
       "dropzoneText": "ここにドロップして新しい編集を作成",
       "editSettingsTitle": "編集設定",
       "editsTitle": "編集一覧",
@@ -478,6 +485,8 @@
     },
     "crop": {
       "aspectRatioHeading": "アスペクト比",
+      "autoStraightenFailed": "自動角度補正に失敗しました: {{error}}",
+      "autoStraightenNoLines": "補正に使える直線が見つかりません",
       "custom": {
         "hPlaceholder": "H",
         "hTooltip": "高さ",
@@ -577,6 +586,7 @@
       "rotationHeading": "回転",
       "title": "切り抜きと変形",
       "tooltips": {
+        "autoStraighten": "自動角度補正（Shift+S）",
         "compositionOverlay": "構図ガイド",
         "flipHoriz": "画像を水平方向に反転",
         "flipVert": "画像を垂直方向に反転",
@@ -875,8 +885,10 @@
       "selectFolderTitle_other": "{{count}} 枚の画像を書き出すフォルダを選択"
     },
     "file": {
+      "dpi": "DPI",
       "quality": "画質",
       "qualityLossless": "画質 (ロスレス)",
+      "resolution": "解像度",
       "tiffBitDepth": "TIFF ビット深度",
       "tiffBitDepth16": "16 ビット",
       "tiffBitDepth8": "8 ビット"
@@ -1077,6 +1089,8 @@
       }
     },
     "header": {
+      "cancel": "キャンセル",
+      "deselectAll": "すべての選択を解除",
       "search": {
         "addFilterOrSearch": "フィルターまたは検索を追加...",
         "indexingImages": "画像をインデックス中...",
@@ -1088,6 +1102,8 @@
         "tooltipClearSearch": "検索をクリア",
         "tooltipSearchFilter": "検索またはフィルター"
       },
+      "selectAll": "すべて選択",
+      "selectItems": "項目を選択",
       "title": "ライブラリ",
       "viewOptions": {
         "currentFolder": "現在のフォルダ",
@@ -1208,7 +1224,8 @@
     "tooltips": {
       "communityPresets": "コミュニティプリセット",
       "goHome": "ホームへ移動",
-      "importImages": "画像をインポート"
+      "importImages": "画像をインポート",
+      "select": "選択"
     }
   },
   "masks": {
@@ -1595,6 +1612,9 @@
       "zoomDesc": "スクロールホイールやピンチジェスチャを使用したときのズーム速度を調整します。"
     },
     "data": {
+      "clearAiDenoise": "AIノイズ除去キャッシュを消去",
+      "clearAiDenoiseButton": "消去",
+      "clearAiDenoiseDesc": "キャッシュされたAIノイズ除去の結果（{{size}}）を削除します。AIノイズ除去が有効な画像は、次に開いたときに再計算されます。",
       "clearSidecars": "すべてのサイドカーファイルを削除",
       "clearSidecarsButton": "削除",
       "clearSidecarsDesc": "ルートフォルダ内のすべての .rrdata ファイル（編集内容が含まれるファイル）を削除します:",
@@ -1606,6 +1626,7 @@
       "logsButton": "開く",
       "logsDesc": "トラブルシューティングのためにアプリのログファイルを表示します。ログの場所:",
       "modals": {
+        "aiDenoiseMessage": "AIノイズ除去キャッシュを消去してもよろしいですか？\n\nAIノイズ除去が有効な画像は再度処理する必要があり、1枚あたり数分かかる場合があります。",
         "aiMessage": "本当にすべてのアクティブなルートフォルダ内の画像から、AI生成されたタグをすべて削除しますか？\n\n手動で追加したタグには影響しません。この操作は取り消せません。",
         "allMessage": "本当にすべてのアクティブなルートフォルダ内の画像から、AI生成および手動追加されたタグをすべて削除しますか？\n\nこの操作は取り消せません。",
         "cacheMessage": "本当にサムネイルキャッシュを削除しますか？\n\nすべてのサムネイルが再生成されるため、大きなフォルダでは時間がかかる場合があります。",
@@ -1628,6 +1649,7 @@
       "resetLayoutDesc": "パネルのドック、サイドスプリッター、高さ、パネル切り替えボタンをデフォルトの配置に復元します。",
       "resetLayoutTitle": "ワークスペースレイアウトのリセット",
       "statuses": {
+        "aiDenoiseSuccess": "AIノイズ除去キャッシュを消去しました。",
         "aiSuccess": "{{count}} 件のファイルを更新しました。AIタグを削除しました。",
         "aiSuccess_one": "{{count}} 件のファイルを更新しました。AIタグを削除しました。",
         "aiSuccess_other": "{{count}} 件のファイルを更新しました。AIタグを削除しました。",
@@ -1636,6 +1658,7 @@
         "allSuccess_other": "{{count}} 件のファイルを更新しました。カラーラベル以外のタグをすべて削除しました。",
         "cacheSuccess": "サムネイルキャッシュを正常に削除しました。",
         "clearingAi": "すべてのサイドカーファイルからAIタグを削除中...",
+        "clearingAiDenoise": "AIノイズ除去キャッシュを消去中...",
         "clearingAll": "サイドカーファイルからすべてのタグを削除中...",
         "clearingCache": "サムネイルキャッシュを削除中...",
         "deleting": "サイドカーファイルを削除しています。しばらくお待ちください...",
@@ -1683,6 +1706,7 @@
     },
     "keybinds": {
       "actions": {
+        "auto_straighten": "自動角度補正",
         "brush_size_down": "ブラシサイズを縮小",
         "brush_size_up": "ブラシサイズを拡大",
         "color_label_blue": "カラーラベル: ブルー",

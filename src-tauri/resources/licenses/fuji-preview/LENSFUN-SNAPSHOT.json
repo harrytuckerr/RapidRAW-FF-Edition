@@ -1,5 +1,5 @@
 {
-  "source_commit": "b75d096b4ef2001377cfc628835a6bd160601c28",
+  "source_commit": "reference: accompanying corresponding-source archive (no final commit identifier assigned)",
   "files": [
     {
       "name": "6x6.xml",
@@ -13,8 +13,8 @@
     },
     {
       "name": "compact-canon.xml",
-      "bytes": 246818,
-      "sha256": "c7695caadc654a7154babfa42dad7a993eec0a13d8c6a65cc706340455c2b4b8"
+      "bytes": 247046,
+      "sha256": "bae47e4b3a0f8852641038ae2dcca5b28ed7965e65ca795fd676f9de857c4670"
     },
     {
       "name": "compact-casio.xml",
@@ -53,8 +53,8 @@
     },
     {
       "name": "compact-panasonic.xml",
-      "bytes": 69980,
-      "sha256": "9826a027e913f9df2b4b663a87a0951c8be5024e15a2e2be0ab5e745a5e0af51"
+      "bytes": 70621,
+      "sha256": "f191fc2a5d49fb50c06f4c399ee8c1a83a05f93a0efaecd352ec5c1479b8e60b"
     },
     {
       "name": "compact-pentax.xml",
@@ -103,8 +103,8 @@
     },
     {
       "name": "mil-canon.xml",
-      "bytes": 247355,
-      "sha256": "4dd95ac19a3966389b4f9269e22b055e369aff507967bd6521ebf4db3063cde4"
+      "bytes": 247994,
+      "sha256": "2de8e9467a6af6f83cc9da834d3d3b94d1aaf54519f60c68ac6bc02780a77516"
     },
     {
       "name": "mil-fujifilm.xml",
@@ -123,8 +123,8 @@
     },
     {
       "name": "mil-nikon.xml",
-      "bytes": 170820,
-      "sha256": "ea797174c49777ff023cc4f0116e1948f56eb43c1fb9a072ac6a3a45a0c5e5a0"
+      "bytes": 178941,
+      "sha256": "dcae5ec2e505411a7f00b6b8dd03825e55620403b558b156be15e9ddfbeaf159"
     },
     {
       "name": "mil-olympus.xml",
@@ -133,8 +133,8 @@
     },
     {
       "name": "mil-panasonic.xml",
-      "bytes": 298804,
-      "sha256": "a760800ab71caec09334bb588ffd13ca1d95e51b938d5856900e1d70747404f0"
+      "bytes": 299264,
+      "sha256": "eb5f01f33e65721f3900786d5970c7e220dd042aaa56968be33c009a358ff3c5"
     },
     {
       "name": "mil-pentax.xml",
@@ -153,18 +153,18 @@
     },
     {
       "name": "mil-sigma.xml",
-      "bytes": 110874,
-      "sha256": "5540dc9496ff29460fd3f925a144a81686d945f5eb5c33380a6471bb0307a163"
+      "bytes": 126080,
+      "sha256": "5f39b232efba5c208e5a98d8afe92cb2eee879213322d47827fcc6f0dc3a06f9"
     },
     {
       "name": "mil-sony.xml",
-      "bytes": 274523,
-      "sha256": "58da250a9bf97a3ff9c5b6a8f92bb5cd6be26e1c4a91f4f666a608a63e896a12"
+      "bytes": 274541,
+      "sha256": "f9f7e5d7461ac58f76eb55dcc5b211f2e9a451402ddb4a9ecb12d1e4dc04f2b8"
     },
     {
       "name": "mil-tamron.xml",
-      "bytes": 96068,
-      "sha256": "a941ea55ad052a6d300fd095c629d4319275a292ad2dc828633114ac7220a403"
+      "bytes": 106950,
+      "sha256": "2f0c9c4dfb9b0419ba0fac2e618bc251c2e71e068b6e09a23d7994b0ff62db0a"
     },
     {
       "name": "mil-tokina.xml",
@@ -178,13 +178,13 @@
     },
     {
       "name": "misc.xml",
-      "bytes": 173617,
-      "sha256": "ae4dc00ef77b43ca84f0de8f8f5f1c8b84f476999e05c0bf15867687df3ad7c6"
+      "bytes": 176039,
+      "sha256": "2000a347d9dc37d908ea5b56c760de5b2b4ab475857959ae2e901c31339b01bb"
     },
     {
       "name": "om-system.xml",
-      "bytes": 35127,
-      "sha256": "6ef0cdaeae41e7a7699e306f735c5f9ce07c4ee828a92c9df13319cb5717f23b"
+      "bytes": 35344,
+      "sha256": "a53a627e6ba79fbabb0fa7552ce2b6e56e206425d2eaf0e8ccdb6b8c40c20755"
     },
     {
       "name": "rf-leica.xml",
@@ -203,8 +203,8 @@
     },
     {
       "name": "slr-konica-minolta.xml",
-      "bytes": 46664,
-      "sha256": "60347e4aec726e82ee4e0db5487a50aee80f5bfecf9e532688902f9321b74356"
+      "bytes": 47170,
+      "sha256": "5639ca94f121f609247c2c120b65830b3ef7784db6ecfa7e8eb3d29ff5046c1b"
     },
     {
       "name": "slr-leica.xml",

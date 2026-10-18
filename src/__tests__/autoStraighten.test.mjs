@@ -9,7 +9,7 @@ const bundle = await build({
   stdin: {
     contents: `export { default as Editor } from './src/components/panel/Editor';
       export { AutoStraightenControl } from './src/components/panel/right/CropPanel';
-      export { useEditorActions, debouncedSetHistory, debouncedSave, straightenedAdjustments, autoStraightenUnavailable } from './src/hooks/useEditorActions';
+      export { useEditorActions, useAutoStraighten, debouncedSetHistory, debouncedSave, straightenedAdjustments, autoStraightenUnavailable } from './src/hooks/useEditorActions';
       export { useImageProcessing } from './src/hooks/useImageProcessing';
       export { useEditorStore } from './src/store/useEditorStore';
       export { useSettingsStore } from './src/store/useSettingsStore';
@@ -143,6 +143,7 @@ const {
   Editor,
   AutoStraightenControl,
   useEditorActions,
+  useAutoStraighten,
   debouncedSetHistory,
   debouncedSave,
   straightenedAdjustments,
@@ -203,7 +204,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.__progressiveInvoke = async (command, args) => {
   calls.push({ command, args });
   if (command === Invokes.ApplyAdjustments) return applyHandler(args);
-  if (command === Invokes.CalculateAutoStraighten) return estimator(args);
+  if (command === Invokes.CalculatePreviewAutoStraighten) return estimator(args);
   if (command === Invokes.SaveMetadataAndUpdateThumbnail) return null;
   throw new Error(`Unexpected native operation: ${command}`);
 };
@@ -367,7 +368,7 @@ async function click(root) {
   assert.equal(button(root).props.disabled, false);
   await act(async () => button(root).props.onClick());
 }
-const nativeCalls = () => calls.filter((c) => c.command === Invokes.CalculateAutoStraighten);
+const nativeCalls = () => calls.filter((c) => c.command === Invokes.CalculatePreviewAutoStraighten);
 async function done(root) {
   await until(() => !root.root.findAllByProps({ 'aria-label': 'Cancel auto straighten' }).length, 'auto completion');
 }
@@ -550,14 +551,14 @@ test('as06_actual_preview_publication_and_bounded_capture_only', async () => {
   const before = calls.length;
   await click(root);
   await done(root);
-  const estimateCall = calls.slice(before).find((c) => c.command === Invokes.CalculateAutoStraighten);
+  const estimateCall = calls.slice(before).find((c) => c.command === Invokes.CalculatePreviewAutoStraighten);
   assert.ok(estimateCall);
   assert.equal(estimateCall.args.rgba.length, 512 * 384 * 4);
   assert.ok(estimateCall.args.rgba.length <= 1024 * 1024);
   assert.equal(Object.hasOwn(estimateCall.args, 'expectedOpenKey'), false);
   assert.ok(
     calls.every((c) =>
-      [Invokes.ApplyAdjustments, Invokes.CalculateAutoStraighten, Invokes.SaveMetadataAndUpdateThumbnail].includes(
+      [Invokes.ApplyAdjustments, Invokes.CalculatePreviewAutoStraighten, Invokes.SaveMetadataAndUpdateThumbnail].includes(
         c.command,
       ),
     ),
@@ -677,4 +678,42 @@ test('as07_actual_editor_manual_history_then_auto_and_source_lifetime', async ()
   });
   assert.equal(useEditorStore.getState().history.at(-1), currentManual);
   assert.equal(useEditorStore.getState().history.length, replacementHistory.length + 1);
+});
+
+
+test('as09_app_auto_hook_ignores_unrelated_writes_and_observes_busy_availability', async () => {
+  reset();
+  let renders = 0;
+  let observed;
+  function Probe() {
+    observed = useAutoStraighten();
+    renders += 1;
+    return null;
+  }
+  let root;
+  await act(async () => {
+    root = create(React.createElement(Probe));
+    roots.add(root);
+  });
+  assert.match(observed.unavailable, /complete current preview/);
+  const initialRenders = renders;
+  await act(async () => {
+    useEditorStore.setState({ zoom: 2 });
+    useEditorStore.setState({ displaySize: { width: 480, height: 320 } });
+    useEditorStore.setState({ aiDenoiseProgress: { '/A.raf': 0.5 } });
+  });
+  assert.equal(renders, initialRenders, 'unrelated editor writes do not rerender the App-level hook');
+  assert.equal(observed.busy, false);
+  await act(async () => useEditorStore.setState({ autoStraightenBusy: true }));
+  assert.equal(observed.busy, true);
+  assert.ok(renders > initialRenders);
+  const busyRenders = renders;
+  await act(async () => useEditorStore.setState({ showOriginal: true }));
+  assert.match(observed.unavailable, /current adjustment/);
+  assert.ok(renders > busyRenders);
+  const unavailableRenders = renders;
+  await act(async () => useUIStore.setState({ activeView: 'library' }));
+  assert.match(observed.unavailable, /Open the photo in the editor/);
+  assert.ok(renders > unavailableRenders, 'view changes still refresh availability');
+  await unmount(root);
 });

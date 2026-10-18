@@ -1,6 +1,8 @@
 # Build the RapidRAW Fujifilm edition
 
-The source ancestry is upstream `3385c9f0` plus the Cobalt work at `6f171d9b`. The frozen merged revision for this continuation is `4c1e965a53de9c835df920b2e3d69c2c8a864708`, with the same tree as tested revision `8e631881`. PR #14 was merged by the repository owner on 15 October 2026. These identifiers describe source lineage and a frozen snapshot; they are not release or product-acceptance claims. See the [Team ledger](integration/TEAM-LEDGER-2026-10-15.md) for current continuation evidence. The [integration status report](integration/STATUS-2026-10-15.md) is a historical pre-Fold snapshot; [Android integration details](android-integration-2026-10-15.md) documents the pinned Android build process.
+This edition combines the fork's Cobalt and Fuji work with upstream RapidRAW through `6e2631ad0885fcc7622c95d1d18a6f9146b96b91`. The RAW dependency is pinned to the public [Fuji RAW source](https://github.com/harrytuckerr/RapidRAW-DngLab/tree/43457211d28f11362932ec3e5602d7142a174722), revision `43457211d28f11362932ec3e5602d7142a174722`; no private checkout override is required.
+
+Use the source archive and checksums attached to an APK release for that build's exact inputs and validation scope. Dated files in `docs/integration/` describe earlier checkpoints and are not current release acceptance.
 
 All shell blocks below start from the repository root. Run Rust commands from `src-tauri`, or prefix them with `cargo +1.98`; `--manifest-path` alone does not select the nested toolchain in `src-tauri/rust-toolchain.toml`. Each Rust block changes into `src-tauri` once, so start the next block again from the repository root.
 
@@ -35,7 +37,7 @@ For development, run `npm run start` from the repository root. For a packaged de
 
 ## Android
 
-Build from an isolated workspace using the reviewed Android dependency-lock bundle. Requirements are JDK 17, Android SDK platform 36 and build-tools 36.0.0, NDK r26d (`26.3.11579264`), and Rust 1.98 target `aarch64-linux-android`.
+Build from an isolated workspace using the checked-in Android dependency-lock bundle. The merged stack uses Tauri/CLI/API 2.12.1; the helper verifies the Rust and npm pins before building. Requirements are JDK 17, Android SDK platform 36 and build-tools 36.0.0, NDK r26d (`26.3.11579264`), and Rust 1.98 target `aarch64-linux-android`.
 
 ```sh
 # From the repository root.

@@ -353,6 +353,8 @@ const PREVIEW_FRESH_RENDER_FIELDS: &[&str] = &[
     "blacks",
     "brightness",
     "centré",
+    "centréX",
+    "centréY",
     "clarity",
     "chromaticAberrationBlueYellow",
     "chromaticAberrationRedCyan",
@@ -393,6 +395,8 @@ const PREVIEW_FRESH_RENDER_FIELDS: &[&str] = &[
     "tint",
     "toneMapper",
     "vibrance",
+    "vignetteCenterX",
+    "vignetteCenterY",
     "vignetteAmount",
     "vignetteFeather",
     "vignetteMidpoint",
@@ -401,6 +405,9 @@ const PREVIEW_FRESH_RENDER_FIELDS: &[&str] = &[
     "whites",
 ];
 const PREVIEW_RETAINED_CPU_FIELDS: &[&str] = &[
+    "aiDenoiseEnabled",
+    "aiDenoiseAmount",
+    "aiDenoiseDetail",
     "aiPatches",
     "aspectRatio",
     "crop",
@@ -450,6 +457,7 @@ fn preview_input_role(key: &str) -> PreviewInputRole {
     if crate::cache_utils::GEOMETRY_KEYS.contains(&key)
         || PREVIEW_RETAINED_CPU_FIELDS.contains(&key)
         || key == "sectionVisibility"
+        || key == "activeTools"
     {
         PreviewInputRole::Cpu
     } else if PREVIEW_FRESH_RENDER_FIELDS.contains(&key) {
@@ -469,6 +477,37 @@ pub(crate) fn preview_cpu_inputs(adjustments: &Value) -> Result<Value, PreviewPr
         .ok_or(PreviewProjectionError::NonObject)?;
     let mut projected = serde_json::Map::new();
     for (key, value) in object {
+        if key == "activeTools" {
+            let Some(tools) = value.as_object() else {
+                return Err(PreviewProjectionError::Unclassified);
+            };
+            let mut cpu = serde_json::Map::new();
+            for (tool, active) in tools {
+                match tool.as_str() {
+                    "lensBlur" | "relight" | "fog" | "noiseReduction" => {
+                        cpu.insert(tool.clone(), active.clone());
+                    }
+                    "basic"
+                    | "curves"
+                    | "whiteBalance"
+                    | "colorPresence"
+                    | "hue"
+                    | "colorGrading"
+                    | "colorMixer"
+                    | "colorCalibration"
+                    | "sharpening"
+                    | "presence"
+                    | "chromaticAberration"
+                    | "creative"
+                    | "lut"
+                    | "vignette"
+                    | "grain" => {}
+                    _ => return Err(PreviewProjectionError::Unclassified),
+                }
+            }
+            projected.insert(key.clone(), Value::Object(cpu));
+            continue;
+        }
         if key == "sectionVisibility" {
             // Only effects visibility is read by the CPU effect/map path. Keep
             // its exact representation; basic/color/curves/details are fresh uniforms.
@@ -484,8 +523,15 @@ pub(crate) fn preview_cpu_inputs(adjustments: &Value) -> Result<Value, PreviewPr
                 let mut cpu = serde_json::Map::new();
                 if let Some(effects) = sections.get("effects") {
                     cpu.insert("effects".into(), effects.clone());
-                } else {
-                    continue; // No CPU section input; match an absent sectionVisibility.
+                }
+                // Legacy details gates AI denoise only when it can affect pixels.
+                if crate::ai_denoise::is_requested(adjustments) {
+                    if let Some(details) = sections.get("details") {
+                        cpu.insert("details".into(), details.clone());
+                    }
+                }
+                if cpu.is_empty() {
+                    continue;
                 }
                 Value::Object(cpu)
             } else {

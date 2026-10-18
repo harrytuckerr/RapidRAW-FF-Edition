@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   release:
+    if: ${{ !github.event.release.prerelease }}
     strategy:
       fail-fast: false
       matrix:

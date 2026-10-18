@@ -134,6 +134,23 @@ test('real store admits one metadata/history baseline and final load does not re
   assert.equal(store.getState().adjustments.aspectRatio, 4 / 3);
   assert.equal(store.getState().history, historyAtAdmission);
   assert.equal(isCurrentOpenKey({ ticket, generation: '1' }, store.getState(), '/A.raf', true), true);
+
+  const activeDenoise = { ...store.getState().adjustments, aiDenoiseEnabled: true, aiDenoiseAmount: 25 };
+  store.getState().setEditor({ adjustments: activeDenoise, aiDenoiseProgress: { '/A.raf': 0.4 } });
+  store.getState().setEditor({ adjustments: { ...activeDenoise, exposure: 1.5 } });
+  assert.equal(store.getState().aiDenoiseProgress['/A.raf'], 0.4, 'unrelated edits preserve active progress');
+
+  store.getState().setEditor({ aiDenoiseProgress: { '/A.raf': 0.7 } });
+  store.getState().setEditor({ adjustments: { ...activeDenoise, aiDenoiseAmount: 0 } });
+  assert.equal(store.getState().aiDenoiseProgress['/A.raf'], undefined, 'zero amount clears progress');
+
+  store.getState().setEditor({ adjustments: activeDenoise, aiDenoiseProgress: { '/A.raf': 0.6 } });
+  store.getState().setEditor({ adjustments: { ...activeDenoise, aiDenoiseEnabled: false } });
+  assert.equal(store.getState().aiDenoiseProgress['/A.raf'], undefined, 'disabling denoise clears progress');
+
+  store.getState().setEditor({ adjustments: activeDenoise, aiDenoiseProgress: { '/A.raf': 0.8 } });
+  store.getState().prepareProgressiveIntent('new-same-path-ticket', '/A.raf');
+  assert.deepEqual(store.getState().aiDenoiseProgress, {}, 'a new open owner clears same-path progress');
 });
 
 test('real store fails closed for adjustments and history until the accurate keyed load', () => {

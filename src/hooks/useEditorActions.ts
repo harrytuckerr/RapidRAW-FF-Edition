@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import debounce from 'lodash.debounce';
 import { toast } from 'react-toastify';
+import { useTranslation } from 'react-i18next';
 import { useEditorStore, type FinalPreviewProof } from '../store/useEditorStore';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { useSettingsStore } from '../store/useSettingsStore';
@@ -13,10 +14,13 @@ import {
   COPYABLE_ADJUSTMENT_KEYS,
   PasteMode,
   LensAdjustment,
+  getActiveTools,
+  mergeActiveTools,
   normalizeLoadedAdjustments,
+  setToolActive,
 } from '../utils/adjustments';
 import { calculateAutoCropForRotation, calculateCenteredCrop } from '../utils/cropUtils';
-import { Invokes } from '../components/ui/AppProperties';
+import { Invokes, SelectedImage } from '../components/ui/AppProperties';
 import { globalImageCache } from '../utils/ImageLRUCache';
 import { isProgressiveMutationBlocked } from '../utils/progressiveOpen';
 import { currentAccurateOpenKey, isCurrentOpenKey, sourceRenderPolicy } from '../utils/progressiveOpen';
@@ -110,7 +114,59 @@ function filterProgressiveMutationTargets(
   return paths.filter((path) => !blocked.has(path));
 }
 
+export const withRotation = (adjustments: Adjustments, image: SelectedImage | null, rotation: number): Adjustments => ({
+  ...adjustments,
+  rotation,
+  crop:
+    image?.width && image?.height
+      ? calculateAutoCropForRotation(
+          image.width,
+          image.height,
+          adjustments.orientationSteps || 0,
+          adjustments.aspectRatio,
+          rotation,
+          adjustments.crop,
+          rotation - (adjustments.rotation || 0),
+        )
+      : adjustments.crop,
+});
+
+export const reloadAdjustmentsForPaths = async (
+  paths: string[],
+  sourceSnapshot = useEditorStore.getState(),
+) => {
+  const { selectedImage, adjustments } = sourceSnapshot;
+  const openKey = currentAccurateOpenKey(sourceSnapshot);
+  const ownsSource = (state: ReturnType<typeof useEditorStore.getState>) =>
+    state.selectedImage === selectedImage &&
+    state.adjustments === adjustments &&
+    !isProgressiveMutationBlocked(state) &&
+    (!selectedImage?.openTicket || (openKey && isCurrentOpenKey(openKey, state, selectedImage.path, true)));
+  const { libraryActivePath, libraryActiveAdjustments, setLibrary } = useLibraryStore.getState();
+  if (selectedImage && paths.includes(selectedImage.path) && ownsSource(useEditorStore.getState())) {
+    const meta: any = await invoke(Invokes.LoadMetadata, { path: selectedImage.path });
+    if (meta.adjustments && !meta.adjustments.is_null) {
+      const normalized = normalizeLoadedAdjustments(meta.adjustments);
+      useEditorStore.getState().setEditor((state) =>
+        ownsSource(state) ? { adjustments: normalized, history: [normalized], historyIndex: 0 } : state,
+      );
+    }
+  }
+  if (libraryActivePath && paths.includes(libraryActivePath)) {
+    const meta: any = await invoke(Invokes.LoadMetadata, { path: libraryActivePath });
+    const current = useLibraryStore.getState();
+    if (
+      current.libraryActivePath === libraryActivePath &&
+      current.libraryActiveAdjustments === libraryActiveAdjustments &&
+      meta.adjustments && !meta.adjustments.is_null
+    ) {
+      setLibrary({ libraryActiveAdjustments: normalizeLoadedAdjustments(meta.adjustments) });
+    }
+  }
+};
+
 export function useEditorActions() {
+  const { t } = useTranslation();
   const setEditor = useEditorStore((s) => s.setEditor);
 
   const setAdjustments = useCallback(
@@ -135,6 +191,10 @@ export function useEditorActions() {
           return {};
         const prev = state.adjustments;
         const newAdjustments = typeof value === 'function' ? value(prev) : { ...prev, ...value };
+        if (newAdjustments === prev) {
+          accepted = true;
+          return state;
+        }
         // Editor/canvas and panels share this timer. A delayed edit belongs to the
         // captured source, even if its originating component has since unmounted.
         debouncedSetHistory(newAdjustments, strict ? lensIntent!.source : (state.selectedImage ?? undefined));
@@ -248,8 +308,7 @@ export function useEditorActions() {
     (degrees: number) => {
       const { selectedImage, adjustments } = useEditorStore.getState();
       const increment = degrees > 0 ? 1 : 3;
-      const newAspectRatio =
-        adjustments.aspectRatio && adjustments.aspectRatio !== 0 ? 1 / adjustments.aspectRatio : null;
+      const newAspectRatio = adjustments.aspectRatio ? 1 / adjustments.aspectRatio : adjustments.aspectRatio;
       const newOrientationSteps = ((adjustments.orientationSteps || 0) + increment) % 4;
       const newCrop =
         selectedImage?.width && selectedImage?.height
@@ -293,7 +352,7 @@ export function useEditorActions() {
       setAdjustments((prev: Adjustments) => ({
         ...prev,
         ...autoAdjustments,
-        sectionVisibility: { ...prev.sectionVisibility, ...autoAdjustments.sectionVisibility },
+        activeTools: mergeActiveTools(prev, autoAdjustments),
       }));
     } catch (err) {
       toast.error(`Failed to apply auto adjustments: ${err}`);
@@ -377,10 +436,7 @@ export function useEditorActions() {
           lutSize: result.size,
           lutIntensity: 100,
           lutIsSceneReferred: isBuiltIn,
-          sectionVisibility: {
-            ...(prev.sectionVisibility || INITIAL_ADJUSTMENTS.sectionVisibility),
-            effects: true,
-          },
+          activeTools: setToolActive(getActiveTools(prev), 'lut', true),
         }));
       } catch (err) {
         toast.error(`Failed to load LUT: ${err}`);
@@ -435,9 +491,7 @@ export function useEditorActions() {
           if (libraryActivePath && safePathsToReset.includes(libraryActivePath))
             setLibrary({ libraryActiveAdjustments: { ...INITIAL_ADJUSTMENTS } });
           if (selectedImage && selectedStillCurrent && safePathsToReset.includes(selectedImage.path)) {
-            const aspect =
-              selectedImage.width && selectedImage.height ? selectedImage.width / selectedImage.height : null;
-            const resetData = { ...INITIAL_ADJUSTMENTS, aspectRatio: aspect, aiPatches: [] };
+            const resetData = { ...INITIAL_ADJUSTMENTS, aiPatches: [] };
             resetHistory(resetData);
             setEditor({ adjustments: resetData });
           }
@@ -507,6 +561,21 @@ export function useEditorActions() {
         .catch((err) => toast.error(`Failed to apply auto lens correction: ${err}`));
     },
     [setEditor],
+  );
+
+  const handleAutoStraightenPaths = useCallback(
+    (paths: string[]) => {
+      const sourceSnapshot = useEditorStore.getState();
+      const { selectedImage } = sourceSnapshot;
+      const editingPath = useUIStore.getState().activeView === 'editor' ? selectedImage?.path : undefined;
+      const batchPaths = filterProgressiveMutationTargets(paths, sourceSnapshot).filter((path) => path !== editingPath);
+      if (batchPaths.length === 0) return;
+      batchPaths.forEach((p) => globalImageCache.delete(p));
+      invoke(Invokes.ApplyAutoStraightenToPaths, { paths: batchPaths })
+        .then(() => reloadAdjustmentsForPaths(batchPaths, sourceSnapshot))
+        .catch((err) => toast.error(t('editor.crop.autoStraightenFailed', { error: String(err) })));
+    },
+    [t],
   );
 
   const handleCopyAdjustments = useCallback(async (pathOrEvent?: string | any) => {
@@ -697,6 +766,7 @@ export function useEditorActions() {
     handleRotate,
     handleAutoAdjustments,
     handleAutoWhiteBalance,
+    handleAutoStraightenPaths,
     handleLutSelect,
     setLutPreviewOverride,
     handleResetAdjustments,
@@ -733,9 +803,10 @@ export function straightenedAdjustments(
 export function autoStraightenUnavailable(
   state = useEditorStore.getState(),
   settings = useSettingsStore.getState().appSettings,
+  activeView = useUIStore.getState().activeView,
 ): string | null {
   const proof = state.finalPreviewProof;
-  if (useUIStore.getState().activeView !== 'editor') return 'Open the photo in the editor first.';
+  if (activeView !== 'editor') return 'Open the photo in the editor first.';
   if (!state.selectedImage?.isReady || isProgressiveMutationBlocked(state) || state.pendingOpenIntent)
     return 'Wait for the current photo to finish loading.';
   if (
@@ -788,10 +859,16 @@ export function autoStraightenUnavailable(
 
 /** One caller-owned operation; cancellation discards the result and does not queue another. */
 export function useAutoStraighten() {
-  const state = useEditorStore();
   const settings = useSettingsStore((s) => s.appSettings);
+  const activeView = useUIStore((s) => s.activeView);
+  const busy = useEditorStore((s) => s.autoStraightenBusy);
+  const unavailable = useEditorStore(
+    useCallback(
+      (s: ReturnType<typeof useEditorStore.getState>) => autoStraightenUnavailable(s, settings, activeView),
+      [settings, activeView],
+    ),
+  );
   const { setAdjustments } = useEditorActions();
-  const busy = state.autoStraightenBusy;
   const [feedback, setFeedback] = useState('');
   const inFlight = useRef(false);
   const mounted = useRef(true);
@@ -886,7 +963,7 @@ export function useAutoStraighten() {
       canvas.height = 0;
       canvas = null;
       const result = await invoke<{ correctionDegrees: number; confidence: number } | null>(
-        Invokes.CalculateAutoStraighten,
+        Invokes.CalculatePreviewAutoStraighten,
         {
           path: proof.source.path,
           width,
@@ -949,6 +1026,6 @@ export function useAutoStraighten() {
     busy,
     canCancel: inFlight.current,
     feedback,
-    unavailable: autoStraightenUnavailable(state, settings),
+    unavailable,
   };
 }

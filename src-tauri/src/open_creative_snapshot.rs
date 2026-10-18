@@ -156,12 +156,10 @@ pub(crate) fn capture_creative_assets(
             }
         }
     }
-    let effects_visible = adjustments["sectionVisibility"]["effects"]
-        .as_bool()
-        .unwrap_or(true);
+    let lut_visible = crate::image_processing::is_tool_active(&adjustments, "lut");
     // Matches existing has_lut: effects visible AND lutPath.is_string().
     // Empty strings are requests too and retain the real parser's failure.
-    let lut = if effects_visible && adjustments["lutPath"].is_string() {
+    let lut = if lut_visible && adjustments["lutPath"].is_string() {
         check_cancel(&cancel)?;
         let parsed =
             crate::lut_processing::parse_lut_file(adjustments["lutPath"].as_str().unwrap());
@@ -201,23 +199,24 @@ pub(crate) fn capture_creative_assets(
     let fog_amount =
         (adjustments["fogAmount"].as_f64().unwrap_or(50.0) as f32 / 100.0).clamp(0.0, 1.0);
     let fog_noop = fog_amount <= 0.0;
-    let fog_map =
-        if effects_visible && adjustments["fogEnabled"].as_bool().unwrap_or(false) && !fog_noop {
-            Some(capture_depth(&adjustments, "fogDepthMap", &cancel)?)
-        } else {
-            None
-        };
-    // Lens blur uses the direct f32 amount, without fog's division/clamp.
-    let lens_blur_amount = adjustments["lensBlurAmount"].as_f64().unwrap_or(50.0) as f32;
-    let lens_blur_noop = lens_blur_amount <= 0.0;
-    let lens_blur_map = if effects_visible
-        && adjustments["lensBlurEnabled"].as_bool().unwrap_or(false)
-        && !lens_blur_noop
+    let fog_map = if crate::image_processing::is_effect_enabled(&adjustments, "fog", "fogEnabled")
+        && !fog_noop
     {
-        Some(capture_depth(&adjustments, "lensBlurDepthMap", &cancel)?)
+        Some(capture_depth(&adjustments, "fogDepthMap", &cancel)?)
     } else {
         None
     };
+    // Lens blur uses the direct f32 amount, without fog's division/clamp.
+    let lens_blur_amount = adjustments["lensBlurAmount"].as_f64().unwrap_or(50.0) as f32;
+    let lens_blur_noop = lens_blur_amount <= 0.0;
+    let lens_blur_map =
+        if crate::image_processing::is_effect_enabled(&adjustments, "lensBlur", "lensBlurEnabled")
+            && !lens_blur_noop
+        {
+            Some(capture_depth(&adjustments, "lensBlurDepthMap", &cancel)?)
+        } else {
+            None
+        };
     check_cancel(&cancel)?;
     Ok(CapturedCreativeAssets {
         adjustments,

@@ -45,6 +45,7 @@ export function useTauriListeners({
 
   useEffect(() => {
     let isEffectActive = true;
+    const denoiseJobs = new Map<string, bigint>();
 
     const flushThumbnailBatch = () => {
       flushHandle.current = null;
@@ -238,6 +239,59 @@ export function useTauriListeners({
             },
           }));
         }
+      }),
+      listen<{
+        path: string;
+        openKey: unknown;
+        job: string;
+        baseKey: string;
+        profile: unknown;
+        progress: number;
+        error?: string;
+      }>('ai-denoise-progress', (event) => {
+        if (!isEffectActive) return;
+        const payload = event.payload;
+        const state = useEditorStore.getState();
+        if (
+          !payload ||
+          payload.path !== state.selectedImage?.path ||
+          typeof payload.job !== 'string' ||
+          !/^(0|[1-9][0-9]{0,19})$/.test(payload.job) ||
+          typeof payload.baseKey !== 'string' ||
+          !/^[0-9a-f]{64}$/.test(payload.baseKey) ||
+          !Number.isFinite(payload.progress) ||
+          payload.progress < 0 ||
+          payload.progress > 1
+        )
+          return;
+        const key = parseOpenKey(payload.openKey);
+        if (!key || !sameOpenKey(key, currentAccurateOpenKey(state))) return;
+        const job = BigInt(payload.job);
+        if (job > 18446744073709551615n || job < (denoiseJobs.get(payload.path) ?? 0n)) return;
+        const selected = state.adjustments.profile;
+        const profile = payload.profile as typeof selected;
+        if (
+          JSON.stringify(profile?.base ?? null) !== JSON.stringify(selected?.base ?? null) ||
+          JSON.stringify(profile?.look ?? null) !== JSON.stringify(selected?.look ?? null) ||
+          JSON.stringify(profile?.amount ?? null) !== JSON.stringify(selected?.amount ?? null)
+        )
+          return;
+        if (!state.adjustments.aiDenoiseEnabled || state.adjustments.aiDenoiseAmount <= 0) return;
+        denoiseJobs.set(payload.path, job);
+        // The native preview invoke awaits the matching result and owns errors.
+        // Progress never commits pixels, toggles an edit, or queues a second render.
+        state.setEditor((current) => {
+          if (
+            current.selectedImage !== state.selectedImage ||
+            !sameOpenKey(currentAccurateOpenKey(current), key) ||
+            current.adjustments !== state.adjustments
+          )
+            return {};
+          const aiDenoiseProgress = { ...current.aiDenoiseProgress };
+          if (payload.progress === 1 || typeof payload.error === 'string') delete aiDenoiseProgress[payload.path];
+          else aiDenoiseProgress[payload.path] = payload.progress;
+          return { aiDenoiseProgress };
+        });
       }),
       listen('wgpu-frame-ready', (event: any) => {
         if (!isEffectActive) return;

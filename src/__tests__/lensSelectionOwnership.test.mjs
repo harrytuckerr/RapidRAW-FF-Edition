@@ -96,7 +96,7 @@ globalThis.__lensShowContextMenu = (_x, _y, items) => {
 };
 globalThis.__lensToast = Object.fromEntries(['success', 'error', 'info'].map((kind) => [kind, () => {}]));
 
-const S = '/Users/harrisontucker/.codex/worktrees/rapidraw-upstream-integration/RapidRaw';
+const S = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const E = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const owned = new Set(['src/components/panel/right/CropPanel.tsx', 'src/hooks/useEditorActions.ts']);
 const bundle = await build({

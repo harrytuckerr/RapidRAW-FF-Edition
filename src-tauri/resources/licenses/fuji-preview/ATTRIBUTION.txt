@@ -1,7 +1,7 @@
 RapidRAW Fuji Edition development preview — supplemental attribution
 
-Application source: b75d096b4ef2001377cfc628835a6bd160601c28
-https://github.com/harrytuckerr/RapidRAW-Fujifilm-edition
+Application source: accompanying corresponding-source archive (no final commit identifier assigned)
+https://github.com/harrytuckerr/RapidRAW-FF-Edition
 The retained NOTICE.md has historical validation counts; the release provenance
 and release notes state this artifact revision's actual checks and limitations.
 
@@ -16,11 +16,9 @@ Source project: https://github.com/lensfun/lensfun
 The Lensfun README identifies the database under data/ as CC BY-SA 3.0.
 Full license: LENSFUN-DATABASE-CC-BY-SA-3.0.txt
 Primary-source reference: Lensfun commit bb14c99b2a239beee016109941f57b6ff9350547,
-README.md and data/COPYING.CC_BY-SA_3.0. Current upstream retains the same terms.
-The bundled database is the exact src-tauri/lensfun_db snapshot in application
-source b75d096b. Its timestamp file is not treated as an upstream revision ID.
-This snapshot is not claimed identical to current upstream: 47/58 non-timestamp
-files match the captured current upstream tree; the other files differ.
+README.md and data/COPYING.CC_BY-SA_3.0.
+The bundled database is the exact src-tauri/lensfun_db snapshot in the accompanying
+corresponding-source archive. Its timestamp file is not treated as an upstream revision ID.
 No database editing is performed for this package. Exact source files are
 available in the accompanying application source archive; local hashes are in
 LENSFUN-SNAPSHOT.json. This is a retained upstream-derived snapshot, not a new

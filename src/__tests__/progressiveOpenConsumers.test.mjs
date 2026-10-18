@@ -1230,7 +1230,7 @@ test('mounted context reset commits only the captured accurate key and preserves
 
   let options = await showEditorContextMenu(menus);
   await act(async () => editorResetConfirmation(options).onClick());
-  const reset = { ...INITIAL_ADJUSTMENTS, aspectRatio: 4 / 3, aiPatches: [] };
+  const reset = { ...INITIAL_ADJUSTMENTS, aspectRatio: 0, aiPatches: [] };
   assert.deepEqual(useEditorStore.getState().adjustments, reset);
   assert.deepEqual(useEditorStore.getState().history, [reset]);
   assert.equal(useEditorStore.getState().historyIndex, 0);

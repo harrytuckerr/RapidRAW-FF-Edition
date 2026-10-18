@@ -106,6 +106,8 @@
       "resetPoint": "Ripristina Curva per Punti {{channel}}"
     },
     "details": {
+      "aiDenoise": "Riduzione rumore IA",
+      "aiDenoiseDetail": "Dettaglio",
       "blueYellow": "Blu/Giallo",
       "centre": "Centro",
       "chromaticAberration": "Aberrazione Cromatica",
@@ -150,6 +152,7 @@
       "relightColor": "Colore luce",
       "relightCone": "Cono",
       "relightDepth": "Profondità",
+      "relightDuplicateLight": "Duplica luce",
       "relightElevation": "Elevazione",
       "relightFalloff": "Attenuazione",
       "relightHint": "Aggiungi o seleziona una luce, poi clicca o trascina sull'immagine per posizionarla.",
@@ -219,6 +222,7 @@
     "editor": {
       "autoAdjust": "Regolazione Automatica Immagine",
       "autoLensCorrection": "Correzione automatica obiettivo",
+      "autoStraighten": "Raddrizza automaticamente",
       "cancel": "Annulla",
       "colorLabel": "Etichetta Colore",
       "confirmReset": "Conferma Ripristino",
@@ -294,6 +298,9 @@
       "autoLensCorrection_one": "Correzione automatica obiettivo",
       "autoLensCorrection_other": "Correzione automatica obiettivo",
       "autoLensCorrection_many": "Correzione automatica obiettivo",
+      "autoStraighten_many": "Raddrizza immagini automaticamente",
+      "autoStraighten_one": "Raddrizza immagine automaticamente",
+      "autoStraighten_other": "Raddrizza immagini automaticamente",
       "collage_many": "Crea Collage",
       "collage_one": "Incornicia Immagine",
       "collage_other": "Crea Collage",
@@ -429,6 +436,7 @@
       },
       "createNewTitle": "Crea Nuova Modifica Generativa",
       "createNewTooltip": "Crea Nuova Modifica {{name}}",
+      "denoising": "Riduzione rumore IA in corso...",
       "dropzoneText": "Rilascia qui per creare una nuova modifica",
       "editSettingsTitle": "Impostazioni Modifica",
       "editsTitle": "Modifiche",
@@ -502,6 +510,8 @@
     },
     "crop": {
       "aspectRatioHeading": "Proporzioni",
+      "autoStraightenFailed": "Raddrizzamento automatico non riuscito: {{error}}",
+      "autoStraightenNoLines": "Nessuna linea retta trovata per raddrizzare",
       "custom": {
         "hPlaceholder": "A",
         "hTooltip": "Altezza",
@@ -601,6 +611,7 @@
       "rotationHeading": "Rotazione",
       "title": "Ritaglio e Trasformazione",
       "tooltips": {
+        "autoStraighten": "Raddrizza automaticamente (Shift+S)",
         "compositionOverlay": "Sovrapposizione Composizione",
         "flipHoriz": "Rifletti immagine orizzontalmente",
         "flipVert": "Rifletti immagine verticalmente",
@@ -901,8 +912,10 @@
       "selectFolderTitle_other": "Seleziona Cartella per Esportare {{count}} Immagini"
     },
     "file": {
+      "dpi": "DPI",
       "quality": "Qualità",
       "qualityLossless": "Qualità (Senza Perdita)",
+      "resolution": "Risoluzione",
       "tiffBitDepth": "Profondità bit TIFF",
       "tiffBitDepth16": "16 bit",
       "tiffBitDepth8": "8 bit"
@@ -1104,6 +1117,8 @@
       }
     },
     "header": {
+      "cancel": "Annulla",
+      "deselectAll": "Deseleziona Tutto",
       "search": {
         "addFilterOrSearch": "Aggiungi filtro o cerca...",
         "indexingImages": "Indicizzazione Immagini...",
@@ -1115,6 +1130,8 @@
         "tooltipClearSearch": "Cancella ricerca",
         "tooltipSearchFilter": "Cerca o Filtra"
       },
+      "selectAll": "Seleziona Tutto",
+      "selectItems": "Seleziona elementi",
       "title": "Libreria",
       "viewOptions": {
         "currentFolder": "Cartella Corrente",
@@ -1238,7 +1255,8 @@
     "tooltips": {
       "communityPresets": "Predefiniti della Community",
       "goHome": "Torna alla Home page",
-      "importImages": "Importa Immagini"
+      "importImages": "Importa Immagini",
+      "select": "Seleziona"
     }
   },
   "masks": {
@@ -1632,6 +1650,9 @@
       "zoomDesc": "Regola la velocità dello zoom dell'area di lavoro quando utilizzi la rotellina di scorrimento o il gesto del pizzico."
     },
     "data": {
+      "clearAiDenoise": "Svuota cache riduzione rumore IA",
+      "clearAiDenoiseButton": "Svuota",
+      "clearAiDenoiseDesc": "Elimina i risultati salvati della riduzione rumore IA ({{size}}). Le immagini con la riduzione rumore IA attiva la ricalcoleranno alla prossima apertura.",
       "clearSidecars": "Cancella Tutti i File Sidecar",
       "clearSidecarsButton": "Cancella",
       "clearSidecarsDesc": "Questo eliminerà tutti i file .rrdata (contenenti le tue modifiche) all'interno delle cartelle principali:",
@@ -1643,6 +1664,7 @@
       "logsButton": "Apri",
       "logsDesc": "Visualizza il file di log dell'applicazione per la risoluzione dei problemi. Il log si trova in:",
       "modals": {
+        "aiDenoiseMessage": "Vuoi davvero svuotare la cache della riduzione rumore IA?\n\nLe immagini con la riduzione rumore IA attiva dovranno essere elaborate di nuovo, operazione che può richiedere diversi minuti per immagine.",
         "aiMessage": "Sei sicuro di voler rimuovere tutti i tag generati dall'AI da tutte le immagini in tutte le cartelle principali attive?\n\nQuesto non influirà sui tag aggiunti dall'utente. Questa azione non può essere annullata.",
         "allMessage": "Sei sicuro di voler rimuovere tutti i tag generati dall'AI e aggiunti dall'utente da tutte le immagini in tutte le cartelle principali attive?\n\nQuesta azione non può essere annullata.",
         "cacheMessage": "Sei sicuro di voler cancellare la cache delle miniature?\n\nTutte le miniature dovranno essere rigenerate, operazione che potrebbe essere lenta per le cartelle di grandi dimensioni.",
@@ -1665,6 +1687,7 @@
       "resetLayoutDesc": "Ripristina i pannelli ancorati, i divisori laterali, le altezze e i selettori dei pannelli al layout predefinito.",
       "resetLayoutTitle": "Ripristina layout spazio di lavoro",
       "statuses": {
+        "aiDenoiseSuccess": "Cache della riduzione rumore IA svuotata correttamente.",
         "aiSuccess": "{{count}} file aggiornati. Tag AI rimossi.",
         "aiSuccess_many": "{{count}} file aggiornati. Tag AI rimossi.",
         "aiSuccess_one": "{{count}} file aggiornato. Tag AI rimossi.",
@@ -1675,6 +1698,7 @@
         "allSuccess_other": "{{count}} file aggiornati. Tutti i tag non colore rimossi.",
         "cacheSuccess": "Cache miniature cancellata con successo.",
         "clearingAi": "Rimozione dei tag AI da tutti i file sidecar...",
+        "clearingAiDenoise": "Svuotamento della cache della riduzione rumore IA...",
         "clearingAll": "Rimozione di tutti i tag dai file sidecar...",
         "clearingCache": "Cancellazione cache miniature...",
         "deleting": "Eliminazione dei file sidecar, attendere...",
@@ -1723,6 +1747,7 @@
     },
     "keybinds": {
       "actions": {
+        "auto_straighten": "Raddrizza automaticamente",
         "brush_size_down": "Riduci dimensione pennello",
         "brush_size_up": "Aumenta dimensione pennello",
         "color_label_blue": "Etichetta colore: Blu",

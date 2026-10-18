@@ -18,12 +18,26 @@ static INIT_NDK_CONTEXT: std::sync::Once = std::sync::Once::new();
 static INIT_RUSTLS_PLATFORM_VERIFIER: std::sync::Once = std::sync::Once::new();
 
 #[cfg(target_os = "android")]
+fn ndk_context_is_initialized() -> bool {
+    // tao 0.37+ initializes ndk-context in its Android `onCreate` glue (with the
+    // application context) before `main` runs; older tao releases may not.
+    // `ndk-context` 0.1.x has no `get_or_init`, and `android_context()`
+    // panics when the context is unset, so probe with `catch_unwind`. A no-op
+    // panic hook is installed for the duration of the probe so the app's real
+    // hook doesn't log a scary `PANIC!` line on every startup.
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let initialized = std::panic::catch_unwind(ndk_context::android_context).is_ok();
+    std::panic::set_hook(previous_hook);
+    initialized
+}
+
+#[cfg(target_os = "android")]
 pub fn initialize_android(window: &tauri::WebviewWindow) {
     let _ = window.with_webview(|webview| {
         webview.jni_handle().exec(|env, context, _webview| {
-            // The Android build pins tao 0.35, which leaves context ownership to us.
-            // Keep our own application reference: wry's activity reference can be
-            // replaced on recreation while ndk-context retains the raw pointer.
+            // Retain an application-scoped JNI reference even when tao already
+            // owns ndk-context; its activity reference may be replaced on recreation.
             let initialized = (|| -> Result<(), jni::errors::Error> {
                 let vm = env.get_java_vm()?;
                 let application = env
@@ -39,13 +53,20 @@ pub fn initialize_android(window: &tauri::WebviewWindow) {
                 }
                 let owned = env.new_global_ref(application)?;
                 let application = APPLICATION_CONTEXT.get_or_init(|| owned);
-                INIT_NDK_CONTEXT.call_once(|| unsafe {
-                    ndk_context::initialize_android_context(
-                        vm.get_java_vm_pointer().cast(),
-                        application.as_obj().as_raw().cast(),
-                    );
-                    log::info!("Successfully initialized ndk-context on Android.");
-                });
+
+                if ndk_context_is_initialized() {
+                    log::info!("ndk-context already initialized by tao; skipping re-init.");
+                } else {
+                    // Older tao releases may leave ndk-context unset. Keep the
+                    // established application context as its process-lifetime owner.
+                    INIT_NDK_CONTEXT.call_once(|| unsafe {
+                        ndk_context::initialize_android_context(
+                            vm.get_java_vm_pointer().cast(),
+                            application.as_obj().as_raw().cast(),
+                        );
+                        log::info!("Successfully initialized ndk-context on Android.");
+                    });
+                }
                 Ok(())
             })();
             if let Err(error) = initialized {
@@ -57,6 +78,8 @@ pub fn initialize_android(window: &tauri::WebviewWindow) {
                 return;
             }
 
+            // Runs in either ownership mode; tao's prior context does not skip
+            // rustls verifier initialization.
             INIT_RUSTLS_PLATFORM_VERIFIER.call_once(|| {
                 let raw_env = env.get_raw() as *mut jni22::sys::JNIEnv;
                 let raw_context = context.as_raw() as jni22::sys::jobject;

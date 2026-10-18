@@ -5,9 +5,6 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
-// Like println!/eprintln!, but ignores write errors: when stdout/stderr is a
-// closed pipe (e.g. `RapidRAW export ... | head`), println! panics, which
-// left headless exports hanging.
 macro_rules! cli_println {
     ($($arg:tt)*) => {{
         use std::io::Write as _;
@@ -25,12 +22,14 @@ macro_rules! cli_eprintln {
 mod adjustment_utils;
 mod ai_commands;
 mod ai_connector;
+mod ai_denoise;
 mod ai_processing;
 mod android_integration;
 mod app_settings;
 mod app_state;
 mod apple_raw;
 mod as_shot;
+mod auto_straighten;
 mod baseline_exposure;
 mod cache_utils;
 mod camera_tethering;
@@ -108,7 +107,7 @@ use crate::cache_utils::{
 use crate::file_management::{parse_virtual_path, read_file_mapped};
 use crate::formats::is_raw_file;
 use crate::hdr_deghosting::{align_hdr_frames, assert_uniform_dimensions, load_hdr_frames};
-use crate::image_loader::{composite_patches_on_image, load_and_composite_with_profiles};
+use crate::image_loader::{composite_patches_on_image, load_and_composite_with_profiles_in_worker};
 use crate::image_processing::{
     Crop, RenderRequest, apply_coarse_rotation, apply_flip, apply_geometry_warp,
     apply_linear_to_srgb, downscale_f32_image, get_all_adjustments_from_json,
@@ -130,7 +129,7 @@ use tagging_utils::{candidates, hierarchy};
 #[cfg(target_os = "macos")]
 extern "C" fn force_exit(_signal: libc::c_int) {
     unsafe {
-        libc::_exit(0);
+        libc::_exit(process_exit_code());
     }
 }
 
@@ -185,6 +184,16 @@ pub fn generate_transformed_preview(
     adjustments: &serde_json::Value,
     preview_dim: u32,
 ) -> Result<(DynamicImage, f32, (f32, f32)), String> {
+    generate_transformed_preview_with_denoise(state, loaded_image, adjustments, preview_dim, None)
+}
+
+pub(crate) fn generate_transformed_preview_with_denoise(
+    state: &tauri::State<AppState>,
+    loaded_image: &LoadedImage,
+    adjustments: &serde_json::Value,
+    preview_dim: u32,
+    denoise: Option<&crate::ai_denoise::DenoiseLease>,
+) -> Result<(DynamicImage, f32, (f32, f32)), String> {
     let mut hasher = DefaultHasher::new();
     loaded_image.path.hash(&mut hasher);
     calculate_transform_hash(adjustments).hash(&mut hasher);
@@ -203,7 +212,7 @@ pub fn generate_transformed_preview(
     }
 
     let (preview, scale_for_gpu, unscaled_crop_offset) =
-        compute_transformed_preview(state, loaded_image, adjustments, preview_dim)?;
+        compute_transformed_preview(state, loaded_image, adjustments, preview_dim, denoise)?;
     *cache_lock = Some((
         cache_key,
         Arc::clone(&preview),
@@ -237,8 +246,16 @@ fn compute_transformed_preview(
     loaded_image: &LoadedImage,
     adjustments: &serde_json::Value,
     preview_dim: u32,
+    denoise: Option<&crate::ai_denoise::DenoiseLease>,
 ) -> Result<TransformedPreview, String> {
-    compute_transformed_preview_with_source(state, loaded_image, adjustments, preview_dim, None)
+    compute_transformed_preview_with_source(
+        state,
+        loaded_image,
+        adjustments,
+        preview_dim,
+        None,
+        denoise,
+    )
 }
 
 fn compute_legacy_stage(
@@ -260,6 +277,7 @@ fn compute_transformed_preview_with_source(
     adjustments: &serde_json::Value,
     preview_dim: u32,
     captured_base: Option<&Arc<DynamicImage>>,
+    denoise: Option<&crate::ai_denoise::DenoiseLease>,
 ) -> Result<TransformedPreview, String> {
     let retain = captured_base.is_none();
     let mut hasher = DefaultHasher::new();
@@ -278,8 +296,9 @@ fn compute_transformed_preview_with_source(
                     loaded_image,
                     adjustments,
                     captured_base,
+                    denoise,
                 ),
-                None => compute_patched_and_warped(state, loaded_image, adjustments),
+                None => compute_patched_and_warped(state, loaded_image, adjustments, denoise),
             },
         )?;
 
@@ -440,7 +459,7 @@ mod prepared_profile_base_tests {
 
 /// The profile is evaluated before patches/geometry and ordinary GPU adjustments.
 /// Keep loaded_image.image pristine so clearing a profile restores upstream rendering.
-fn profile_base_image(
+pub(crate) fn profile_base_image(
     state: &tauri::State<AppState>,
     loaded_image: &LoadedImage,
     adjustments: &serde_json::Value,
@@ -482,8 +501,9 @@ fn compute_patched_and_warped(
     state: &tauri::State<AppState>,
     loaded_image: &LoadedImage,
     adjustments: &serde_json::Value,
+    denoise: Option<&crate::ai_denoise::DenoiseLease>,
 ) -> Result<Arc<DynamicImage>, String> {
-    compute_patched_and_warped_from_base(state, loaded_image, adjustments, None)
+    compute_patched_and_warped_from_base(state, loaded_image, adjustments, None, denoise)
 }
 
 fn compute_patched_and_warped_from_base(
@@ -491,6 +511,7 @@ fn compute_patched_and_warped_from_base(
     loaded_image: &LoadedImage,
     adjustments: &serde_json::Value,
     captured_base: Option<&Arc<DynamicImage>>,
+    denoise: Option<&crate::ai_denoise::DenoiseLease>,
 ) -> Result<Arc<DynamicImage>, String> {
     let mut hasher = DefaultHasher::new();
     loaded_image.path.hash(&mut hasher);
@@ -504,6 +525,16 @@ fn compute_patched_and_warped_from_base(
             let profile_base = match captured_base {
                 Some(base) => Arc::clone(base),
                 None => profile_base_image(state, loaded_image, adjustments)?,
+            };
+            let denoised = crate::ai_denoise::apply_ai_denoise_with_lease(
+                &profile_base,
+                &loaded_image.path,
+                adjustments,
+                denoise,
+            )?;
+            let profile_base = match denoised {
+                Cow::Owned(image) => Arc::new(image),
+                Cow::Borrowed(_) => Arc::clone(&profile_base),
             };
             let has_patches = adjustments
                 .get("aiPatches")
@@ -787,6 +818,7 @@ fn process_preview_job_legacy(
     active_waveform_channel: Option<&str>,
 ) -> Result<Vec<u8>, String> {
     request.check()?;
+    let denoise = request.denoise_lease()?;
     let fn_start = std::time::Instant::now();
     let context = get_or_init_gpu_context(&state, app_handle)?;
     hydrate_adjustments(&state, &mut adjustments_json);
@@ -838,8 +870,13 @@ fn process_preview_job_legacy(
             .lock()
             .unwrap_or_else(|e| e.into_inner()) = None;
 
-        let (base, scale, offset) =
-            generate_transformed_preview(&state, &loaded_image, &adjustments_clone, preview_dim)?;
+        let (base, scale, offset) = generate_transformed_preview_with_denoise(
+            &state,
+            &loaded_image,
+            &adjustments_clone,
+            preview_dim,
+            denoise.as_ref(),
+        )?;
         (Arc::new(base), scale, offset)
     };
 
@@ -1324,6 +1361,8 @@ async fn sample_point_colour(
         Some(js_adjustments.clone()),
         load_settings(app_handle.clone()).unwrap_or_default(),
     )?;
+    crate::ai_denoise::ensure_generated(&app_handle, &request).await?;
+    request.check()?;
     // Sampling never replaces/cancels the ordinary preview request. The held
     // source lease fences navigation; the picker checks its exact edit/session
     // again before committing. A submitted GPU readback drains even if its
@@ -1354,6 +1393,7 @@ async fn sample_point_colour(
                 &adjustments,
                 u32::MAX,
                 Some(&base),
+                held.denoise_lease()?.as_ref(),
             )?;
             held.check()?;
             let mut renderer = gpu_processing::IsolatedCreativeRenderer::new(&context);
@@ -1399,7 +1439,7 @@ async fn apply_adjustments(
         expected_open_key.as_ref(),
         None,
         Some(js_adjustments.clone()),
-        load_settings(app_handle).unwrap_or_default(),
+        load_settings(app_handle.clone()).unwrap_or_default(),
     );
     log::info!(
         "[preview-stage] stage=capture elapsed={:?} interactive={} outcome={}",
@@ -1415,6 +1455,8 @@ async fn apply_adjustments(
     );
     let request = captured?;
     app_state::replace_preview_request(&state.preview_request, &request)?;
+    crate::ai_denoise::ensure_generated(&app_handle, &request).await?;
+    request.check()?;
     let (tx, rx) = tokio::sync::oneshot::channel();
 
     {
@@ -1476,6 +1518,8 @@ async fn generate_uncropped_preview(
         Some(js_adjustments.clone()),
         load_settings(app_handle.clone()).unwrap_or_default(),
     )?;
+    crate::ai_denoise::ensure_generated(&app_handle, &request).await?;
+    request.check()?;
     let context = get_or_init_gpu_context(&state, &app_handle);
     request.check()?;
     let context = context?;
@@ -1528,13 +1572,19 @@ async fn generate_uncropped_preview(
                         .is_some_and(|a| !a.is_empty());
                     let profile_base =
                         profile_base_image(&state, &loaded_image, &adjustments_clone)?;
+                    let denoised = crate::ai_denoise::apply_ai_denoise_with_lease(
+                        &profile_base,
+                        &loaded_image.path,
+                        &adjustments_clone,
+                        worker_request.denoise_lease()?.as_ref(),
+                    )?;
                     let patched_image = if has_patches {
                         Cow::Owned(
-                            composite_patches_on_image(&profile_base, &adjustments_clone)
+                            composite_patches_on_image(&denoised, &adjustments_clone)
                                 .unwrap_or_else(|_| profile_base.as_ref().clone()),
                         )
                     } else {
-                        Cow::Borrowed(profile_base.as_ref())
+                        denoised
                     };
 
                     let relit_image =
@@ -1677,6 +1727,7 @@ fn generate_preset_preview(
         Some(js_adjustments.clone()),
         load_settings(app_handle.clone()).unwrap_or_default(),
     )?;
+    request.ensure_denoise_in_worker(&app_handle)?;
     let context = get_or_init_gpu_context(&state, &app_handle);
     request.check()?;
     let context = context?;
@@ -1705,7 +1756,13 @@ fn generate_preset_preview(
     const PRESET_PREVIEW_DIM: u32 = 400;
 
     let (preview_image, scale_for_gpu, unscaled_crop_offset) =
-        generate_transformed_preview(&state, &loaded_image, &js_adjustments, PRESET_PREVIEW_DIM)?;
+        generate_transformed_preview_with_denoise(
+            &state,
+            &loaded_image,
+            &js_adjustments,
+            PRESET_PREVIEW_DIM,
+            request.denoise_lease()?.as_ref(),
+        )?;
 
     let (img_w, img_h) = preview_image.dimensions();
 
@@ -2125,7 +2182,9 @@ async fn generate_preview_for_path(
         let settings = load_settings(app_handle.clone()).unwrap_or_default();
 
         let base_image = match read_file_mapped(&source_path) {
-            Ok(mmap) => load_and_composite_with_profiles(
+            Ok(mmap) => load_and_composite_with_profiles_in_worker(
+                &app_handle,
+                &|| Ok(()),
                 &mmap,
                 &source_path_str,
                 &js_adjustments,
@@ -2142,7 +2201,9 @@ async fn generate_preview_for_path(
                     e
                 );
                 let bytes = fs::read(&source_path).map_err(|io_err| io_err.to_string())?;
-                load_and_composite_with_profiles(
+                load_and_composite_with_profiles_in_worker(
+                    &app_handle,
+                    &|| Ok(()),
                     &bytes,
                     &source_path_str,
                     &js_adjustments,
@@ -2255,8 +2316,6 @@ fn setup_logging(app_handle: &tauri::AppHandle) {
             ))
         })
         .level(level)
-        // fern panics when a stderr write fails (e.g. output piped into `head`),
-        // and the panic hook below logs again, which aborts the process.
         .chain(fern::Output::call(|record| {
             let _ = writeln!(std::io::stderr(), "{}", record.args());
         }));
@@ -2594,6 +2653,7 @@ pub fn run() {
             let app_handle = app.handle().clone();
 
             if let Ok(cache_dir) = app_handle.path().app_cache_dir() {
+                crate::ai_denoise::initialize_cache_dir(cache_dir.clone());
                 crate::exif_processing::initialize_cache_dir(cache_dir);
             }
 
@@ -2710,6 +2770,7 @@ pub fn run() {
                             }
                             Err(e) => {
                                 cli_eprintln!("Headless export failed: {}", e);
+                                set_process_exit_code(1);
                                 app_handle_clone.exit(1);
                             }
                         }
@@ -3028,6 +3089,8 @@ pub fn run() {
             ai_commands::test_ai_connector_connection,
             ai_commands::generate_full_image_depth_map,
             ai_commands::generate_relight_normal_map,
+            ai_denoise::get_ai_denoise_cache_size,
+            ai_denoise::clear_ai_denoise_cache,
             ai_commands::cancel_ai_task,
             apple_raw::is_raw9_available,
             inpainting::invoke_generative_replace_with_mask_def,
@@ -3049,9 +3112,11 @@ pub fn run() {
             export_processing::cancel_export,
             export_processing::estimate_export_sizes,
             image_processing::calculate_auto_adjustments,
-            image_processing::calculate_auto_straighten,
+            image_processing::calculate_preview_auto_straighten,
             image_processing::sample_white_balance,
             sample_point_colour,
+            auto_straighten::calculate_auto_straighten,
+            file_management::apply_auto_straighten_to_paths,
             mask_generation::generate_mask_overlay,
             file_management::update_exif_fields,
             file_management::get_supported_file_types,
@@ -3192,22 +3257,25 @@ pub fn run() {
                     drive_auth::lifecycle::on_exit(&state);
                 }
                 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-                tauri::RunEvent::ExitRequested { api, .. } => {
+                tauri::RunEvent::ExitRequested { api, code, .. } => {
                     api.prevent_exit();
+                    let code = resolve_exit_code(code, process_exit_code());
 
                     #[cfg(target_os = "macos")]
-                    unsafe { libc::_exit(0); }
+                    unsafe { libc::_exit(code); }
 
                     #[cfg(not(target_os = "macos"))]
-                    std::process::exit(0);
+                    std::process::exit(code);
                 }
                 #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
                 tauri::RunEvent::Exit => {
+                    let code = process_exit_code();
+
                     #[cfg(target_os = "macos")]
-                    unsafe { libc::_exit(0); }
+                    unsafe { libc::_exit(code); }
 
                     #[cfg(not(target_os = "macos"))]
-                    std::process::exit(0);
+                    std::process::exit(code);
                 }
                 _ => {}
             }
@@ -3239,16 +3307,44 @@ async fn load_image(
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<Value, String> {
-    match open_key {
+    let original_path = path.clone();
+    let result = match open_key {
         Some(key) => serde_json::to_value(
-            image_loader::load_keyed_image(path, key, state, app_handle)
+            image_loader::load_keyed_image(path, key, state, app_handle.clone())
                 .await
                 .map_err(|e| e.to_string())?,
         )
-        .map_err(|e| e.to_string()),
-        None => serde_json::to_value(image_loader::load_image(path, state, app_handle).await?)
-            .map_err(|e| e.to_string()),
+        .map_err(|e| e.to_string())?,
+        None => {
+            serde_json::to_value(image_loader::load_image(path, state, app_handle.clone()).await?)
+                .map_err(|e| e.to_string())?
+        }
+    };
+    // Saved enabled denoise completes without requiring a manual preview/edit.
+    // Source ownership is recaptured only after the actual decoder committed.
+    if crate::ai_denoise::is_requested(&result["metadata"]["adjustments"]) {
+        let state = app_handle.state::<AppState>();
+        if let Some(key) = open_key {
+            state
+                .progressive_open
+                .check_path(key, &original_path)
+                .map_err(|e| e.to_string())?;
+        }
+        let expected = if result["renderMode"] == "AccurateXtrans1Encoded" {
+            open_key
+        } else {
+            None
+        };
+        let request = state.capture_consumer_request(
+            expected.as_ref(),
+            Some(&original_path),
+            Some(result["metadata"]["adjustments"].clone()),
+            load_settings(app_handle.clone()).unwrap_or_default(),
+        )?;
+        crate::ai_denoise::ensure_generated(&app_handle, &request).await?;
+        request.check()?;
     }
+    Ok(result)
 }
 
 #[cfg(test)]

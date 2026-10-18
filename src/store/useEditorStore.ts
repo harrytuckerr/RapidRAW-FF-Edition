@@ -1,5 +1,12 @@
 import { create } from 'zustand';
-import { Adjustments, INITIAL_ADJUSTMENTS, MaskContainer, AiPatch } from '../utils/adjustments';
+import {
+  Adjustments,
+  getActiveTools,
+  INITIAL_ADJUSTMENTS,
+  isToolActive,
+  MaskContainer,
+  AiPatch,
+} from '../utils/adjustments';
 import { SelectedImage, WaveformData, BrushSettings } from '../components/ui/AppProperties';
 import { ChannelConfig } from '../components/adjustments/Curves';
 import { ImageDimensions } from '../hooks/useImageRenderSize';
@@ -11,6 +18,35 @@ import type { AppSettings } from '../components/ui/AppProperties';
 
 type RenderedSelectedImage = SelectedImage & { renderMode?: SourceRenderMode };
 
+function isAiDenoiseRequested(adjustments: Adjustments): boolean {
+  const amount =
+    typeof adjustments.aiDenoiseAmount === 'number' ? Math.fround(adjustments.aiDenoiseAmount) : 100;
+  return (
+    adjustments.aiDenoiseEnabled === true &&
+    amount > 0 &&
+    isToolActive(getActiveTools(adjustments), 'noiseReduction')
+  );
+}
+
+function hasSameImageOwner(
+  current: RenderedSelectedImage | null | undefined,
+  next: RenderedSelectedImage | null | undefined,
+): boolean {
+  return (
+    current?.path === next?.path &&
+    current?.openTicket === next?.openTicket &&
+    current?.openKey?.ticket === next?.openKey?.ticket &&
+    current?.openKey?.generation === next?.openKey?.generation
+  );
+}
+
+function clearImageProgress(progress: Record<string, number>, path: string | undefined): Record<string, number> {
+  if (!path || !Object.prototype.hasOwnProperty.call(progress, path)) return progress;
+  const next = { ...progress };
+  delete next[path];
+  return next;
+}
+
 /** A proof for the existing final Blob, never another pixel cache or saved setting. */
 export interface FinalPreviewProof {
   url: string;
@@ -21,6 +57,8 @@ export interface FinalPreviewProof {
   jobId: number;
   isCurrent(): boolean;
 }
+
+export type CenterMarker = 'vignette' | 'centre';
 
 interface InteractivePatch {
   url: string;
@@ -77,10 +115,12 @@ interface EditorState {
   overlayMode: OverlayMode;
   overlayRotation: number;
   isStraightenActive: boolean;
+  isAutoStraightening: boolean;
   isWbPickerActive: boolean;
   isPointColourPickerActive: boolean;
   isRelightPickerActive: boolean;
   activeRelightLightId: string | null;
+  activeCenterMarker: CenterMarker | null;
   isGuidedPerspectiveActive: boolean;
   liveRotation: number | null;
   brushSettings: BrushSettings | null;
@@ -93,6 +133,7 @@ interface EditorState {
   isMaskControlHovered: boolean;
   isGeneratingAiMask: boolean;
   isGeneratingAi: boolean;
+  aiDenoiseProgress: Record<string, number>;
   isAIConnectorConnected: boolean;
   hasRenderedFirstFrame: boolean;
   patchesSentToBackend: Set<string>;
@@ -163,10 +204,12 @@ export const useEditorStore = create<EditorState>((set) => ({
   overlayMode: 'thirds',
   overlayRotation: 0,
   isStraightenActive: false,
+  isAutoStraightening: false,
   isWbPickerActive: false,
   isPointColourPickerActive: false,
   isRelightPickerActive: false,
   activeRelightLightId: null,
+  activeCenterMarker: null,
   isGuidedPerspectiveActive: false,
   liveRotation: null,
 
@@ -178,6 +221,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   isGeneratingAiMask: false,
   isAIConnectorConnected: false,
   isGeneratingAi: false,
+  aiDenoiseProgress: {},
   isMaskControlHovered: false,
   hasRenderedFirstFrame: false,
   patchesSentToBackend: new Set<string>(),
@@ -187,6 +231,14 @@ export const useEditorStore = create<EditorState>((set) => ({
       const update = typeof updater === 'function' ? updater(state) : updater;
       if (update === state) return state;
       const next = { ...update };
+      if (next.selectedImage !== undefined && !hasSameImageOwner(state.selectedImage, next.selectedImage)) {
+        next.aiDenoiseProgress = {};
+      } else if (next.adjustments !== undefined && !isProgressiveMutationBlocked(state)) {
+        const adjustments = { ...state.adjustments, ...next.adjustments };
+        if (!isAiDenoiseRequested(adjustments)) {
+          next.aiDenoiseProgress = clearImageProgress(state.aiDenoiseProgress, state.selectedImage?.path);
+        }
+      }
       if (
         next.finalPreviewProof === undefined &&
         ((next.selectedImage !== undefined && next.selectedImage !== state.selectedImage) ||
@@ -267,13 +319,38 @@ export const useEditorStore = create<EditorState>((set) => ({
       return state;
     }),
 
-  prepareProgressiveIntent: (ticket, path) => set({ pendingOpenIntent: { ticket, path }, finalPreviewProof: null }),
+  prepareProgressiveIntent: (ticket, path) =>
+    set((state) => {
+      const samePendingOwner = state.pendingOpenIntent?.ticket === ticket && state.pendingOpenIntent.path === path;
+      const sameSelectedOwner =
+        state.progressiveOpen?.ticket === ticket &&
+        state.progressiveOpen.path === path &&
+        state.selectedImage?.path === path &&
+        state.selectedImage.openTicket === ticket;
+      return {
+        pendingOpenIntent: { ticket, path },
+        finalPreviewProof: null,
+        ...(!samePendingOwner && !sameSelectedOwner ? { aiDenoiseProgress: {} } : {}),
+      };
+    }),
 
   activateProgressiveIntent: (ticket, path, thumbnailUrl, groupId = null) => {
     let accepted = false;
     set((state) => {
       if (state.pendingOpenIntent?.ticket !== ticket || state.pendingOpenIntent.path !== path) return state;
       accepted = true;
+      const selectedImage: RenderedSelectedImage = {
+        exif: null,
+        group_id: groupId,
+        height: 0,
+        isRaw: false,
+        isReady: false,
+        metadata: null,
+        openTicket: ticket,
+        path,
+        thumbnailUrl,
+        width: 0,
+      };
       return {
         pendingOpenIntent: null,
         progressiveOpen: {
@@ -286,18 +363,8 @@ export const useEditorStore = create<EditorState>((set) => ({
           placeholderUsed: false,
           error: null,
         },
-        selectedImage: {
-          exif: null,
-          group_id: groupId,
-          height: 0,
-          isRaw: false,
-          isReady: false,
-          metadata: null,
-          openTicket: ticket,
-          path,
-          thumbnailUrl,
-          width: 0,
-        },
+        selectedImage,
+        ...(!hasSameImageOwner(state.selectedImage, selectedImage) ? { aiDenoiseProgress: {} } : {}),
         originalSize: { width: 0, height: 0 },
         previewSize: { width: 0, height: 0 },
         finalPreviewUrl: null,
@@ -494,11 +561,17 @@ export const useEditorStore = create<EditorState>((set) => ({
       const current = state.progressiveOpen;
       if (ticket && state.pendingOpenIntent?.ticket === ticket) {
         accepted = true;
-        return { pendingOpenIntent: null };
+        return {
+          pendingOpenIntent: null,
+          aiDenoiseProgress: clearImageProgress(state.aiDenoiseProgress, state.pendingOpenIntent.path),
+        };
       }
       if (!current || (ticket && current.ticket !== ticket) || current.phase === 'Accurate') return state;
       accepted = true;
-      return { progressiveOpen: { ...current, phase: 'Cancelled', placeholderUrl: null } };
+      return {
+        progressiveOpen: { ...current, phase: 'Cancelled', placeholderUrl: null },
+        aiDenoiseProgress: clearImageProgress(state.aiDenoiseProgress, current.path),
+      };
     });
     return accepted;
   },

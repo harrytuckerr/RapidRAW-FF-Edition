@@ -47,6 +47,7 @@ import {
   User,
   Album as AlbumIcon,
   PencilSparkles,
+  Wand2,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
@@ -74,7 +75,7 @@ import {
   normalizeLoadedAdjustments,
 } from '../utils/adjustments';
 import TaggingSubMenu from '../context/TaggingSubMenu';
-import { useEditorActions } from './useEditorActions';
+import { useAutoStraighten, useEditorActions } from './useEditorActions';
 import { useLibraryActions } from './useLibraryActions';
 import { globalImageCache } from '../utils/ImageLRUCache';
 import { currentAccurateOpenKey, isCurrentOpenKey, isProgressiveMutationBlocked } from '../utils/progressiveOpen';
@@ -150,10 +151,19 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
   const {
     handleAutoAdjustments,
     handleAutoLensCorrection,
+    handleAutoStraightenPaths: handleBatchAutoStraighten,
     handleResetAdjustments,
     handleCopyAdjustments,
     handlePasteAdjustments,
   } = useEditorActions();
+  const { run: handleAutoStraighten } = useAutoStraighten();
+  const handleAutoStraightenPaths = useCallback((paths: string[]) => {
+    const current = useEditorStore.getState();
+    if (useUIStore.getState().activeView === 'editor' && current.selectedImage && paths.includes(current.selectedImage.path)) {
+      void handleAutoStraighten();
+    }
+    handleBatchAutoStraighten(paths);
+  }, [handleAutoStraighten, handleBatchAutoStraighten]);
   const { handleRate, handleSetFlag, handleSetColorLabel, handleTagsChanged } = useLibraryActions();
 
   const buildFlagMenu = useCallback(
@@ -307,6 +317,12 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               disabled: !selectedImage?.isReady,
             },
             {
+              label: t('contextMenus.editor.autoStraighten'),
+              icon: Wand2,
+              onClick: handleAutoStraighten,
+              disabled: !selectedImage?.isReady,
+            },
+            {
               label: t('contextMenus.editor.denoise'),
               icon: Grip,
               onClick: () => {
@@ -403,11 +419,8 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               isDestructive: true,
               onClick: () => {
                 if (!ownsCurrentEditorSource(editorSourceOwner, useEditorStore.getState())) return;
-                const originalAspectRatio =
-                  selectedImage.width && selectedImage.height ? selectedImage.width / selectedImage.height : null;
                 const resetAdjustments: Adjustments = {
                   ...INITIAL_ADJUSTMENTS,
-                  aspectRatio: originalAspectRatio,
                   aiPatches: [],
                 };
                 commitOwnedAdjustmentsAndResetHistory(editorSourceOwner, resetAdjustments);
@@ -423,6 +436,8 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       handleCopyAdjustments,
       handlePasteAdjustments,
       handleAutoAdjustments,
+      handleAutoStraighten,
+      handleAutoLensCorrection,
       handleRate,
       buildFlagMenu,
       handleSetColorLabel,
@@ -685,6 +700,11 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
               onClick: () => handleAutoLensCorrection(finalSelection),
             },
             {
+              label: t('contextMenus.thumbnail.autoStraighten', { count: selectionCount }),
+              icon: Wand2,
+              onClick: () => handleAutoStraightenPaths(finalSelection),
+            },
+            {
               label: denoiseLabel,
               icon: Grip,
               disabled: finalSelection.length === 0,
@@ -934,6 +954,9 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
       handleCopyAdjustments,
       handlePasteAdjustments,
       handleAutoAdjustments,
+      handleAutoStraighten,
+      handleAutoLensCorrection,
+      handleAutoStraightenPaths,
       handleRate,
       buildFlagMenu,
       handleSetColorLabel,

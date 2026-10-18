@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: LGPL-2.1-only
+/*
+ * Copyright 2019-2025 LibRaw LLC (info@libraw.org)
+ *
+ * LibRaw uses code from dcraw.c -- Dave Coffin's raw photo decoder,
+ * dcraw.c is copyright 1997-2018 by Dave Coffin, dcoffin a cybercom o net.
+ * LibRaw do not use RESTRICTED code from dcraw.c
+ *
+ * LibRaw is free software; you can redistribute it and/or modify
+ * it under the terms of the one of two licenses as you choose:
+ * 1. GNU LESSER GENERAL PUBLIC LICENSE version 2.1
+ *    (See file LICENSE.LGPL provided in LibRaw distribution archive for details).
+ * 2. COMMON DEVELOPMENT AND DISTRIBUTION LICENSE (CDDL) Version 1.0
+ *    (See file LICENSE.CDDL provided in LibRaw distribution archive for details).
+ *
+ * This Rust derivative selects LGPL version 2.1. Frank Markesteijn's algorithm
+ * for Fuji X-Trans sensors, ported from LibRaw 0.22.2 commit
+ * b93f6e45c194f5df9b02a43b1af9a54b4f41f33f, xtrans_demosaic.cpp and
+ * ahd_demosaic.cpp::cielab. Rust/floating adaptation, 2026 RapidRAW contributors.
+ * Changes: immutable source, checked indexing/allocation, disjoint tile cores,
+ * cancellation, floating reconstruction with no SDR clip, metric-only XYZ
+ * quantization, complete borders. This is not integer LibRaw bit equivalence.
+ */

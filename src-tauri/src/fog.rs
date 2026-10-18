@@ -94,13 +94,7 @@ fn apply_fog_with_map<'a>(
     adjustments: &serde_json::Value,
     captured: Option<&std::sync::Arc<image::GrayImage>>,
 ) -> Cow<'a, DynamicImage> {
-    let effects_visible = adjustments
-        .get("sectionVisibility")
-        .and_then(|v| v.get("effects"))
-        .and_then(|s| s.as_bool())
-        .unwrap_or(true);
-
-    if !adjustments["fogEnabled"].as_bool().unwrap_or(false) || !effects_visible {
+    if !crate::image_processing::is_effect_enabled(adjustments, "fog", "fogEnabled") {
         return image;
     }
 

@@ -1,5 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import Slider from '../ui/Slider';
+import { Loader2 } from 'lucide-react';
+import Slider, { SliderChangeEvent } from '../ui/Slider';
+import Text from '../ui/Text';
+import { TextVariants } from '../../types/typography';
+import { SpatialEffect } from './Effects';
 import {
   Adjustments,
   DetailsAdjustment,
@@ -10,6 +14,7 @@ import { AppSettings } from '../ui/AppProperties';
 import AdjustmentSubSection from './AdjustmentSubSection';
 import { useEditorStore } from '../../store/useEditorStore';
 import { isProgressiveMutationBlocked } from '../../utils/progressiveOpen';
+import { useProcessStore } from '../../store/useProcessStore';
 
 interface DetailsPanelProps {
   adjustments: Adjustments;
@@ -28,12 +33,19 @@ export default function DetailsPanel({
 }: DetailsPanelProps) {
   const { t } = useTranslation();
   const isProgressiveLocked = useEditorStore((state) => isProgressiveMutationBlocked(state));
+  const setEditor = useEditorStore((state) => state.setEditor);
+  const aiDenoiseProgress = useEditorStore((state) =>
+    state.selectedImage ? state.aiDenoiseProgress[state.selectedImage.path] : undefined,
+  );
+  const aiModelDownloadStatus = useProcessStore((state) => state.aiModelDownloadStatus);
 
   const handleAdjustmentChange = (key: string, value: string) => {
+    if (isProgressiveMutationBlocked(useEditorStore.getState())) return;
     const numericValue = parseInt(value, 10);
     setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, [key]: numericValue }));
   };
 
+  const isAiFree = appSettings?.aiProvider === 'ai-free';
   const hiddenTools = getHiddenAdjustmentTools(appSettings?.adjustmentLayout);
   const toolOrder = getAdjustmentToolOrder('details', appSettings?.adjustmentLayout?.toolOrder);
 
@@ -109,16 +121,23 @@ export default function DetailsPanel({
             onDragStateChange={onDragStateChange}
           />
           {!isForMask && (
-            <Slider
-              label={t('adjustments.details.centre')}
-              max={100}
-              min={-100}
-              onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Centré, e.target.value)}
-              step={1}
-              value={adjustments.centré}
-              disabled={isProgressiveLocked}
-              onDragStateChange={onDragStateChange}
-            />
+            <div
+              data-center-marker-controls="centre"
+              onPointerDown={() =>
+                !isProgressiveLocked && setEditor({ activeCenterMarker: 'centre', isRelightPickerActive: false, isWbPickerActive: false, isPointColourPickerActive: false })
+              }
+            >
+              <Slider
+                label={t('adjustments.details.centre')}
+                max={100}
+                min={-100}
+                onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Centré, e.target.value)}
+                step={1}
+                value={adjustments.centré}
+                disabled={isProgressiveLocked}
+                onDragStateChange={onDragStateChange}
+              />
+            </div>
           )}
         </AdjustmentSubSection>
       )}
@@ -149,6 +168,67 @@ export default function DetailsPanel({
             disabled={isProgressiveLocked}
             onDragStateChange={onDragStateChange}
           />
+          {!isForMask && !isAiFree && (
+            <div className="mt-2">
+              <SpatialEffect
+                disabled={isProgressiveLocked}
+                enabled={!!adjustments.aiDenoiseEnabled}
+                label={t('adjustments.details.aiDenoise')}
+                onToggle={(enabled: boolean) =>
+                  !isProgressiveMutationBlocked(useEditorStore.getState()) &&
+                  setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, aiDenoiseEnabled: enabled }))
+                }
+              >
+                {aiDenoiseProgress !== undefined ? (
+                  <div
+                    className="flex flex-col items-center justify-center gap-1 p-4 text-text-secondary text-center"
+                    data-tooltip={aiModelDownloadStatus ? undefined : t('modals.denoise.gpuWarningTooltip')}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Loader2 size={16} className="animate-spin shrink-0" />
+                      <Text variant={TextVariants.label}>
+                        {aiModelDownloadStatus
+                          ? t('editor.masks.settings.aiModelDownloading')
+                          : t('editor.ai.denoising')}
+                      </Text>
+                    </div>
+                    <Text variant={TextVariants.small} className="text-accent">
+                      {aiModelDownloadStatus || `${Math.round(aiDenoiseProgress * 100)}%`}
+                    </Text>
+                  </div>
+                ) : (
+                  <>
+                    <Slider
+                      label={t('adjustments.effects.amount')}
+                      max={100}
+                      min={0}
+                      defaultValue={100}
+                      onChange={(e: SliderChangeEvent) =>
+                        handleAdjustmentChange(DetailsAdjustment.AiDenoiseAmount, String(e.target.value))
+                      }
+                      step={1}
+                      value={adjustments.aiDenoiseAmount ?? 100}
+                      disabled={isProgressiveLocked}
+                      onDragStateChange={onDragStateChange}
+                      fillOrigin="min"
+                    />
+                    <Slider
+                      label={t('adjustments.details.aiDenoiseDetail')}
+                      max={100}
+                      min={0}
+                      onChange={(e: SliderChangeEvent) =>
+                        handleAdjustmentChange(DetailsAdjustment.AiDenoiseDetail, String(e.target.value))
+                      }
+                      step={1}
+                      value={adjustments.aiDenoiseDetail ?? 0}
+                      disabled={isProgressiveLocked}
+                      onDragStateChange={onDragStateChange}
+                    />
+                  </>
+                )}
+              </SpatialEffect>
+            </div>
+          )}
         </AdjustmentSubSection>
       )}
 
