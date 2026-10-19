@@ -5255,6 +5255,98 @@ mod prepared_appearance_tests {
             }
 
             #[tokio::test]
+            async fn preview_settings_miss_names_are_private_and_keep_precedence() {
+                let config = AppSettings::default();
+                let baseline = json!({
+                    "current":&config, "source":&config,
+                    "current_legacy":false, "current_legacy_type":"raw",
+                    "source_legacy":false, "source_legacy_type":"raw"
+                });
+                let encoded = serde_json::to_vec(&baseline).unwrap();
+                let name =
+                    |value: &Value| preview_settings_miss_name(&encoded, &serde_json::to_vec(value).unwrap());
+                for side in ["current", "source"] {
+                    let mut changed = baseline.clone();
+                    changed[side]["theme"] = json!("private-value\nfield=injected");
+                    assert_eq!(name(&changed), (side, "theme".into()));
+                }
+                assert!(baseline["current"].get("whiteBalanceMode").is_none());
+                let mut optional = baseline.clone();
+                optional["current"]["whiteBalanceMode"] = json!("camera");
+                assert_eq!(name(&optional), ("current", "whiteBalanceMode".into()));
+                for (field, value) in [
+                    ("current_legacy", json!(true)),
+                    ("source_legacy", json!(true)),
+                    ("current_legacy_type", json!("jpeg")),
+                    ("source_legacy_type", json!("jpeg")),
+                ] {
+                    let mut changed = baseline.clone();
+                    changed[field] = value;
+                    assert_eq!(name(&changed), ("legacy", field.into()));
+                }
+                let mut nested = baseline.clone();
+                nested["source"]["uiVisibility"] = json!({"private-name\nfield=injected":"private-value"});
+                assert_eq!(name(&nested), ("source", "uiVisibility".into()));
+                let mut unknown = baseline.clone();
+                unknown["current"]["private-name\nfield=injected"] = json!("private-value");
+                assert_eq!(name(&unknown), ("unknown", "unknown".into()));
+                let mut unknown_wrapper = baseline.clone();
+                unknown_wrapper["private-wrapper\nfield=injected"] = json!(true);
+                assert_eq!(name(&unknown_wrapper), ("unknown", "unknown".into()));
+                for malformed in [
+                    json!({}),
+                    json!({"current":null}),
+                    {
+                        let mut v = baseline.clone();
+                        v["current"]["theme"] = json!({"private":"value"});
+                        v
+                    },
+                    {
+                        let mut v = baseline.clone();
+                        v["source_legacy"] = json!("private-value");
+                        v
+                    },
+                ] {
+                    assert_eq!(name(&malformed), ("unavailable", "unavailable".into()));
+                }
+                assert_eq!(
+                    preview_settings_miss_name(&encoded, b"{"),
+                    ("unavailable", "unavailable".into())
+                );
+
+                // Actual current-owner descriptors differ in BOTH settings and
+                // selected Amount. Diagnostics must not alter miss precedence.
+                let (r, id, _, _) = selected();
+                let (o, k, _) = ready(&synthetic_dng(true, 1), json!({}), Arc::clone(&r)).await;
+                let before = request(
+                    &o,
+                    k,
+                    Some(json!({"profile":{"base":id,"look":"composition-look","amount":100}})),
+                    settings(),
+                    &r,
+                )
+                .unwrap();
+                let mut changed_config = settings();
+                changed_config.theme = Some("diagnostic-distinguishing-theme".into());
+                let after = request(
+                    &o,
+                    k,
+                    Some(json!({"profile":{"base":id,"look":"composition-look","amount":50}})),
+                    changed_config,
+                    &r,
+                )
+                .unwrap();
+                let old = before.preview_descriptor(Some(32), None).unwrap().unwrap();
+                let new = after.preview_descriptor(Some(32), None).unwrap().unwrap();
+                assert!(old.selected != new.selected);
+                assert_eq!(old.mismatch_reason(&new), Some("settings"));
+                assert_eq!(
+                    preview_settings_miss_name(&old.settings, &new.settings),
+                    ("current", "theme".into())
+                );
+            }
+
+            #[tokio::test]
             async fn dg01_final_drag_release_reuses_noninitial_dcp_and_equals_cold() {
                 let (r, id, _, _) = selected();
                 let (o, k, _) = ready(&patterned_composition_dng(), json!({}), Arc::clone(&r)).await;
@@ -9872,6 +9964,83 @@ fn preview_settings_finite(s: &AppSettings) -> bool {
             .all(f32::is_finite)
         })
 }
+#[cfg(any(debug_assertions, test))]
+fn preview_settings_miss_name(before: &[u8], after: &[u8]) -> (&'static str, String) {
+    let (Ok(Value::Object(before)), Ok(Value::Object(after))) = (
+        serde_json::from_slice::<Value>(before),
+        serde_json::from_slice::<Value>(after),
+    ) else {
+        return ("unavailable", "unavailable".into());
+    };
+    // Names come from our typed serializer, never from either input's keys.
+    // whiteBalanceMode is the sole top-level skip-None field; the two wholly
+    // skipped legacy fields are already separate fixed descriptor wrappers.
+    let mut schema = AppSettings::default();
+    schema.white_balance_mode = Some(String::new());
+    let Ok(Value::Object(trusted)) = serde_json::to_value(schema) else {
+        return ("unavailable", "unavailable".into());
+    };
+    let wrappers = [
+        "current",
+        "source",
+        "current_legacy",
+        "current_legacy_type",
+        "source_legacy",
+        "source_legacy_type",
+    ];
+    for wrapper in [&before, &after] {
+        if wrapper.keys().any(|key| !wrappers.contains(&key.as_str())) {
+            return ("unknown", "unknown".into());
+        }
+        if wrappers.iter().any(|key| !wrapper.contains_key(*key)) {
+            return ("unavailable", "unavailable".into());
+        }
+        for side in ["current", "source"] {
+            let Some(Value::Object(fields)) = wrapper.get(side) else {
+                return ("unavailable", "unavailable".into());
+            };
+            if fields.keys().any(|key| !trusted.contains_key(key)) {
+                return ("unknown", "unknown".into());
+            }
+            if serde_json::from_value::<AppSettings>(Value::Object(fields.clone())).is_err() {
+                return ("unavailable", "unavailable".into());
+            }
+        }
+        for key in ["current_legacy", "source_legacy"] {
+            if !matches!(wrapper.get(key), Some(Value::Null | Value::Bool(_))) {
+                return ("unavailable", "unavailable".into());
+            }
+        }
+        for key in ["current_legacy_type", "source_legacy_type"] {
+            if !matches!(wrapper.get(key), Some(Value::Null | Value::String(_))) {
+                return ("unavailable", "unavailable".into());
+            }
+        }
+    }
+    let mut names = trusted.keys().collect::<Vec<_>>();
+    names.sort_unstable();
+    for side in ["current", "source"] {
+        for name in &names {
+            if before.get(side).and_then(|v| v.get(name.as_str()))
+                != after.get(side).and_then(|v| v.get(name.as_str()))
+            {
+                return (side, name.as_str().to_owned());
+            }
+        }
+    }
+    for name in [
+        "current_legacy",
+        "current_legacy_type",
+        "source_legacy",
+        "source_legacy_type",
+    ] {
+        if before.get(name) != after.get(name) {
+            return ("legacy", name.into());
+        }
+    }
+    ("unknown", "unknown".into())
+}
+
 // These two fields serialize HashSet<String> as arrays. Canonicalize their
 // order only; all members and every genuinely ordered settings array remain.
 fn canonicalize_preview_settings(settings: &mut Value) {
@@ -10033,7 +10202,16 @@ impl ConsumerRequest {
         let (descriptor, bypass) = descriptor;
         let reason = match (&descriptor, cache.as_ref()) {
             (Some(current), Some(entry)) => {
-                entry.descriptor.mismatch_reason(current).unwrap_or("hit")
+                let reason = entry.descriptor.mismatch_reason(current);
+                #[cfg(debug_assertions)]
+                if reason == Some("settings") {
+                    let (side, field) = preview_settings_miss_name(
+                        &entry.descriptor.settings,
+                        &current.settings,
+                    );
+                    log::info!("[preview-settings-miss] side={side} field={field}");
+                }
+                reason.unwrap_or("hit")
             }
             (Some(_), None) => "empty",
             (None, _) => bypass,

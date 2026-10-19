@@ -795,6 +795,43 @@ pub struct GpuProcessor {
     pub output_texture_view: wgpu::TextureView,
 }
 
+// Kept only while this same isolated owner replaces its sized resources.
+// Includes fixed-size scratch/default views and freshly rewritten uniform
+// buffers; no input image, request authority, bind group or sized view survives.
+struct GpuProcessorReusable {
+    context: GpuContext,
+    blur_bgl: wgpu::BindGroupLayout,
+    h_blur_pipeline: wgpu::ComputePipeline,
+    v_blur_pipeline: wgpu::ComputePipeline,
+    blur_params_buffer: wgpu::Buffer,
+    flare_bgl_0: wgpu::BindGroupLayout,
+    flare_bgl_1: wgpu::BindGroupLayout,
+    flare_threshold_pipeline: wgpu::ComputePipeline,
+    flare_ghosts_pipeline: wgpu::ComputePipeline,
+    flare_params_buffer: wgpu::Buffer,
+    flare_threshold_view: wgpu::TextureView,
+    flare_ghosts_view: wgpu::TextureView,
+    flare_final_view: wgpu::TextureView,
+    flare_sampler: wgpu::Sampler,
+    gf_bgl: wgpu::BindGroupLayout,
+    gf_downsample_pipeline: wgpu::ComputePipeline,
+    gf_box_down_pipeline: wgpu::ComputePipeline,
+    gf_blur_h_pipeline: wgpu::ComputePipeline,
+    gf_blur_v_pipeline: wgpu::ComputePipeline,
+    gf_coeffs_pipeline: wgpu::ComputePipeline,
+    gf_pack_pipeline: wgpu::ComputePipeline,
+    main_bgl: wgpu::BindGroupLayout,
+    main_pipeline: wgpu::ComputePipeline,
+    high_precision_entries: Vec<wgpu::BindGroupLayoutEntry>,
+    high_precision_pipeline: std::sync::OnceLock<HighPrecisionPipeline>,
+    adjustments_buffer: wgpu::Buffer,
+    dummy_blur_view: wgpu::TextureView,
+    dummy_lut_view: wgpu::TextureView,
+    dummy_lut_sampler: wgpu::Sampler,
+    dcp_dummy_3d_view: wgpu::TextureView,
+    dcp_dummy_tc_view: wgpu::TextureView,
+}
+
 struct HighPrecisionPipeline {
     bgl: wgpu::BindGroupLayout,
     pipeline: wgpu::ComputePipeline,
@@ -1420,6 +1457,81 @@ impl GpuProcessor {
         );
         let dcp_dummy_tc_view = dcp_dummy_tc.create_view(&Default::default());
 
+        let reusable = GpuProcessorReusable {
+            context,
+            blur_bgl,
+            h_blur_pipeline,
+            v_blur_pipeline,
+            blur_params_buffer,
+            flare_bgl_0,
+            flare_bgl_1,
+            flare_threshold_pipeline,
+            flare_ghosts_pipeline,
+            flare_params_buffer,
+            flare_threshold_view,
+            flare_ghosts_view,
+            flare_final_view,
+            flare_sampler,
+            gf_bgl,
+            gf_downsample_pipeline,
+            gf_box_down_pipeline,
+            gf_blur_h_pipeline,
+            gf_blur_v_pipeline,
+            gf_coeffs_pipeline,
+            gf_pack_pipeline,
+            main_bgl,
+            main_pipeline,
+            high_precision_entries: bind_group_layout_entries,
+            high_precision_pipeline: std::sync::OnceLock::new(),
+            adjustments_buffer,
+            dummy_blur_view,
+            dummy_lut_view,
+            dummy_lut_sampler,
+            dcp_dummy_3d_view,
+            dcp_dummy_tc_view,
+        };
+        Self::allocate_sized(reusable, max_width, max_height)
+    }
+
+    fn allocate_sized(
+        reusable: GpuProcessorReusable,
+        max_width: u32,
+        max_height: u32,
+    ) -> Result<Self, String> {
+        let GpuProcessorReusable {
+            context,
+            blur_bgl,
+            h_blur_pipeline,
+            v_blur_pipeline,
+            blur_params_buffer,
+            flare_bgl_0,
+            flare_bgl_1,
+            flare_threshold_pipeline,
+            flare_ghosts_pipeline,
+            flare_params_buffer,
+            flare_threshold_view,
+            flare_ghosts_view,
+            flare_final_view,
+            flare_sampler,
+            gf_bgl,
+            gf_downsample_pipeline,
+            gf_box_down_pipeline,
+            gf_blur_h_pipeline,
+            gf_blur_v_pipeline,
+            gf_coeffs_pipeline,
+            gf_pack_pipeline,
+            main_bgl,
+            main_pipeline,
+            high_precision_entries,
+            high_precision_pipeline,
+            adjustments_buffer,
+            dummy_blur_view,
+            dummy_lut_view,
+            dummy_lut_sampler,
+            dcp_dummy_3d_view,
+            dcp_dummy_tc_view,
+        } = reusable;
+        let device = &context.device;
         const TILE_SIZE: u32 = 2048;
         const TILE_OVERLAP: u32 = 128;
 
@@ -1545,8 +1657,8 @@ impl GpuProcessor {
             gf_pack_pipeline,
             main_bgl,
             main_pipeline,
-            high_precision_entries: bind_group_layout_entries,
-            high_precision_pipeline: std::sync::OnceLock::new(),
+            high_precision_entries,
+            high_precision_pipeline,
             high_precision_tile: std::sync::OnceLock::new(),
             tile_output_size: clamped_tile_size,
             adjustments_buffer,
@@ -1567,6 +1679,107 @@ impl GpuProcessor {
             output_texture,
             output_texture_view,
         })
+    }
+
+    fn resized(self, max_width: u32, max_height: u32) -> Result<Self, String> {
+        required_processing_limits(&self.context.device.limits())?;
+        let Self {
+            context,
+            blur_bgl,
+            h_blur_pipeline,
+            v_blur_pipeline,
+            blur_params_buffer,
+            flare_bgl_0,
+            flare_bgl_1,
+            flare_threshold_pipeline,
+            flare_ghosts_pipeline,
+            flare_params_buffer,
+            flare_threshold_view,
+            flare_ghosts_view,
+            flare_final_view,
+            flare_sampler,
+            gf_bgl,
+            gf_downsample_pipeline,
+            gf_box_down_pipeline,
+            gf_blur_h_pipeline,
+            gf_blur_v_pipeline,
+            gf_coeffs_pipeline,
+            gf_pack_pipeline,
+            main_bgl,
+            main_pipeline,
+            high_precision_entries,
+            high_precision_pipeline,
+            high_precision_tile,
+            tile_output_size: _,
+            adjustments_buffer,
+            dummy_blur_view,
+            dummy_lut_view,
+            dummy_lut_sampler,
+            dcp_dummy_3d_view,
+            dcp_dummy_tc_view,
+            ping_pong_view,
+            sharpness_blur_view,
+            tonal_blur_view,
+            clarity_blur_view,
+            structure_blur_view,
+            tile_output_texture,
+            tile_output_texture_view,
+            working_texture,
+            working_texture_view,
+            output_texture,
+            output_texture_view,
+        } = self;
+        // Prior isolated render/readback has returned. Drop every sized view,
+        // texture and optional HP tile before allocating any replacement.
+        // Fixed resources below retain no sized bind groups or input uploads.
+        drop((
+            high_precision_tile,
+            ping_pong_view,
+            sharpness_blur_view,
+            tonal_blur_view,
+            clarity_blur_view,
+            structure_blur_view,
+            tile_output_texture,
+            tile_output_texture_view,
+            working_texture,
+            working_texture_view,
+            output_texture,
+            output_texture_view,
+        ));
+        let reusable = GpuProcessorReusable {
+            context,
+            blur_bgl,
+            h_blur_pipeline,
+            v_blur_pipeline,
+            blur_params_buffer,
+            flare_bgl_0,
+            flare_bgl_1,
+            flare_threshold_pipeline,
+            flare_ghosts_pipeline,
+            flare_params_buffer,
+            flare_threshold_view,
+            flare_ghosts_view,
+            flare_final_view,
+            flare_sampler,
+            gf_bgl,
+            gf_downsample_pipeline,
+            gf_box_down_pipeline,
+            gf_blur_h_pipeline,
+            gf_blur_v_pipeline,
+            gf_coeffs_pipeline,
+            gf_pack_pipeline,
+            main_bgl,
+            main_pipeline,
+            high_precision_entries,
+            high_precision_pipeline,
+            adjustments_buffer,
+            dummy_blur_view,
+            dummy_lut_view,
+            dummy_lut_sampler,
+            dcp_dummy_3d_view,
+            dcp_dummy_tc_view,
+        };
+        Self::allocate_sized(reusable, max_width, max_height)
     }
 
     pub fn build_guided_coeffs(
@@ -3528,6 +3741,8 @@ pub(crate) struct IsolatedCreativeRenderer {
     capacity: [u32; 2],
     #[cfg(test)]
     processor_builds: usize,
+    #[cfg(test)]
+    program_builds: usize,
 }
 
 impl IsolatedCreativeRenderer {
@@ -3547,6 +3762,8 @@ impl IsolatedCreativeRenderer {
             capacity: [0, 0],
             #[cfg(test)]
             processor_builds: 0,
+            #[cfg(test)]
+            program_builds: 0,
         }
     }
 
@@ -3636,20 +3853,26 @@ impl IsolatedCreativeRenderer {
             || self.capacity[0] < layout.padded_width
             || self.capacity[1] < layout.padded_height
         {
-            // Only this owner's processor is retired, outside all app locks.
-            drop(self.processor.take());
+            // Same-context growth retains programs/fixed resources, but retires
+            // all old sized resources before replacement, outside app locks.
+            let previous = self.processor.take();
+            let programs_reused = previous.is_some();
             self.capacity = [0, 0];
             let start = std::time::Instant::now();
-            let created = GpuProcessor::new(
-                self.context.clone(),
-                layout.padded_width,
-                layout.padded_height,
-            );
+            let created = match previous {
+                Some(previous) => previous.resized(layout.padded_width, layout.padded_height),
+                None => GpuProcessor::new(
+                    self.context.clone(),
+                    layout.padded_width,
+                    layout.padded_height,
+                ),
+            };
             log::info!(
-                "[preview-stage] stage=gpu_processor_construct elapsed={:?} width={} height={} outcome={}",
+                "[preview-stage] stage=gpu_processor_construct elapsed={:?} width={} height={} programs_reused={} outcome={}",
                 start.elapsed(),
                 layout.padded_width,
                 layout.padded_height,
+                programs_reused,
                 if created.is_ok() {
                     "completed"
                 } else {
@@ -3661,6 +3884,9 @@ impl IsolatedCreativeRenderer {
             #[cfg(test)]
             {
                 self.processor_builds += 1;
+                if !programs_reused {
+                    self.program_builds += 1;
+                }
             }
             self.capacity = [layout.padded_width, layout.padded_height];
         }
@@ -4359,6 +4585,149 @@ mod isolated_creative_tests {
         assert_eq!(reused.processor_build_count(), 2);
         finish_hardware(&context, &errors);
         finish_hardware(&other, &other_errors);
+    }
+
+    #[test]
+    #[ignore = "requires explicit actual GPU growth/program-identity gate; source-only definition"]
+    fn isolated_growth_retains_programs_and_replaces_all_sized_resources() {
+        let (context, errors) = hardware_context();
+        let scope = context
+            .device
+            .push_error_scope(wgpu::ErrorFilter::Validation);
+        let mut owner = IsolatedCreativeRenderer::new(&context);
+        let small = pattern_image(0);
+        owner
+            .render(
+                &small,
+                actual_request(&[], false),
+                RenderOutputPrecision::EightBit,
+            )
+            .unwrap();
+        assert_eq!(owner.program_builds, 1);
+        assert_eq!(owner.processor_build_count(), 1);
+        assert!(
+            owner
+                .processor
+                .as_ref()
+                .unwrap()
+                .high_precision_pipeline
+                .get()
+                .is_none()
+        );
+        assert!(
+            owner
+                .processor
+                .as_ref()
+                .unwrap()
+                .high_precision_tile
+                .get()
+                .is_none()
+        );
+        owner
+            .render(
+                &small,
+                actual_request(&[], false),
+                RenderOutputPrecision::SixteenBit,
+            )
+            .unwrap();
+        // Clone ONLY program/layout handles, never old sized textures or views.
+        let program_handles = |p: &GpuProcessor| {
+            let hp = p.high_precision_pipeline.get().unwrap();
+            (
+                [
+                    p.h_blur_pipeline.clone(),
+                    p.v_blur_pipeline.clone(),
+                    p.flare_threshold_pipeline.clone(),
+                    p.flare_ghosts_pipeline.clone(),
+                    p.gf_downsample_pipeline.clone(),
+                    p.gf_box_down_pipeline.clone(),
+                    p.gf_blur_h_pipeline.clone(),
+                    p.gf_blur_v_pipeline.clone(),
+                    p.gf_coeffs_pipeline.clone(),
+                    p.gf_pack_pipeline.clone(),
+                    p.main_pipeline.clone(),
+                    hp.pipeline.clone(),
+                ],
+                [
+                    p.blur_bgl.clone(),
+                    p.flare_bgl_0.clone(),
+                    p.flare_bgl_1.clone(),
+                    p.gf_bgl.clone(),
+                    p.main_bgl.clone(),
+                    hp.bgl.clone(),
+                ],
+            )
+        };
+        let before = program_handles(owner.processor.as_ref().unwrap());
+        let small_tile = owner
+            .processor
+            .as_ref()
+            .unwrap()
+            .high_precision_tile
+            .get()
+            .unwrap()
+            .texture
+            .size();
+        // Cross the 2304 tile cap as well as the 256-aligned full allocation.
+        let larger = DynamicImage::ImageRgb32F(image::Rgb32FImage::from_fn(2305, 37, |x, y| {
+            image::Rgb([
+                0.04 + (x % 61) as f32 / 100.0,
+                0.11 + (y % 17) as f32 / 40.0,
+                0.08 + ((x + 3 * y) % 43) as f32 / 70.0,
+            ])
+        }));
+        let input_before = larger.as_bytes().to_vec();
+        let changed = || {
+            let mut request = actual_request(&[], false);
+            request.adjustments = crate::image_processing::get_all_adjustments_from_json(
+                &serde_json::json!({"exposure":0.55,"contrast":12,"sharpness":18,"clarity":14,"structure":9}),
+                false,
+                crate::as_shot::AsShot::reference(),
+                crate::image_processing::RenderOptions::default(),
+            );
+            request
+        };
+        let mut fresh = IsolatedCreativeRenderer::new(&context);
+        for precision in [
+            RenderOutputPrecision::SixteenBit,
+            RenderOutputPrecision::EightBit,
+        ] {
+            let actual = owner.render(&larger, changed(), precision).unwrap();
+            let expected = fresh.render(&larger, changed(), precision).unwrap();
+            let neutral = fresh
+                .render(&larger, actual_request(&[], false), precision)
+                .unwrap();
+            assert_eq!(actual.dimensions(), larger.dimensions());
+            assert_eq!(actual.color(), expected.color());
+            assert_eq!(actual.as_bytes(), expected.as_bytes());
+            assert_ne!(
+                actual.as_bytes(),
+                neutral.as_bytes(),
+                "fresh uniforms/effects must affect output"
+            );
+            assert_eq!(owner.program_builds, 1);
+            assert_eq!(owner.processor_build_count(), 2);
+            assert_eq!(owner.capacity, [2560, 256]);
+            let p = owner.processor.as_ref().unwrap();
+            assert_eq!(
+                program_handles(p),
+                before,
+                "actual GPU program/layout handles survive growth"
+            );
+            assert_eq!(p.working_texture.size().width, 2560);
+            assert_eq!(p.output_texture.size().width, 2560);
+            assert_eq!(p.tile_output_texture.size().width, 2304);
+            assert_eq!(p.tile_output_texture.size().height, 256);
+            assert_eq!(
+                p.high_precision_tile.get().unwrap().texture.size(),
+                p.tile_output_size
+            );
+            assert_ne!(p.tile_output_size, small_tile);
+        }
+        assert_eq!(larger.as_bytes(), input_before);
+        let validation = pollster::block_on(scope.pop());
+        assert!(validation.is_none(), "GPU validation: {validation:?}");
+        finish_hardware(&context, &errors);
     }
 
     #[test]
