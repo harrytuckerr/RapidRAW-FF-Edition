@@ -26,6 +26,7 @@ import AppModals from './components/modals/AppModals';
 import SidePanelArea from './components/panel/SidePanelArea';
 import { PANEL_ICONS } from './components/panel/PanelSwitcher';
 import Controls from './components/panel/right/ControlsPanel';
+import { ProfilesWorkspacePanel } from './components/panel/right/ProfilePanel';
 import MetadataPanel from './components/panel/right/MetadataPanel';
 import CropPanel from './components/panel/right/CropPanel';
 import MasksPanel from './components/panel/right/MasksPanel';
@@ -746,6 +747,8 @@ function App() {
           );
         case Panel.Adjustments:
           return <Controls />;
+        case Panel.Profiles:
+          return <ProfilesWorkspacePanel />;
         case Panel.Metadata:
           return <MetadataPanel />;
         case Panel.Crop:

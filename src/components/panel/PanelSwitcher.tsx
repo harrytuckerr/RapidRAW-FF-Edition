@@ -10,6 +10,7 @@ import {
   Layers,
   Paintbrush,
   SwatchBook,
+  Palette,
   FileInput,
   Camera,
   Folder as FolderIcon,
@@ -25,6 +26,7 @@ export const PANEL_ICONS: Record<Panel, LucideIcon> = {
   [Panel.Masks]: Layers,
   [Panel.Ai]: Paintbrush,
   [Panel.Presets]: SwatchBook,
+  [Panel.Profiles]: Palette,
   [Panel.Export]: FileInput,
   [Panel.FolderTree]: FolderIcon,
   [Panel.Tethering]: Camera,
@@ -37,6 +39,7 @@ const PANEL_TITLES: Record<Panel, string> = {
   [Panel.Masks]: 'editor.switcher.tooltips.masks',
   [Panel.Ai]: 'editor.switcher.tooltips.inpaint',
   [Panel.Presets]: 'editor.switcher.tooltips.presets',
+  [Panel.Profiles]: 'profiles.title',
   [Panel.Export]: 'editor.switcher.tooltips.export',
   [Panel.FolderTree]: 'library.folders.sourcesTitle',
   [Panel.Tethering]: 'editor.switcher.tooltips.tethering',
@@ -249,9 +252,11 @@ export function MobilePanelSwitcher({
   onPanelSelect: (id: Panel) => void;
   placement?: 'bottom' | 'right';
 }) {
+  const { t } = useTranslation();
   const MOBILE_PANELS = [
     Panel.Metadata,
     Panel.Adjustments,
+    Panel.Profiles,
     Panel.Crop,
     Panel.Masks,
     Panel.Ai,
@@ -273,6 +278,7 @@ export function MobilePanelSwitcher({
         return (
           <button
             key={id}
+            aria-label={id === Panel.Profiles ? t('profiles.title') : undefined}
             onClick={() => onPanelSelect(id)}
             className={clsx(
               'p-2 rounded-md shrink-0 transition-colors',

@@ -8,7 +8,6 @@ import CurveGraph from '../../adjustments/Curves';
 import ColorPanel from '../../adjustments/Color';
 import DetailsPanel from '../../adjustments/Details';
 import EffectsPanel from '../../adjustments/Effects';
-import ProfilePanel from './ProfilePanel';
 import CollapsibleSection from '../../ui/CollapsibleSection';
 import Waveform from '../editor/Waveform';
 import Resizer from '../../ui/Resizer';
@@ -286,16 +285,6 @@ export default function Controls() {
       </AnimatePresence>
 
       <div className="grow overflow-y-scroll p-3 flex flex-col gap-2">
-        {selectedImage && (
-          <div className="shrink-0">
-            <ProfilePanel
-              adjustments={adjustments}
-              setAdjustments={setAdjustments}
-              imagePath={selectedImage?.path ?? null}
-              onDragStateChange={onDragStateChange}
-            />
-          </div>
-        )}
         {selectedImage ? (
           visibleSections.map((sectionName: string) => {
             const SectionComponent: any = {

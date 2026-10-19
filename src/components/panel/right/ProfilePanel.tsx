@@ -11,6 +11,8 @@ import Text from '../../ui/Text';
 import Button from '../../ui/Button';
 import Dropdown from '../../ui/Dropdown';
 import { useUIStore } from '../../../store/useUIStore';
+import { useEditorStore } from '../../../store/useEditorStore';
+import { useEditorActions } from '../../../hooks/useEditorActions';
 import { Panel } from '../../ui/AppProperties';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 
@@ -292,6 +294,36 @@ export default function ProfilePanel({ adjustments, setAdjustments, imagePath, o
           trackClassName="bg-surface"
           onDragStateChange={onDragStateChange}
         />
+      )}
+    </div>
+  );
+}
+
+// Same source and guarded history setter previously supplied by ControlsPanel.
+export function ProfilesWorkspacePanel() {
+  const { t } = useTranslation();
+  const selectedImage = useEditorStore((state) => state.selectedImage);
+  const adjustments = useEditorStore((state) => state.adjustments);
+  const setEditor = useEditorStore((state) => state.setEditor);
+  const { setAdjustments } = useEditorActions();
+  const onDragStateChange = useCallback(
+    (isDragging: boolean) => setEditor({ isSliderDragging: isDragging }),
+    [setEditor],
+  );
+
+  return (
+    <div className="h-full min-h-0 overflow-y-auto p-3">
+      {selectedImage ? (
+        <ProfilePanel
+          adjustments={adjustments}
+          setAdjustments={setAdjustments}
+          imagePath={selectedImage.path}
+          onDragStateChange={onDragStateChange}
+        />
+      ) : (
+        <Text variant={TextVariants.heading} color={TextColors.secondary} className="text-center">
+          {t('editor.ai.noImageSelected')}
+        </Text>
       )}
     </div>
   );

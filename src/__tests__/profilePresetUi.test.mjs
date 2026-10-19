@@ -71,7 +71,11 @@ globalThis.__ui1Invoke = async (name, args) => {
 const bundle = await build({
   stdin: {
     contents: `
-    export { default as ProfilePanel } from './src/components/panel/right/ProfilePanel';
+    export { default as ProfilePanel, ProfilesWorkspacePanel } from './src/components/panel/right/ProfilePanel';
+    export { default as ControlsPanel } from './src/components/panel/right/ControlsPanel';
+    export { default as PanelSwitcher, MobilePanelSwitcher } from './src/components/panel/PanelSwitcher';
+    export { useSettingsStore } from './src/store/useSettingsStore';
+    export { reconcileWorkspace } from './src/store/useUIStore';
     export { default as PresetsPanel } from './src/components/panel/right/PresetsPanel';
     export { useEditorStore } from './src/store/useEditorStore';
     export { useUIStore } from './src/store/useUIStore';
@@ -89,6 +93,10 @@ const bundle = await build({
     {
       name: 'mock-panel-boundaries',
       setup(b) {
+        // Unrelated adjustment views are outside the dedicated Profiles route.
+        b.onResolve({ filter: /(?:adjustments\/(?:Basic|Curves|Color|Details|Effects)|AdjustmentSectionsSubMenu|Waveform)$/ },
+          (a) => ({ path: a.path, namespace: 'profile-nav-unrelated' }));
+        b.onLoad({ filter: /.*/, namespace: 'profile-nav-unrelated' }, () => ({ contents: 'export default function UnrelatedView(){return null;}' }));
         b.onResolve(
           {
             filter:
@@ -114,8 +122,8 @@ const bundle = await build({
                           ? `export const DndContext=({children})=>children; export const DragOverlay=({children})=>children;
         export const PointerSensor=()=>{}; export const useSensor=()=>null; export const useSensors=()=>[];
         export const useDraggable=()=>({attributes:{},listeners:{},setNodeRef(){},isDragging:false});
-        export const useDroppable=()=>({setNodeRef(){},isOver:false});`
-                          : `export const motion=new Proxy({}, {get:(_,tag)=>tag}); export const AnimatePresence=({children})=>children;`,
+        export const useDroppable=()=>({setNodeRef(){},isOver:false}); export const useDndMonitor=()=>{};`
+                          : `export const motion=new Proxy({}, {get:(_,tag)=>tag}); export const AnimatePresence=({children})=>children; export const LayoutGroup=({children})=>children;`,
         }));
       },
     },
@@ -125,6 +133,12 @@ const mod = { exports: {} };
 new Function('require', 'module', 'exports', bundle.outputFiles[0].text)(require, mod, mod.exports);
 const {
   ProfilePanel,
+  ProfilesWorkspacePanel,
+  ControlsPanel,
+  PanelSwitcher,
+  MobilePanelSwitcher,
+  useSettingsStore,
+  reconcileWorkspace,
   PresetsPanel,
   useEditorStore,
   useUIStore,
@@ -591,4 +605,82 @@ test('profile browser preserves native ranked sequence across mixed groups and s
   assert.deepEqual(names(), ['CCD example', 'Generic example']);
   await click(root.root.findAllByProps({ role: 'option' }).find((node) => text(node) === 'Generic example'));
   assert.deepEqual(useEditorStore.getState().adjustments.profile, { ...profile, look: 'generic' });
+});
+
+
+test('dedicated Profiles navigation mounts existing selectors once and keeps source/history guards', async () => {
+  reset();
+  const previousUi = useUIStore.getState();
+  const previousSettings = useSettingsStore.getState().appSettings;
+  const initial = reconcileWorkspace(undefined, false);
+  assert.deepEqual(initial.panelLayout.rightTop.slice(0, 3), [Panel.Adjustments, Panel.Profiles, Panel.Crop]);
+  const saved = {
+    ...initial,
+    panelLayout: { ...initial.panelLayout, rightTop: initial.panelLayout.rightTop.filter((id) => id !== Panel.Profiles) },
+  };
+  const restored = reconcileWorkspace(saved, false);
+  assert.equal(restored.panelLayout.rightTop.filter((id) => id === Panel.Profiles).length, 1);
+  assert.equal(restored.activePanels.rightTop, Panel.Adjustments);
+  assert.deepEqual(restored.panelLayout.rightTop.filter((id) => id !== Panel.Profiles), saved.panelLayout.rightTop);
+  useUIStore.setState(restored);
+  useSettingsStore.setState({ appSettings: {
+    ...previousSettings,
+    adjustmentLayout: { hiddenSections: ['basic', 'curves', 'color', 'details', 'effects'] },
+  } });
+  const source = useEditorStore.getState().selectedImage;
+  useEditorStore.setState({ pendingOpenIntent: null, progressiveOpen: null, isWaveformVisible: false,
+    history: [useEditorStore.getState().adjustments], historyIndex: 0 });
+  // App's actual registration must point at the same connected component mounted below.
+  assert.match(await readFile('src/App.tsx', 'utf8'), /case Panel\.Profiles:\s*return <ProfilesWorkspacePanel \/>;/);
+  function WorkspaceBoundary() {
+    const active = useUIStore((state) => state.activePanels.rightTop);
+    const select = useUIStore((state) => state.setPanel);
+    return React.createElement(React.Fragment, null,
+      React.createElement(PanelSwitcher, { region: 'rightTop', side: 'right', placement: 'right' }),
+      React.createElement(MobilePanelSwitcher, { activePanel: active, onPanelSelect: select }),
+      active === Panel.Profiles ? React.createElement(ProfilesWorkspacePanel) : React.createElement(ControlsPanel));
+  }
+  try {
+    await act(async () => { mounted = create(React.createElement(WorkspaceBoundary)); });
+    const root = mounted;
+    assert.equal(root.root.findAllByType(ProfilePanel).length, 0, 'Adjustments does not duplicate Profiles');
+    await click(root.root.findByProps({ 'data-tab-id': 'layout-tab-profiles' }));
+    assert.equal(useUIStore.getState().activePanels.rightTop, Panel.Profiles);
+    assert.equal(root.root.findAllByType(ProfilePanel).length, 1);
+    assert.equal(root.root.findByType(ProfilePanel).props.imagePath, source.path);
+    assert.equal(useEditorStore.getState().selectedImage, source);
+    assert.ok(calls.some((call) => call.name === 'list_profiles_for_image' && call.args.path === source.path));
+    const selector = () => root.root.findAllByType('button').find((node) =>
+      node.props['aria-haspopup'] === 'listbox' && text(node) !== translate('profiles.importMenu'));
+    await click(selector());
+    await click(root.root.findAllByProps({ role: 'option' }).find((node) => text(node) === 'Cobalt Modular'));
+    assert.deepEqual(useEditorStore.getState().adjustments.profile, { base, look: null, amount: 100 });
+    await click(selector());
+    await click(root.root.findAllByProps({ role: 'option' }).find((node) => text(node) === 'Synthetic neutral'));
+    await intensity(root, 42);
+    await act(async () => debouncedSetHistory.flush());
+    assert.deepEqual(useEditorStore.getState().history.at(-1).profile, { base, look: 'look-one', amount: 42 });
+    const accepted = useEditorStore.getState().adjustments;
+    await act(async () => useEditorStore.setState({ pendingOpenIntent: { ticket: 'pending', path: '/synthetic/next.RAF' } }));
+    await act(async () => root.root.findByProps({ type: 'range' }).props.onChange({ target: { value: '77' } }));
+    assert.equal(useEditorStore.getState().adjustments, accepted, 'existing pending-source mutation guard still blocks');
+    await act(async () => useEditorStore.setState({ pendingOpenIntent: null }));
+    await click(root.root.findByProps({ 'data-tab-id': 'layout-tab-adjustments' }));
+    assert.equal(root.root.findAllByType(ProfilePanel).length, 0);
+    await click(root.root.findByProps({ 'aria-label': translate('profiles.title') }));
+    assert.equal(useUIStore.getState().activePanel, Panel.Profiles, 'folded navigation uses existing store selection');
+    assert.equal(root.root.findAllByType(ProfilePanel).length, 1);
+    await act(async () => useEditorStore.setState({ selectedImage: { path: '/synthetic/second.RAF', isReady: true } }));
+    assert.equal(root.root.findByType(ProfilePanel).props.imagePath, '/synthetic/second.RAF');
+    assert.ok(calls.some((call) => call.name === 'list_profiles_for_image' && call.args.path === '/synthetic/second.RAF'));
+    await act(async () => useEditorStore.setState({ selectedImage: null }));
+    assert.equal(root.root.findAllByType(ProfilePanel).length, 0, 'no source means no editable profile selectors');
+  } finally {
+    if (mounted) await act(async () => mounted.unmount());
+    mounted = null;
+    debouncedSetHistory.cancel();
+    useUIStore.setState(previousUi);
+    useSettingsStore.setState({ appSettings: previousSettings });
+    useEditorStore.setState({ pendingOpenIntent: null, progressiveOpen: null });
+  }
 });

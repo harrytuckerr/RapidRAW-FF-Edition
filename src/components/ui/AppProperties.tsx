@@ -145,6 +145,7 @@ export enum Panel {
   Masks = 'masks',
   Metadata = 'metadata',
   Presets = 'presets',
+  Profiles = 'profiles',
   FolderTree = 'folderTree',
   Tethering = 'tethering',
 }
