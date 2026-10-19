@@ -27,6 +27,10 @@ This fork remains licensed under AGPL-3.0, identical to upstream. See `LICENSE`.
 
 Approved E1–E5 photography workflows and the limited Google Drive workspace are planned, not implemented.
 
+## Fuji X-Trans demosaicing
+
+The CPU X-Trans implementation uses Frank Markesteijn’s method, ported from LibRaw under LGPL-2.1-only. The [original copyright and derivation notice](src-tauri/resources/licenses/fuji-preview/LIBRAW-XTRANS-NOTICE.txt) and [LGPL-2.1 text](src-tauri/resources/licenses/LGPL-2.1.txt) are retained. The README comparison was generated through this application’s RAW pipeline, rather than using LibRaw-rendered reference images.
+
 ## Upstream attribution
 
 Upstream RapidRAW is (c) Timon Kach, AGPL-3.0: https://github.com/CyberTimon/RapidRAW

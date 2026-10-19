@@ -36,6 +36,16 @@ Tools in this edition, subject to image, asset and calibration support. Check th
 
 Profiles set the starting colour. Your exposure, curves, masks, presets and creative adjustments build on it.
 
+## Fuji X-Trans: before and after
+
+Fine stripes, lettering and foliage can reveal false colour in the original X-Trans interpolation. FujiFilm Edition uses CPU Markesteijn one-pass demosaicing with false-colour suppression for a cleaner starting point.
+
+![Four matching X-Pro2 detail crops: original RapidRAW full-quality X-Trans interpolation on the left; FujiFilm Edition Markesteijn one-pass with false-colour suppression on the right](docs/images/xtrans-demosaic-before-after.png)
+
+_Fujifilm X-Pro2 RAW; four 140 × 140 pixel crops enlarged to 300%. Both sides use the app’s default RAW noise reduction and sharpening, with no DCP or creative edits. These are developed RAW bases shown with the same neutral sRGB display conversion, rather than final edited exports._
+
+The comparison uses RapidRAW’s own code on both sides. Markesteijn algorithm attribution and licensing are listed [below](#built-on-rapidraw).
+
 ## Start editing on Android
 
 1. **Get v1.6.19.** [Download the Android ARM64 APK](https://github.com/harrytuckerr/RapidRAW-FF-Edition/releases/download/v1.6.19/RapidRAW-Fujifilm-Edition-1.6.19-android-arm64-debug.apk). This is a **debug-signed working community build**; read its [release notes](https://github.com/harrytuckerr/RapidRAW-FF-Edition/releases/tag/v1.6.19) before installing. GitHub marks this Android community build as a prerelease.
