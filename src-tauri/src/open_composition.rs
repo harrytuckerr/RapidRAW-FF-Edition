@@ -389,6 +389,11 @@ const PREVIEW_FRESH_RENDER_FIELDS: &[&str] = &[
     "shadows",
     "sharpness",
     "sharpnessThreshold",
+    // Legacy XMP metadata emitted by preset_converter, unused by renderers.
+    // Exclude only these known inert fields from the CPU key; retain saved values.
+    "sharpenDetail",
+    "sharpenMasking",
+    "sharpenRadius",
     "showClipping",
     "structure",
     "temperature",
@@ -471,6 +476,38 @@ pub(crate) enum PreviewProjectionError {
     NonObject,
     Unclassified,
 }
+#[cfg(debug_assertions)]
+fn log_preview_projection_refusal(branch: &'static str, key: &str, value: &Value) {
+    let json_type = match value {
+        Value::Null => "null",
+        Value::Bool(_) => "bool",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    };
+    // Only short schema identifiers may be named; never serialize values.
+    if !key.is_empty()
+        && key.len() <= 64
+        && key.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    {
+        log::info!(
+            "[preview-projection] branch={} json_type={} key={}",
+            branch,
+            json_type,
+            key
+        );
+    } else {
+        let key_hash = blake3::hash(key.as_bytes()).to_hex();
+        log::info!(
+            "[preview-projection] branch={} json_type={} key_hash={}",
+            branch,
+            json_type,
+            key_hash
+        );
+    }
+}
+
 pub(crate) fn preview_cpu_inputs(adjustments: &Value) -> Result<Value, PreviewProjectionError> {
     let object = adjustments
         .as_object()
@@ -479,6 +516,8 @@ pub(crate) fn preview_cpu_inputs(adjustments: &Value) -> Result<Value, PreviewPr
     for (key, value) in object {
         if key == "activeTools" {
             let Some(tools) = value.as_object() else {
+                #[cfg(debug_assertions)]
+                log_preview_projection_refusal("active_tools_nonobject", "activeTools", value);
                 return Err(PreviewProjectionError::Unclassified);
             };
             let mut cpu = serde_json::Map::new();
@@ -502,7 +541,11 @@ pub(crate) fn preview_cpu_inputs(adjustments: &Value) -> Result<Value, PreviewPr
                     | "lut"
                     | "vignette"
                     | "grain" => {}
-                    _ => return Err(PreviewProjectionError::Unclassified),
+                    _ => {
+                        #[cfg(debug_assertions)]
+                        log_preview_projection_refusal("unknown_tool", tool, active);
+                        return Err(PreviewProjectionError::Unclassified);
+                    }
                 }
             }
             projected.insert(key.clone(), Value::Object(cpu));
@@ -512,12 +555,18 @@ pub(crate) fn preview_cpu_inputs(adjustments: &Value) -> Result<Value, PreviewPr
             // Only effects visibility is read by the CPU effect/map path. Keep
             // its exact representation; basic/color/curves/details are fresh uniforms.
             let value = if let Some(sections) = value.as_object() {
-                if sections.keys().any(|key| {
+                if let Some(_unknown_key) = sections.keys().find(|key| {
                     !matches!(
                         key.as_str(),
                         "basic" | "color" | "curves" | "details" | "effects"
                     )
                 }) {
+                    #[cfg(debug_assertions)]
+                    log_preview_projection_refusal(
+                        "unknown_section",
+                        _unknown_key,
+                        &sections[_unknown_key],
+                    );
                     return Err(PreviewProjectionError::Unclassified);
                 }
                 let mut cpu = serde_json::Map::new();
@@ -545,7 +594,11 @@ pub(crate) fn preview_cpu_inputs(adjustments: &Value) -> Result<Value, PreviewPr
                 projected.insert(key.clone(), value.clone());
             }
             PreviewInputRole::FreshRender => {}
-            PreviewInputRole::Unclassified => return Err(PreviewProjectionError::Unclassified),
+            PreviewInputRole::Unclassified => {
+                #[cfg(debug_assertions)]
+                log_preview_projection_refusal("unknown_top_level", key, value);
+                return Err(PreviewProjectionError::Unclassified);
+            }
         }
     }
     let mut projected = Value::Object(projected);
@@ -1669,6 +1722,45 @@ mod preview_dependency_tests {
             preview_cpu_inputs(&json!({"sectionVisibility":{"futureSection":true}})),
             Err(PreviewProjectionError::Unclassified)
         );
+    }
+
+    #[test]
+    fn preview_projection_legacy_sharpening_metadata_is_inert_and_preserved() {
+        // Use the actual complete frontend defaults, not the sparse native
+        // default_adjustments() value (which supplies baselineExposure only).
+        let defaults: Value = serde_json::from_str(include_str!(
+            "../../src/utils/defaultAdjustments.json"
+        ))
+        .unwrap();
+        assert_eq!(defaults.as_object().unwrap().len(), 113);
+        assert_eq!(defaults["activeTools"], json!({}));
+        assert!(defaults.get("sectionVisibility").is_none());
+        let expected = preview_cpu_inputs(&defaults).unwrap();
+        let mut legacy = defaults.clone();
+        for (key, value) in [
+            ("sharpenDetail", json!(25)),
+            ("sharpenMasking", json!(0)),
+            ("sharpenRadius", json!(1.0)),
+        ] {
+            legacy[key] = value;
+            assert_eq!(preview_cpu_inputs(&legacy).unwrap(), expected, "{key}");
+        }
+        assert_eq!(legacy.as_object().unwrap().len(), 116);
+        let retained = legacy.clone();
+        assert_eq!(preview_cpu_inputs(&legacy).unwrap(), expected);
+        assert_eq!(legacy, retained, "saved metadata is never stripped or rewritten");
+
+        let mut geometry = legacy.clone();
+        geometry["rotation"] = json!(1.0);
+        assert_ne!(preview_cpu_inputs(&geometry).unwrap(), expected);
+        let mut future = legacy;
+        future["futureCpuSharpening"] = json!(1);
+        let future_before = future.clone();
+        assert_eq!(
+            preview_cpu_inputs(&future),
+            Err(PreviewProjectionError::Unclassified)
+        );
+        assert_eq!(future, future_before);
     }
 }
 
