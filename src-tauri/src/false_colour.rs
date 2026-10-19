@@ -7,13 +7,14 @@
 //! Eligibility, once-only placement, caches and editor/export wiring belong to
 //! the later producer grant; do not call this on a stand-in or filtered output.
 //!
-//! One immutable input and one output buffer, one worker, one pass. The update
+//! One immutable input and one output buffer, disjoint rows on the existing Rayon pool, one pass. The update
 //! preserves linear Rec.709 luminance in real arithmetic, not encoded luminance
 //! or exact f32 luma at arbitrary magnitude. No new clipping or gamma is used.
 //! Existing upstream clipping/profile restrictions are not repaired here.
 
 use crate::raw_processing::RawCancel;
 use image::{DynamicImage, ImageBuffer};
+use rayon::prelude::*;
 use std::fmt;
 use std::sync::atomic::Ordering;
 
@@ -82,12 +83,7 @@ impl<'a> Work<'a> {
         if let Some(hook) = self.hook {
             hook(_point);
         }
-        if let Some((tracker, generation)) = self.cancel
-            && tracker.load(Ordering::SeqCst) != *generation
-        {
-            return Err(FcsError::Cancelled);
-        }
-        Ok(())
+        check_cancel(self.cancel)
     }
 
     fn output(&self, len: usize) -> Result<Vec<f32>, FcsError> {
@@ -107,6 +103,15 @@ impl<'a> Work<'a> {
         output.resize(len, 0.0);
         Ok(output)
     }
+}
+
+fn check_cancel(cancel: &RawCancel) -> Result<(), FcsError> {
+    if let Some((tracker, generation)) = cancel
+        && tracker.load(Ordering::SeqCst) != *generation
+    {
+        return Err(FcsError::Cancelled);
+    }
+    Ok(())
 }
 
 fn checked_len(width: u32, height: u32, channels: usize) -> Result<usize, FcsError> {
@@ -213,6 +218,26 @@ fn filtered_rgb(
     Ok([red, green, blue])
 }
 
+fn filter_output_row(
+    source: &[f32],
+    row: &mut [f32],
+    width: usize,
+    height: usize,
+    channels: usize,
+    y: usize,
+) -> Result<(), FcsError> {
+    for x in 0..width {
+        let source_offset = (y * width + x) * channels;
+        let output_offset = x * channels;
+        let rgb = filtered_rgb(source, width, height, channels, x, y)?;
+        row[output_offset..output_offset + 3].copy_from_slice(&rgb);
+        if channels == 4 {
+            row[output_offset + 3] = source[source_offset + 3];
+        }
+    }
+    Ok(())
+}
+
 /// Consume one unencoded linear-sRGB image and return one complete filtered
 /// image of the same float format. No inference of colour space, camera type,
 /// profile eligibility or current generation is made from pixel bytes.
@@ -248,16 +273,38 @@ fn suppress_with_work(image: DynamicImage, work: &Work<'_>) -> Result<DynamicIma
     }
     work.check(Checkpoint::BeforeAllocation)?;
     let mut output = work.output(len)?;
-    for y in 0..height as usize {
-        work.check(Checkpoint::OutputRow)?;
-        for x in 0..width as usize {
-            let offset = (y * width as usize + x) * channels;
-            let rgb = filtered_rgb(&source, width as usize, height as usize, channels, x, y)?;
-            output[offset..offset + 3].copy_from_slice(&rgb);
-            if channels == 4 {
-                output[offset + 3] = source[offset + 3];
-            }
+    let serial_hook = {
+        #[cfg(test)]
+        {
+            work.hook.is_some()
         }
+        #[cfg(not(test))]
+        {
+            false
+        }
+    };
+    if serial_hook {
+        for y in 0..height as usize {
+            work.check(Checkpoint::OutputRow)?;
+            let row_start = y * row_len;
+            filter_output_row(
+                &source,
+                &mut output[row_start..row_start + row_len],
+                width as usize,
+                height as usize,
+                channels,
+                y,
+            )?;
+        }
+    } else {
+        let cancel = work.cancel;
+        output
+            .par_chunks_exact_mut(row_len)
+            .enumerate()
+            .try_for_each(|(y, row)| {
+                check_cancel(cancel)?;
+                filter_output_row(&source, row, width as usize, height as usize, channels, y)
+            })?;
     }
     let image = if channels == 3 {
         DynamicImage::ImageRgb32F(
@@ -646,5 +693,57 @@ mod tests {
         assert_eq!(first.as_bytes(), expected.as_bytes());
         assert_eq!(first.as_bytes(), repeated.as_bytes());
         assert_eq!(original.as_bytes(), before);
+    }
+
+    #[test]
+    fn k11_parallel_rows_match_serial_rgb_rgba_and_boundary_inputs() {
+        fn serial_hook(_: Checkpoint) {}
+
+        let cancel = None;
+        let serial = Work {
+            cancel: &cancel,
+            hook: Some(&serial_hook),
+            force_reserve_failure: false,
+        };
+        let assert_parity = |image: DynamicImage| {
+            let parallel = suppress_linear_srgb_v1(image.clone(), &cancel);
+            let reference = suppress_with_work(image, &serial);
+            match (parallel, reference) {
+                (Ok(parallel), Ok(reference)) => {
+                    assert_eq!(parallel.as_bytes(), reference.as_bytes());
+                }
+                (Err(parallel), Err(reference)) => assert_eq!(parallel, reference),
+                (parallel, reference) => {
+                    panic!("parallel/serial result mismatch: {parallel:?} vs {reference:?}")
+                }
+            }
+        };
+
+        for (width, height) in [(1, 1), (2, 7), (11, 5)] {
+            assert_parity(DynamicImage::ImageRgb32F(Rgb32FImage::from_fn(
+                width,
+                height,
+                |x, y| {
+                    let value = ((x * 7 + y * 11) % 23) as f32 * 0.75 - 4.0;
+                    Rgb([value, 1.25 + value * 0.3, 2.0 - value * 1.1])
+                },
+            )));
+            assert_parity(DynamicImage::ImageRgba32F(Rgba32FImage::from_fn(
+                width,
+                height,
+                |x, y| {
+                    let value = ((x * 5 + y * 13) % 19) as f32 * 1.5 - 6.0;
+                    let alpha = ((x + y) % 4) as f32 / 3.0;
+                    Rgba([value, 0.5 - value * 0.2, 3.0 + value * 0.6, alpha])
+                },
+            )));
+        }
+        assert_parity(rgb(1, 1, [f32::MAX, -f32::MAX, 0.0]));
+        assert_parity(DynamicImage::ImageRgb32F(Rgb32FImage::from_pixel(
+            2,
+            2,
+            Rgb([0.5, f32::NAN, 0.25]),
+        )));
+        assert_parity(DynamicImage::ImageRgb32F(Rgb32FImage::new(0, 2)));
     }
 }
