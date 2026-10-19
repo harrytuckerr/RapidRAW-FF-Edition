@@ -5347,6 +5347,116 @@ mod prepared_appearance_tests {
             }
 
             #[tokio::test]
+            async fn preview_workspace_changes_reuse_pixels_but_amount_and_growth_miss() {
+                let (r, id, _, _) = selected();
+                let (o, k, _) = ready(&patterned_composition_dng(), json!({}), Arc::clone(&r)).await;
+                let input = json!({"profile":{"base":id,"look":"composition-look","amount":100}});
+                let original = request(&o, k, Some(input.clone()), settings(), &r).unwrap();
+                let mut cache = None;
+                let before = preview_base_development_count();
+                drop(
+                    original
+                        .prepare_preview_pixels(&mut cache, Some(32), None)
+                        .unwrap(),
+                );
+                assert_eq!(preview_base_development_count().wrapping_sub(before), 1);
+                let retained = cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr();
+                let mut config = settings();
+                config.workspace.right_panel_width += 37;
+                config.workspace.right_top_height += 29;
+                config
+                    .workspace
+                    .active_panels
+                    .insert("rightTop".into(), Some("profiles".into()));
+                let expected_workspace = serde_json::to_value(&config.workspace).unwrap();
+                let current = request(&o, k, Some(input.clone()), config.clone(), &r).unwrap();
+                assert_ne!(
+                    serde_json::to_value(&original.settings().workspace).unwrap(),
+                    serde_json::to_value(&current.settings().workspace).unwrap()
+                );
+                assert_eq!(
+                    serde_json::to_value(&current.settings().workspace).unwrap(),
+                    expected_workspace
+                );
+                // Only descriptor copies omit UI state: neither current nor
+                // immutable source AppSettings is modified by projection.
+                let descriptor = current.preview_descriptor(Some(32), None).unwrap().unwrap();
+                let projected: Value = serde_json::from_slice(&descriptor.settings).unwrap();
+                assert!(projected["current"].get("workspace").is_none());
+                assert!(projected["source"].get("workspace").is_none());
+                assert_eq!(
+                    serde_json::to_value(&current.appearance().unwrap().source.settings.workspace).unwrap(),
+                    serde_json::to_value(&original.appearance().unwrap().source.settings.workspace).unwrap()
+                );
+                let before_hit = preview_base_development_count();
+                let (bytes, dimensions, geometry);
+                {
+                    let frame = current
+                        .prepare_preview_pixels(&mut cache, Some(32), None)
+                        .unwrap();
+                    assert!(frame.hit);
+                    bytes = frame.pixels().pixels().as_bytes().to_vec();
+                    dimensions = frame.pixels().pixels().dimensions();
+                    geometry = frame.pixels().geometry();
+                }
+                assert_eq!(preview_base_development_count().wrapping_sub(before_hit), 0);
+                assert_eq!(
+                    cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr(),
+                    retained
+                );
+                let cold = cold_preview_pixels(&current, 32, None);
+                assert_eq!(bytes, cold.pixels().as_bytes());
+                assert_eq!(dimensions, cold.pixels().dimensions());
+                let cold_geometry = cold.geometry();
+                assert_eq!(geometry.0.to_bits(), cold_geometry.0.to_bits());
+                assert_eq!(geometry.1.0.to_bits(), cold_geometry.1.0.to_bits());
+                assert_eq!(geometry.1.1.to_bits(), cold_geometry.1.1.to_bits());
+                assert_eq!(
+                    serde_json::to_value(&current.settings().workspace).unwrap(),
+                    expected_workspace
+                );
+
+                let mut amount = input;
+                amount["profile"]["amount"] = json!(50);
+                let changed = request(&o, k, Some(amount), config, &r).unwrap();
+                let before_amount = preview_base_development_count();
+                assert!(
+                    !changed
+                        .prepare_preview_pixels(&mut cache, Some(32), None)
+                        .unwrap()
+                        .hit
+                );
+                assert_eq!(
+                    preview_base_development_count().wrapping_sub(before_amount),
+                    1
+                );
+                drop(
+                    current
+                        .prepare_preview_pixels(&mut cache, Some(32), None)
+                        .unwrap(),
+                );
+                let before_growth = preview_base_development_count();
+                {
+                    let larger = current
+                        .prepare_preview_pixels(&mut cache, Some(64), None)
+                        .unwrap();
+                    assert!(!larger.hit);
+                    assert!(
+                        larger
+                            .pixels()
+                            .pixels()
+                            .width()
+                            .max(larger.pixels().pixels().height())
+                            > dimensions.0.max(dimensions.1)
+                    );
+                }
+                assert_eq!(
+                    preview_base_development_count().wrapping_sub(before_growth),
+                    1
+                );
+            }
+
+            #[tokio::test]
             async fn dg01_final_drag_release_reuses_noninitial_dcp_and_equals_cold() {
                 let (r, id, _, _) = selected();
                 let (o, k, _) = ready(&patterned_composition_dng(), json!({}), Arc::clone(&r)).await;
@@ -5456,7 +5566,7 @@ mod prepared_appearance_tests {
                 );
                 assert_eq!(
                     preview_base_development_count().wrapping_sub(before_resolution),
-                    1
+                    0
                 );
                 let mut amount = input;
                 amount["profile"]["amount"] = json!(50);
@@ -5477,6 +5587,85 @@ mod prepared_appearance_tests {
                     b.prepare_preview_pixels(&mut cache, Some(32), Some(1.4))
                         .is_err()
                 );
+            }
+
+            #[tokio::test]
+            async fn dg03_larger_final_retains_smaller_final_unity_and_interactive() {
+                let (r, id, _, _) = selected();
+                let (o, k, _) = ready(&patterned_composition_dng(), json!({}), Arc::clone(&r)).await;
+                let input = json!({
+                    "profile":{"base":id,"look":"composition-look","amount":100},
+                    "rotation":7.0,
+                    "crop":{"x":7.25,"y":11.5,"width":311.75,"height":273.25}
+                });
+                let current = request(&o, k, Some(input.clone()), settings(), &r).unwrap();
+                let mut cache = None;
+                let before_initial = preview_base_development_count();
+                drop(current.prepare_preview_pixels(&mut cache, Some(64), None).unwrap());
+                assert_eq!(preview_base_development_count().wrapping_sub(before_initial), 1);
+                let retained = cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr();
+                let bytes = cache.as_ref().unwrap().pixels.pixels().as_bytes().to_vec();
+                let dimensions = cache.as_ref().unwrap().pixels.pixels().dimensions();
+                let geometry = cache.as_ref().unwrap().pixels.geometry();
+                let descriptor = current.preview_descriptor(Some(64), None).unwrap().unwrap();
+                assert!(cache.as_ref().unwrap().pixels.within_retention_budget(PREVIEW_PIXELS_BUDGET));
+
+                let before_reuse = preview_base_development_count();
+                for divisor in [None, Some(1.0)] {
+                    {
+                        let frame = current.prepare_preview_pixels(&mut cache, Some(32), divisor).unwrap();
+                        assert!(frame.hit);
+                        assert!(matches!(&frame.storage, PreviewPixelsStorage::Retained(_)));
+                        assert_eq!(frame.pixels().pixels().as_bytes().as_ptr(), retained);
+                        assert_eq!(frame.pixels().pixels().as_bytes(), bytes);
+                        assert_eq!(frame.pixels().pixels().dimensions(), dimensions);
+                        assert_eq!(frame.pixels().geometry(), geometry);
+                    }
+                    let entry = cache.as_ref().unwrap();
+                    assert_eq!(entry.descriptor.mismatch_reason(&descriptor), None);
+                    assert_eq!(entry.pixels.pixels().as_bytes().as_ptr(), retained);
+                }
+                assert_eq!(preview_base_development_count().wrapping_sub(before_reuse), 0);
+                {
+                    let frame = current.prepare_preview_pixels(&mut cache, Some(32), Some(1.4)).unwrap();
+                    assert!(!frame.hit); // Derived transient, not a retained backing hit.
+                    assert!(matches!(&frame.storage, PreviewPixelsStorage::Transient(_)));
+                    let (width, height) = frame.pixels().pixels().dimensions();
+                    assert!(width > 0 && height > 0);
+                    assert_eq!(width.max(height), 22); // floor(32 / 1.4).
+                    assert_eq!(frame.pixels().geometry().0.to_bits(), ((width as f64 / 312.0) as f32).to_bits());
+                    assert_eq!(frame.pixels().geometry().1, geometry.1);
+                }
+                assert_eq!(preview_base_development_count().wrapping_sub(before_reuse), 0);
+                assert_eq!(cache.as_ref().unwrap().descriptor.mismatch_reason(&descriptor), None);
+                assert_eq!(cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr(), retained);
+                assert_eq!(cache.as_ref().unwrap().pixels.pixels().as_bytes(), bytes);
+
+                assert!(current.prepare_preview_pixels(&mut cache, Some(0), None).is_err());
+                assert_eq!(cache.as_ref().unwrap().descriptor.mismatch_reason(&descriptor), None);
+                assert_eq!(cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr(), retained);
+
+                for mode in ["geometry", "amount", "growth"] {
+                    drop(current.prepare_preview_pixels(&mut cache, Some(64), None).unwrap());
+                    let mut edited = input.clone();
+                    let mut edge = 64;
+                    match mode {
+                        "geometry" => edited["rotation"] = json!(8.0),
+                        "amount" => edited["profile"]["amount"] = json!(50),
+                        "growth" => edge = 128,
+                        _ => unreachable!(),
+                    }
+                    let changed = request(&o, k, Some(edited), settings(), &r).unwrap();
+                    let before_miss = preview_base_development_count();
+                    {
+                        let frame = changed.prepare_preview_pixels(&mut cache, Some(edge), None).unwrap();
+                        assert!(!frame.hit, "{mode}");
+                        if mode == "growth" {
+                            assert!(frame.pixels().pixels().width().max(frame.pixels().pixels().height()) > dimensions.0.max(dimensions.1));
+                        }
+                    }
+                    assert_eq!(preview_base_development_count().wrapping_sub(before_miss), 1, "{mode}");
+                }
             }
 
             #[tokio::test]
@@ -6213,7 +6402,7 @@ mod prepared_appearance_tests {
                         "amount" => edit["profile"]["amount"] = json!(50),
                         "settings" => config.theme = Some("cache-distinguishing-theme".into()),
                         "geometry" => edit["orientationSteps"] = json!(1),
-                        "resolution" => edge = 31,
+                        "resolution" => edge = 64,
                         "divisor" => divisor = Some(1.5),
                         _ => unreachable!(),
                     }
@@ -10126,6 +10315,13 @@ impl ConsumerRequest {
             "source_legacy":appearance.source.settings.group_associated_files,
             "source_legacy_type":appearance.source.settings.group_preferred_type,
         });
+        // Docking, active panels and panel dimensions are UI state. Pixel
+        // geometry remains separately keyed; keep the actual settings intact.
+        for side in ["current", "source"] {
+            if let Some(fields) = settings[side].as_object_mut() {
+                fields.remove("workspace");
+            }
+        }
         canonicalize_preview_settings(&mut settings);
         if crate::ai_denoise::is_requested(assets.adjustments()) {
             adjustments["_denoiseCacheEpoch"] = serde_json::json!(crate::ai_denoise::cache_epoch());
@@ -10228,10 +10424,21 @@ impl ConsumerRequest {
         }
         if let (Some(current), Some(entry)) = (&descriptor, cache.as_ref()) {
             if entry.descriptor.divisor_bits.is_none()
-                && current.divisor_bits.is_some()
-                && entry.descriptor.resolution == current.resolution
+                && current.resolution > 0
+                && entry.descriptor.resolution >= current.resolution
                 && entry.descriptor.mismatch_reason(current) == Some("output_geometry")
             {
+                if current.divisor_bits.is_none() {
+                    // Final and canonical unity requests keep the larger raster,
+                    // its geometry and its descriptor. No lower-resolution relabel.
+                    log_preview_cache("hit", "retained_larger", before);
+                    return Ok(PreparedPreviewPixels {
+                        storage: PreviewPixelsStorage::Retained(
+                            &cache.as_ref().ok_or("Preview entry unavailable")?.pixels,
+                        ),
+                        hit: true,
+                    });
+                }
                 let produced = entry.pixels.derive_interactive(
                     current.resolution,
                     f32::from_bits(current.divisor_bits.ok_or("Interactive divisor missing")?),
