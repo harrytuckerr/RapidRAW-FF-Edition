@@ -5387,6 +5387,175 @@ mod prepared_appearance_tests {
                 );
             }
 
+            #[tokio::test]
+            async fn dg02_oversized_zoom_preserves_final_for_drag_release() {
+                // Expand to 71,884,800 RGB32F bytes, above the 64MiB budget.
+                // Only genuine DNG dimensions/strip change; CFA,
+                // levels, matrices, orientation and decoder path stay real.
+                let mut bytes = synthetic_dng(true, 6);
+                let read16 = |b: &[u8], p| u16::from_le_bytes(b[p..p + 2].try_into().unwrap());
+                let read32 = |b: &[u8], p| u32::from_le_bytes(b[p..p + 4].try_into().unwrap());
+                let ifd = read32(&bytes, 4) as usize;
+                let count = read16(&bytes, ifd) as usize;
+                let (width, height) = (2400u32, 2496u32);
+                let mut strip = None;
+                for i in 0..count {
+                    let entry = ifd + 2 + 12 * i;
+                    let tag = read16(&bytes, entry);
+                    let value = match tag {
+                        256 => Some(width),
+                        257 | 278 => Some(height),
+                        279 => Some(width * height * 2),
+                        _ => None,
+                    };
+                    if let Some(value) = value {
+                        assert_eq!(read16(&bytes, entry + 2), 4);
+                        bytes[entry + 8..entry + 12].copy_from_slice(&value.to_le_bytes());
+                    }
+                    if tag == 273 {
+                        strip = Some(read32(&bytes, entry + 8) as usize);
+                    } else if tag == 50829 {
+                        let offset = read32(&bytes, entry + 8) as usize;
+                        bytes[offset + 8..offset + 12].copy_from_slice(&height.to_le_bytes());
+                        bytes[offset + 12..offset + 16].copy_from_slice(&width.to_le_bytes());
+                    }
+                }
+                bytes.truncate(strip.unwrap());
+                let pattern = b"RBGBRGGGRGGBGGBGGRBRGRBGGGBGGRGGRGGB";
+                for y in 0..height {
+                    for x in 0..width {
+                        let sample: u16 = match pattern[((y % 6) * 6 + x % 6) as usize] {
+                            b'R' => 1024,
+                            b'G' => 1984,
+                            _ => 1504,
+                        };
+                        bytes.extend(sample.to_le_bytes());
+                    }
+                }
+                let (r, id, _, _) = selected();
+                let o = owner();
+                let k = admit(&o, file(&bytes, "dng"), metadata(json!({})), settings(), true).await;
+                let pixels_registry = Arc::clone(&r);
+                // This genuine 5.99MP fixture exceeds the small fixtures' 3s
+                // render helper bound; only its Pixels setup gets 30s.
+                tokio::time::timeout(
+                    Duration::from_secs(30),
+                    o.execute(
+                        k,
+                        JobKind::Pixels,
+                        move |c| read_keyed_candidate(c, &pixels_registry),
+                        finish,
+                    ),
+                )
+                .await
+                .expect("large genuine fixture Pixels setup exceeded 30s")
+                .unwrap();
+                let input = json!({"profile":{"base":id,"look":"composition-look","amount":100}});
+                let a = request(&o, k, Some(input.clone()), settings(), &r).unwrap();
+                let ConsumerSource::Accurate(snapshot) = &a.source else {
+                    panic!("genuine accurate owner required")
+                };
+                assert!(snapshot.retained().unwrap().appearance.assets.is_none());
+                let mut cache = None;
+                let before = preview_base_development_count();
+                drop(
+                    a.prepare_preview_pixels(&mut cache, Some(32), None)
+                        .unwrap(),
+                );
+                assert_eq!(preview_base_development_count().wrapping_sub(before), 1);
+                let retained = cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr();
+                let final_bytes = cache.as_ref().unwrap().pixels.pixels().as_bytes().to_vec();
+                {
+                    let oversized = a
+                        .prepare_preview_pixels(&mut cache, Some(4096), None)
+                        .unwrap();
+                    assert!(!oversized.hit);
+                    assert!(matches!(
+                        &oversized.storage,
+                        PreviewPixelsStorage::Transient(_)
+                    ));
+                    assert!(oversized.pixels().retained_capacity_bytes().unwrap() > PREVIEW_PIXELS_BUDGET);
+                    assert!(
+                        !oversized
+                            .pixels()
+                            .within_retention_budget(PREVIEW_PIXELS_BUDGET)
+                    );
+                }
+                assert_eq!(preview_base_development_count().wrapping_sub(before), 2);
+                assert_eq!(
+                    cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr(),
+                    retained
+                );
+                let mut edit = input.clone();
+                edit["exposure"] = json!(1.25);
+                let b = request(&o, k, Some(edit), settings(), &r).unwrap();
+                let (drag_bytes, drag_dimensions, drag_geometry, drag_uniforms);
+                {
+                    let drag = b
+                        .prepare_preview_pixels(&mut cache, Some(32), Some(1.4))
+                        .unwrap();
+                    assert!(!drag.hit);
+                    assert!(matches!(&drag.storage, PreviewPixelsStorage::Transient(_)));
+                    drag_bytes = drag.pixels().pixels().as_bytes().to_vec();
+                    drag_dimensions = drag.pixels().pixels().dimensions();
+                    drag_geometry = drag.pixels().geometry();
+                    drag_uniforms = drag
+                        .pixels()
+                        .request(b.creative().unwrap(), b.appearance().unwrap().as_shot())
+                        .unwrap()
+                        .adjustments;
+                }
+                assert_eq!(preview_base_development_count().wrapping_sub(before), 2);
+                {
+                    let final_frame = b
+                        .prepare_preview_pixels(&mut cache, Some(32), None)
+                        .unwrap();
+                    assert!(final_frame.hit);
+                    assert_eq!(final_frame.pixels().pixels().as_bytes(), final_bytes);
+                    let uniforms = final_frame
+                        .pixels()
+                        .request(b.creative().unwrap(), b.appearance().unwrap().as_shot())
+                        .unwrap()
+                        .adjustments;
+                    assert_eq!(
+                        bytemuck::bytes_of(&uniforms),
+                        bytemuck::bytes_of(&drag_uniforms)
+                    );
+                }
+                assert_eq!(preview_base_development_count().wrapping_sub(before), 2);
+                assert_eq!(
+                    cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr(),
+                    retained
+                );
+                let cold = cold_preview_pixels(&b, 32, Some(1.4));
+                assert_eq!(drag_bytes, cold.pixels().as_bytes());
+                assert_eq!(drag_dimensions, cold.pixels().dimensions());
+                let geometry = cold.geometry();
+                assert_eq!(drag_geometry.0.to_bits(), geometry.0.to_bits());
+                assert_eq!(drag_geometry.1.0.to_bits(), geometry.1.0.to_bits());
+                assert_eq!(drag_geometry.1.1.to_bits(), geometry.1.1.to_bits());
+                for changed in [
+                    json!({"profile":{"base":id,"look":"composition-look","amount":100},"orientationSteps":1}),
+                    json!({"profile":{"base":id,"look":"composition-look","amount":50}}),
+                ] {
+                    drop(
+                        a.prepare_preview_pixels(&mut cache, Some(32), None)
+                            .unwrap(),
+                    );
+                    let q = request(&o, k, Some(changed), settings(), &r).unwrap();
+                    let before_miss = preview_base_development_count();
+                    assert!(
+                        !q.prepare_preview_pixels(&mut cache, Some(32), None)
+                            .unwrap()
+                            .hit
+                    );
+                    assert_eq!(
+                        preview_base_development_count().wrapping_sub(before_miss),
+                        1
+                    );
+                }
+            }
+
             mod cheap_preview_reuse_tests {
                 use super::*;
 
@@ -9902,9 +10071,12 @@ impl ConsumerRequest {
                 });
             }
         }
-        // Evict before developing/composing a miss, not after allocating another
-        // complete result. Unsupported paths still execute their same CPU work.
-        *cache = None;
+        // Unsupported requests keep their existing bypass retirement policy.
+        // An eligible oversized result must not discard the bounded old entry;
+        // every later use still checks its complete descriptor before reuse.
+        if descriptor.is_none() {
+            *cache = None;
+        }
         let produced = self.compose_preview_pixels(resolution, divisor);
         self.check()
             .inspect_err(|_| log_preview_cache("rejected", "currentness", before))?; // authoritative even when development/composition failed
