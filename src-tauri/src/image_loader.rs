@@ -5254,6 +5254,139 @@ mod prepared_appearance_tests {
                 assert!(source.upgrade().is_none());
             }
 
+            #[tokio::test]
+            async fn dg01_final_drag_release_reuses_noninitial_dcp_and_equals_cold() {
+                let (r, id, _, _) = selected();
+                let (o, k, _) = ready(&patterned_composition_dng(), json!({}), Arc::clone(&r)).await;
+                let input = json!({
+                    "profile":{"base":id,"look":"composition-look","amount":100},
+                    "rotation":7.0,
+                    "crop":{"x":7.25,"y":11.5,"width":311.75,"height":273.25}
+                });
+                let a = request(&o, k, Some(input.clone()), settings(), &r).unwrap();
+                let ConsumerSource::Accurate(snapshot) = &a.source else {
+                    panic!("genuine accurate owner required")
+                };
+                assert!(snapshot.retained().unwrap().appearance.assets.is_none());
+                let mut cache = None;
+                let before = preview_base_development_count();
+                let baseline_exposure;
+                {
+                    let frame = a
+                        .prepare_preview_pixels(&mut cache, Some(32), None)
+                        .unwrap();
+                    assert!(!frame.hit);
+                    assert!(matches!(
+                        frame.pixels().pixels(),
+                        DynamicImage::ImageRgba32F(_)
+                    ));
+                    baseline_exposure = frame
+                        .pixels()
+                        .request(a.creative().unwrap(), a.appearance().unwrap().as_shot())
+                        .unwrap()
+                        .adjustments
+                        .global
+                        .exposure;
+                }
+                assert_eq!(preview_base_development_count().wrapping_sub(before), 1);
+                let retained = cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr();
+                let final_bytes = cache.as_ref().unwrap().pixels.pixels().as_bytes().to_vec();
+                let mut edited = input.clone();
+                edited["exposure"] = json!(1.25);
+                let b = request(&o, k, Some(edited), settings(), &r).unwrap();
+                let (drag_bytes, drag_size, drag_geometry, drag_uniforms);
+                {
+                    let frame = b
+                        .prepare_preview_pixels(&mut cache, Some(32), Some(1.4))
+                        .unwrap();
+                    assert!(!frame.hit); // derived transient, not an exact geometry hit
+                    assert!(matches!(&frame.storage, PreviewPixelsStorage::Transient(_)));
+                    drag_bytes = frame.pixels().pixels().as_bytes().to_vec();
+                    drag_size = frame.pixels().pixels().dimensions();
+                    drag_geometry = frame.pixels().geometry();
+                    drag_uniforms = frame
+                        .pixels()
+                        .request(b.creative().unwrap(), b.appearance().unwrap().as_shot())
+                        .unwrap()
+                        .adjustments;
+                }
+                assert_eq!(preview_base_development_count().wrapping_sub(before), 1);
+                assert_ne!(
+                    baseline_exposure.to_bits(),
+                    drag_uniforms.global.exposure.to_bits()
+                );
+                assert_eq!(
+                    cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr(),
+                    retained
+                );
+                {
+                    let frame = b
+                        .prepare_preview_pixels(&mut cache, Some(32), None)
+                        .unwrap();
+                    assert!(frame.hit);
+                    assert_eq!(frame.pixels().pixels().as_bytes(), final_bytes);
+                    let uniforms = frame
+                        .pixels()
+                        .request(b.creative().unwrap(), b.appearance().unwrap().as_shot())
+                        .unwrap()
+                        .adjustments;
+                    assert_eq!(
+                        bytemuck::bytes_of(&uniforms),
+                        bytemuck::bytes_of(&drag_uniforms)
+                    );
+                }
+                assert_eq!(preview_base_development_count().wrapping_sub(before), 1);
+                assert_eq!(
+                    cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr(),
+                    retained
+                );
+                let before_cold = preview_base_development_count();
+                let cold = cold_preview_pixels(&b, 32, Some(1.4));
+                assert_eq!(
+                    preview_base_development_count().wrapping_sub(before_cold),
+                    1
+                );
+                assert_eq!(drag_bytes, cold.pixels().as_bytes());
+                assert_eq!(drag_size, cold.pixels().dimensions());
+                let cold_geometry = cold.geometry();
+                assert_eq!(drag_geometry.0.to_bits(), cold_geometry.0.to_bits());
+                assert_eq!(drag_geometry.1.0.to_bits(), cold_geometry.1.0.to_bits());
+                assert_eq!(drag_geometry.1.1.to_bits(), cold_geometry.1.1.to_bits());
+                assert_eq!(
+                    drag_geometry.0.to_bits(),
+                    ((drag_size.0 as f64 / 312.0) as f32).to_bits()
+                );
+                let before_resolution = preview_base_development_count();
+                assert!(
+                    !b.prepare_preview_pixels(&mut cache, Some(31), Some(1.4))
+                        .unwrap()
+                        .hit
+                );
+                assert_eq!(
+                    preview_base_development_count().wrapping_sub(before_resolution),
+                    1
+                );
+                let mut amount = input;
+                amount["profile"]["amount"] = json!(50);
+                let changed = request(&o, k, Some(amount), settings(), &r).unwrap();
+                let before_change = preview_base_development_count();
+                assert!(
+                    !changed
+                        .prepare_preview_pixels(&mut cache, Some(32), Some(1.4))
+                        .unwrap()
+                        .hit
+                );
+                assert_eq!(
+                    preview_base_development_count().wrapping_sub(before_change),
+                    1
+                );
+                o.reserve(B, b.loaded().path.clone()).unwrap();
+                assert!(
+                    b.prepare_preview_pixels(&mut cache, Some(32), Some(1.4))
+                        .is_err()
+                );
+            }
+
             mod cheap_preview_reuse_tests {
                 use super::*;
 
@@ -9745,6 +9878,29 @@ impl ConsumerRequest {
                 ),
                 hit: true,
             });
+        }
+        if let (Some(current), Some(entry)) = (&descriptor, cache.as_ref()) {
+            if entry.descriptor.divisor_bits.is_none()
+                && current.divisor_bits.is_some()
+                && entry.descriptor.resolution == current.resolution
+                && entry.descriptor.mismatch_reason(current) == Some("output_geometry")
+            {
+                let produced = entry.pixels.derive_interactive(
+                    current.resolution,
+                    f32::from_bits(current.divisor_bits.ok_or("Interactive divisor missing")?),
+                    self.raw_cancel(),
+                );
+                self.check()
+                    .inspect_err(|_| log_preview_cache("rejected", "currentness", before))?;
+                let pixels = produced.map_err(|e| e.to_string())
+                    .inspect_err(|_| log_preview_cache("error", "composition", before))?;
+                log_preview_cache("hit", "derived_interactive", before);
+                return Ok(PreparedPreviewPixels {
+                    storage: PreviewPixelsStorage::Transient(pixels),
+                    // CPU reuse, but not an exact retained output-geometry hit.
+                    hit: false,
+                });
+            }
         }
         // Evict before developing/composing a miss, not after allocating another
         // complete result. Unsupported paths still execute their same CPU work.

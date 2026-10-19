@@ -57,6 +57,7 @@ pub(crate) struct ComposedFit<'a, 'owner> {
     as_shot: AsShot,
     kind: PreparedBaseKind,
     scale_for_gpu: f32,
+    full_width: f64,
     unscaled_crop_offset: (f32, f32),
     _base: &'a PreparedAppearanceBase<'owner>,
     _assets: &'a CapturedCreativeAssets,
@@ -94,6 +95,7 @@ pub(crate) struct OwnedPreviewPixels {
     pixels: DynamicImage,
     masks: Vec<GrayImage>,
     scale_for_gpu: f32,
+    full_width: f64,
     unscaled_crop_offset: (f32, f32),
 }
 impl ComposedFit<'_, '_> {
@@ -102,6 +104,7 @@ impl ComposedFit<'_, '_> {
             pixels: self.pixels,
             masks: self.masks,
             scale_for_gpu: self.scale_for_gpu,
+            full_width: self.full_width,
             unscaled_crop_offset: self.unscaled_crop_offset,
         }
     }
@@ -164,6 +167,34 @@ impl OwnedPreviewPixels {
 
     pub(crate) fn geometry(&self) -> (f32, (f32, f32)) {
         (self.scale_for_gpu, self.unscaled_crop_offset)
+    }
+
+    // The caller proves this is a matching final entry. Keep it retained and
+    // produce only request-local pixels using the identical last CPU stage.
+    pub(crate) fn derive_interactive(
+        &self,
+        max_edge: u32,
+        divisor: f32,
+        cancel: RawCancel,
+    ) -> Result<Self, ComposeError> {
+        let divisor = canonical_preview_divisor(Some(divisor))?.ok_or(ComposeError::InvalidGeometry)?;
+        if max_edge == 0
+            || !self.masks.is_empty()
+            || !self.full_width.is_finite()
+            || self.full_width <= 0.0
+        {
+            return Err(ComposeError::InvalidGeometry);
+        }
+        let edge = ((max_edge as f32 / divisor) as u32).max(1);
+        let pixels = resize_interactive_pixels(&self.pixels, edge, &cancel)?;
+        let scale_for_gpu = (pixels.width() as f64 / self.full_width) as f32;
+        Ok(Self {
+            pixels,
+            masks: Vec::new(),
+            scale_for_gpu,
+            full_width: self.full_width,
+            unscaled_crop_offset: self.unscaled_crop_offset,
+        })
     }
 }
 
@@ -635,6 +666,24 @@ pub(crate) fn compose_accurate_preview<'a, 'owner>(
         .map(|v| ((max_edge as f32 / v) as u32).max(1));
     compose_output(base, assets, Some(max_edge), final_edge, cancel)
 }
+
+fn resize_interactive_pixels(
+    pixels: &DynamicImage,
+    edge: u32,
+    cancel: &RawCancel,
+) -> Result<DynamicImage, ComposeError> {
+    stage(cancel, "interactive resize", || {
+        let (w, h) = pixels.dimensions();
+        let (out_w, out_h) = if w > h {
+            (edge, (edge as f32 * (h as f32 / w as f32)) as u32)
+        } else {
+            ((edge as f32 * (w as f32 / h as f32)) as u32, edge)
+        };
+        Ok::<_, std::convert::Infallible>(crate::image_processing::downscale_f32_image(
+            pixels, out_w, out_h,
+        ))
+    })
+}
 fn compose_output<'a, 'owner>(
     base: &'a PreparedAppearanceBase<'owner>,
     assets: &'a CapturedCreativeAssets,
@@ -729,17 +778,7 @@ fn compose_output<'a, 'owner>(
         )
     })?;
     let pixels = if let Some(edge) = final_edge {
-        stage(&cancel, "interactive resize", || {
-            let (w, h) = pixels.dimensions();
-            let (out_w, out_h) = if w > h {
-                (edge, (edge as f32 * (h as f32 / w as f32)) as u32)
-            } else {
-                ((edge as f32 * (w as f32 / h as f32)) as u32, edge)
-            };
-            Ok::<_, std::convert::Infallible>(crate::image_processing::downscale_f32_image(
-                &pixels, out_w, out_h,
-            ))
-        })?
+        resize_interactive_pixels(&pixels, edge, &cancel)?
     } else {
         pixels
     };
@@ -795,6 +834,7 @@ fn compose_output<'a, 'owner>(
         as_shot: base.as_shot(),
         kind: base.kind(),
         scale_for_gpu,
+        full_width: geometry.full_w,
         unscaled_crop_offset,
         _base: base,
         _assets: assets,
@@ -817,6 +857,7 @@ mod composition_tests {
             pixels: DynamicImage::ImageRgb32F(Rgb32FImage::from_raw(1, 1, data).unwrap()),
             masks: Vec::new(),
             scale_for_gpu: 1.0,
+            full_width: 1.0,
             unscaled_crop_offset: (0.0, 0.0),
         };
         let capacity = pixels.retained_capacity_bytes().unwrap();
@@ -828,6 +869,7 @@ mod composition_tests {
             pixels: rgb(2, 2),
             masks: vec![GrayImage::new(2, 2)],
             scale_for_gpu: 1.0,
+            full_width: 2.0,
             unscaled_crop_offset: (0.0, 0.0),
         };
         assert!(!with_mask.within_retention_budget(usize::MAX));
@@ -835,6 +877,7 @@ mod composition_tests {
             pixels: rgb(2, 2),
             masks: Vec::new(),
             scale_for_gpu: 1.0,
+            full_width: 2.0,
             unscaled_crop_offset: (0.0, 0.0),
         };
         let bytes = plain.retained_capacity_bytes().unwrap();
@@ -1544,6 +1587,7 @@ pub(crate) fn compose_uncropped_accuracy<'a, 'owner>(
         as_shot: base.as_shot(),
         kind: base.kind(),
         scale_for_gpu: scale,
+        full_width: base.pixels().width() as f64,
         unscaled_crop_offset: (0.0, 0.0),
         _base: base,
         _assets: assets,
