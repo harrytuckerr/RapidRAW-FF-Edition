@@ -4844,7 +4844,7 @@ mod prepared_appearance_tests {
                 ));
                 assert!(matches!(
                     inference.request_base_without_denoise().unwrap().image,
-                    Cow::Owned(_)
+                    Cow::Borrowed(_)
                 ));
                 let weak = Arc::downgrade(&inference);
                 // A completed open is terminal: cancel is deliberately a no-op.
@@ -4933,10 +4933,7 @@ mod prepared_appearance_tests {
                         Ok(())
                     })
                     .unwrap();
-                    assert_eq!(
-                        ACCURATE_FILTER_CALLS.with(|c| c.get()),
-                        if selected_profile { 1 } else { 0 }
-                    );
+                    assert_eq!(ACCURATE_FILTER_CALLS.with(|c| c.get()), 0);
                     q.cancel();
                     assert!(q.sample_point_colour(&context, [0.5, 0.5]).is_err());
                 }
@@ -5027,6 +5024,236 @@ mod prepared_appearance_tests {
                 assert_ne!(original, ordered);
             }
 
+            // Genuine cold controls explicitly develop from the same held source/assets.
+            fn cold_preview_pixels(
+                q: &ConsumerRequest,
+                edge: u32,
+                divisor: Option<f32>,
+            ) -> crate::open_composition::OwnedPreviewPixels {
+                q.stage(|| {
+                    let base = q
+                        .appearance()?
+                        .render_unpatched_base(AppearancePass::AccurateOne, q.raw_cancel())
+                        .map_err(|e| e.to_string())?;
+                    let composed = crate::open_composition::compose_accurate_preview(
+                        &base,
+                        q.creative()?,
+                        edge,
+                        divisor,
+                        q.raw_cancel(),
+                    )
+                    .map_err(|e| e.to_string())?;
+                    Ok(composed.into_preview_pixels())
+                })
+                .unwrap()
+            }
+            fn cold_preview_render(
+                q: &ConsumerRequest,
+                context: &crate::image_processing::GpuContext,
+                edge: u32,
+            ) -> (DynamicImage, (u32, u32), (u32, u32)) {
+                q.stage(|| {
+                    let pixels = cold_preview_pixels(q, edge, None);
+                    let draw = pixels
+                        .request(q.creative()?, q.appearance()?.as_shot())
+                        .map_err(|e| e.to_string())?;
+                    let mut renderer =
+                        crate::gpu_processing::IsolatedCreativeRenderer::new(context);
+                    let output = renderer.render(
+                        pixels.pixels(),
+                        draw,
+                        crate::gpu_processing::RenderOutputPrecision::EightBit,
+                    )?;
+                    let dimensions = pixels.pixels().dimensions();
+                    Ok((output, dimensions, (0, 0)))
+                })
+                .unwrap()
+            }
+
+            #[tokio::test]
+            async fn cb01_committed_selected_is_borrowed_not_pristine() {
+                let (r, id, _, _) = selected();
+                let input = json!({"profile":{"base":id,"look":"composition-look","amount":100}});
+                let (o, k, _) =
+                    ready(&patterned_composition_dng(), input.clone(), Arc::clone(&r)).await;
+                let q = request(&o, k, Some(input), settings(), &r).unwrap();
+                let before = preview_base_development_count();
+                ACCURATE_FILTER_CALLS.with(|n| n.set(0));
+                let base = q.request_base_without_denoise().unwrap();
+                assert!(matches!(&base.image, Cow::Borrowed(_)));
+                let ConsumerSource::Accurate(snapshot) = &q.source else {
+                    panic!("actual accurate lease required")
+                };
+                assert!(std::ptr::eq(base.pixels(), snapshot.initial_appearance()));
+                assert_ne!(base.pixels().as_bytes(), q.loaded().image.as_bytes());
+                assert_eq!(preview_base_development_count().wrapping_sub(before), 0);
+                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 0);
+            }
+
+            #[tokio::test]
+            async fn cb02_colour_curve_zoom_borrow_equals_actual_cold_producer() {
+                let (r, id, _, _) = selected();
+                let input = json!({"profile":{"base":id,"look":"composition-look","amount":100}});
+                let (o, k, _) =
+                    ready(&patterned_composition_dng(), input.clone(), Arc::clone(&r)).await;
+                let baseline = request(&o, k, Some(input.clone()), settings(), &r).unwrap();
+                let baseline_pixels = baseline.compose_preview_pixels(Some(32), None).unwrap();
+                let baseline_uniforms = baseline_pixels
+                    .request(
+                        baseline.creative().unwrap(),
+                        baseline.appearance().unwrap().as_shot(),
+                    )
+                    .unwrap()
+                    .adjustments;
+                for (field, value, edge) in [
+                    ("saturation", json!(31), 32),
+                    (
+                        "curves",
+                        json!({"luma":[{"x":0,"y":0},{"x":128,"y":180},{"x":255,"y":255}]}),
+                        32,
+                    ),
+                    ("exposure", json!(1.25), 48),
+                ] {
+                    let mut edit = input.clone();
+                    edit[field] = value;
+                    let q = request(&o, k, Some(edit), settings(), &r).unwrap();
+                    let before = preview_base_development_count();
+                    ACCURATE_FILTER_CALLS.with(|n| n.set(0));
+                    let actual = q.compose_preview_pixels(Some(edge), None).unwrap();
+                    assert_eq!(preview_base_development_count().wrapping_sub(before), 0);
+                    assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 0);
+                    let current = actual
+                        .request(q.creative().unwrap(), q.appearance().unwrap().as_shot())
+                        .unwrap()
+                        .adjustments;
+                    assert_ne!(
+                        bytemuck::bytes_of(&baseline_uniforms),
+                        bytemuck::bytes_of(&current)
+                    );
+                    let cold = cold_preview_pixels(&q, edge, None);
+                    assert_eq!(preview_base_development_count().wrapping_sub(before), 1);
+                    assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 1);
+                    assert_eq!(actual.pixels().as_bytes(), cold.pixels().as_bytes());
+                    assert_eq!(actual.geometry(), cold.geometry());
+                }
+            }
+
+            #[tokio::test]
+            async fn cb03_asset_amount_and_ai_changes_require_real_development() {
+                let (r, id, dcp, look) = selected();
+                let input = json!({"profile":{"base":id,"look":"composition-look","amount":100}});
+                let (o, k, _) =
+                    ready(&patterned_composition_dng(), input.clone(), Arc::clone(&r)).await;
+                for edit in [
+                    json!({"profile":{"base":id,"look":"composition-look","amount":50}}),
+                    json!({"profile":{"base":id,"look":null,"amount":100}}),
+                    json!({"profile":{"base":id,"look":"composition-look","amount":100},"aiDenoiseEnabled":true,"aiDenoiseAmount":100}),
+                ] {
+                    let q = request(&o, k, Some(edit), settings(), &r).unwrap();
+                    let before = preview_base_development_count();
+                    assert!(matches!(
+                        q.request_base_without_denoise().unwrap().image,
+                        Cow::Owned(_)
+                    ));
+                    assert_eq!(preview_base_development_count().wrapping_sub(before), 1);
+                }
+                let xml = fs::read_to_string(&look).unwrap();
+                let changed = xml.replace("ProcessVersion=\"15.4\"", "ProcessVersion=\"15.3\"");
+                assert_ne!(xml, changed);
+                fs::write(&look, changed).unwrap();
+                let q = request(&o, k, Some(input.clone()), settings(), &r).unwrap();
+                assert!(matches!(
+                    q.request_base_without_denoise().unwrap().image,
+                    Cow::Owned(_)
+                ));
+                fs::write(&look, xml).unwrap();
+                let original_dcp = fs::read(&dcp).unwrap();
+                let mut changed_dcp = original_dcp.clone();
+                changed_dcp.push(0);
+                fs::write(&dcp, changed_dcp).unwrap();
+                let entry = crate::dcp::registry::parse_dcp_entry(
+                    &dcp,
+                    crate::dcp::registry::ProfileSource::Managed,
+                )
+                .unwrap();
+                let changed_id = entry.id.to_hex();
+                assert_ne!(changed_id, id);
+                r.insert_dcp(entry);
+                let edit = json!({"profile":{"base":changed_id,"look":null,"amount":100}});
+                let q = request(&o, k, Some(edit), settings(), &r).unwrap();
+                assert!(matches!(
+                    q.request_base_without_denoise().unwrap().image,
+                    Cow::Owned(_)
+                ));
+                fs::write(&dcp, original_dcp).unwrap();
+                let mut initial_ai = input.clone();
+                initial_ai["aiDenoiseEnabled"] = json!(true);
+                let (ai_owner, ai_key, _) =
+                    ready(&patterned_composition_dng(), initial_ai, Arc::clone(&r)).await;
+                let q = request(&ai_owner, ai_key, Some(input), settings(), &r).unwrap();
+                assert!(matches!(
+                    q.request_base_without_denoise().unwrap().image,
+                    Cow::Owned(_)
+                ));
+            }
+
+            #[tokio::test]
+            async fn cb04_initial_patch_and_cancel_aba_never_borrow_or_publish() {
+                let (r, id, _, _) = selected();
+                let input = json!({"profile":{"base":id,"look":"composition-look","amount":100}});
+                let mut patched = patch_contract_adjustments(None, Some((1, 1)), (10, 10));
+                patched["profile"] = input["profile"].clone();
+                let (patched_owner, patched_key, _) = ready(
+                    &patterned_composition_dng(),
+                    patched.clone(),
+                    Arc::clone(&r),
+                )
+                .await;
+                let q = request(
+                    &patched_owner,
+                    patched_key,
+                    Some(input.clone()),
+                    settings(),
+                    &r,
+                )
+                .unwrap();
+                assert!(matches!(
+                    q.request_base_without_denoise().unwrap().image,
+                    Cow::Owned(_)
+                ));
+                let (o, k, _) =
+                    ready(&patterned_composition_dng(), input.clone(), Arc::clone(&r)).await;
+                let current_patch = request(&o, k, Some(patched), settings(), &r).unwrap();
+                assert!(matches!(
+                    current_patch.request_base_without_denoise().unwrap().image,
+                    Cow::Borrowed(_)
+                ));
+                let actual = current_patch
+                    .compose_preview_pixels(Some(32), None)
+                    .unwrap();
+                let cold = cold_preview_pixels(&current_patch, 32, None);
+                assert_eq!(actual.pixels().as_bytes(), cold.pixels().as_bytes());
+                drop(current_patch);
+                let q = request(&o, k, Some(input.clone()), settings(), &r).unwrap();
+                let source = Arc::downgrade(&q.appearance().unwrap().source);
+                {
+                    let base = q.request_base_without_denoise().unwrap();
+                    assert!(matches!(base.image, Cow::Borrowed(_)));
+                }
+                q.cancel();
+                assert!(q.request_base_without_denoise().is_err());
+                let live = request(&o, k, Some(input), settings(), &r).unwrap();
+                let path = live.loaded().path.clone();
+                let replacement = o.reserve(B, path.clone()).unwrap();
+                let again = o.reserve(A, path).unwrap();
+                assert_ne!(replacement, k);
+                assert_ne!(again, k);
+                assert!(live.request_base_without_denoise().is_err());
+                o.close();
+                drop((q, live));
+                assert!(source.upgrade().is_none());
+            }
+
             mod cheap_preview_reuse_tests {
                 use super::*;
 
@@ -5114,7 +5341,7 @@ mod prepared_appearance_tests {
                             .prepare_preview_pixels(&mut cache, Some(32), None)
                             .unwrap(),
                     );
-                    assert_eq!(preview_base_development_count().wrapping_sub(before), 1);
+                    assert_eq!(preview_base_development_count().wrapping_sub(before), 0);
                     let baseline_uniforms = cache
                         .as_ref()
                         .unwrap()
@@ -5162,7 +5389,7 @@ mod prepared_appearance_tests {
                         if name == "hsl" {
                             assert_blue_hsl_control(&baseline_uniforms, &uniforms);
                         }
-                        let cold = current.compose_preview_pixels(Some(32), None).unwrap();
+                        let cold = cold_preview_pixels(&current, 32, None);
                         assert_eq!(
                             preview_base_development_count().wrapping_sub(before),
                             1,
@@ -5275,9 +5502,9 @@ mod prepared_appearance_tests {
                             assert!(!frame.hit);
                             bytes = frame.pixels().pixels().as_bytes().to_vec();
                         }
+                        assert_eq!(preview_base_development_count().wrapping_sub(before), 0);
+                        let cold = cold_preview_pixels(&current, 32, None);
                         assert_eq!(preview_base_development_count().wrapping_sub(before), 1);
-                        let cold = current.compose_preview_pixels(Some(32), None).unwrap();
-                        assert_eq!(preview_base_development_count().wrapping_sub(before), 2);
                         assert_eq!(bytes, cold.pixels().as_bytes());
                     }
                     let unknown = request(
@@ -5333,7 +5560,7 @@ mod prepared_appearance_tests {
                             .unwrap()
                             .hit
                     );
-                    let cold = q.compose_preview_pixels(Some(32), Some(1.0)).unwrap();
+                    let cold = cold_preview_pixels(&q, 32, Some(1.0));
                     assert_eq!(bytes, cold.pixels().as_bytes());
                     for divisor in [
                         0.0,
@@ -5426,9 +5653,7 @@ mod prepared_appearance_tests {
                             0,
                             "{name}"
                         );
-                        let cold = current
-                            .render_for_preview(&context, Some(32), None, EightBit, None)
-                            .unwrap();
+                        let cold = cold_preview_render(&current, &context, 32);
                         assert_eq!(
                             preview_base_development_count().wrapping_sub(before),
                             1,
@@ -5471,7 +5696,7 @@ mod prepared_appearance_tests {
                         .unwrap()
                         .adjustments;
                 }
-                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 1);
+                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 0);
                 let mut changed = edit;
                 changed["exposure"] = json!(1.0);
                 changed["curves"] =
@@ -5493,7 +5718,7 @@ mod prepared_appearance_tests {
                         .unwrap()
                         .adjustments;
                 }
-                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 1);
+                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 0);
                 assert_ne!(
                     first_uniforms.global.exposure.to_bits(),
                     current_uniforms.global.exposure.to_bits()
@@ -5503,8 +5728,8 @@ mod prepared_appearance_tests {
                     bytemuck::bytes_of(&first_uniforms),
                     bytemuck::bytes_of(&current_uniforms)
                 );
-                let fresh = second.compose_preview_pixels(Some(32), None).unwrap();
-                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 2);
+                let fresh = cold_preview_pixels(&second, 32, None);
+                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 1);
                 assert_eq!(cached_bytes, fresh.pixels().as_bytes());
                 let fresh_uniforms = fresh
                     .request(
@@ -5750,7 +5975,7 @@ mod prepared_appearance_tests {
                 let before = session
                     .render(&first, &context, Some(32), None, EightBit, None)
                     .unwrap();
-                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 1);
+                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 0);
                 let mut changed = original;
                 changed["exposure"] = json!(1.0);
                 changed["curves"] =
@@ -5759,12 +5984,10 @@ mod prepared_appearance_tests {
                 let actual = session
                     .render(&second, &context, Some(32), None, EightBit, None)
                     .unwrap();
-                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 1);
+                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 0);
                 assert_eq!(session.entry.as_ref().unwrap().1.processor_build_count(), 1);
-                let fresh = second
-                    .render_for_preview(&context, Some(32), None, EightBit, None)
-                    .unwrap();
-                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 2);
+                let fresh = cold_preview_render(&second, &context, 32);
+                assert_eq!(ACCURATE_FILTER_CALLS.with(|n| n.get()), 1);
                 assert_eq!(actual.0.as_bytes(), fresh.0.as_bytes());
                 assert_ne!(before.0.as_bytes(), actual.0.as_bytes());
                 assert_eq!(actual.1, fresh.1);
@@ -8756,7 +8979,8 @@ impl ConsumerRequest {
         }
     }
     // Normal consumers borrow the genuinely committed pristine AccurateOne
-    // base. Selected requests alone use their explicit held-asset producer.
+    // base. Selected requests may also borrow the genuinely committed selected
+    // appearance, but only when it is proven to be the same unpatched base.
     fn request_base_without_denoise(
         &self,
     ) -> std::result::Result<PreparedAppearanceBase<'_>, String> {
@@ -8779,6 +9003,61 @@ impl ConsumerRequest {
                 _appearance: appearance,
             })
         } else {
+            if let crate::app_state::ConsumerSource::Accurate(snapshot) = &self.source {
+                let retained = snapshot.retained().map_err(|e| e.to_string())?;
+                let initial = &retained.appearance;
+                let initial_creative = retained
+                    .spec
+                    .captured_creative()
+                    .map_err(|e| e.to_string())?;
+                // Exactly the compositor's candidate predicate, applied to the
+                // hydrated initial view rather than raw/path-based patch IDs.
+                let has_initial_patch = initial_creative
+                    .adjustments()
+                    .get("aiPatches")
+                    .and_then(Value::as_array)
+                    .is_some_and(|patches| {
+                        patches.iter().any(|patch| {
+                            patch
+                                .get("visible")
+                                .and_then(Value::as_bool)
+                                .unwrap_or(true)
+                                && patch
+                                    .get("patchData")
+                                    .and_then(|data| data.get("color"))
+                                    .and_then(Value::as_str)
+                                    .is_some_and(|color| !color.is_empty())
+                        })
+                    });
+                let same_assets = initial
+                    .assets
+                    .as_ref()
+                    .zip(appearance.assets.as_ref())
+                    .is_some_and(|(before, current)| {
+                        before.content_identity() == current.content_identity()
+                    });
+                if Arc::ptr_eq(&initial.source, &appearance.source)
+                    && snapshot
+                        .loaded()
+                        .prepared_source
+                        .as_ref()
+                        .is_some_and(|source| Arc::ptr_eq(source, &appearance.source))
+                    && same_assets
+                    && !has_initial_patch
+                    && !crate::ai_denoise::is_requested(initial.adjustments())
+                    && !crate::ai_denoise::is_requested(initial_creative.adjustments())
+                    && !crate::ai_denoise::is_requested(&self.adjustments)
+                {
+                    self.check()?;
+                    return Ok(PreparedAppearanceBase {
+                        image: std::borrow::Cow::Borrowed(snapshot.initial_appearance()),
+                        source: Arc::clone(&appearance.source),
+                        as_shot: appearance.as_shot(),
+                        kind: PreparedBaseKind::NativeXtransWorking(AppearancePass::AccurateOne),
+                        _appearance: appearance,
+                    });
+                }
+            }
             appearance
                 .render_unpatched_base(AppearancePass::AccurateOne, self.raw_cancel())
                 .map_err(|e| e.to_string())
