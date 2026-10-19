@@ -489,7 +489,9 @@ fn log_preview_projection_refusal(branch: &'static str, key: &str, value: &Value
     // Only short schema identifiers may be named; never serialize values.
     if !key.is_empty()
         && key.len() <= 64
-        && key.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+        && key
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
     {
         log::info!(
             "[preview-projection] branch={} json_type={} key={}",
@@ -1728,10 +1730,8 @@ mod preview_dependency_tests {
     fn preview_projection_legacy_sharpening_metadata_is_inert_and_preserved() {
         // Use the actual complete frontend defaults, not the sparse native
         // default_adjustments() value (which supplies baselineExposure only).
-        let defaults: Value = serde_json::from_str(include_str!(
-            "../../src/utils/defaultAdjustments.json"
-        ))
-        .unwrap();
+        let defaults: Value =
+            serde_json::from_str(include_str!("../../src/utils/defaultAdjustments.json")).unwrap();
         assert_eq!(defaults.as_object().unwrap().len(), 113);
         assert_eq!(defaults["activeTools"], json!({}));
         assert!(defaults.get("sectionVisibility").is_none());
@@ -1748,7 +1748,10 @@ mod preview_dependency_tests {
         assert_eq!(legacy.as_object().unwrap().len(), 116);
         let retained = legacy.clone();
         assert_eq!(preview_cpu_inputs(&legacy).unwrap(), expected);
-        assert_eq!(legacy, retained, "saved metadata is never stripped or rewritten");
+        assert_eq!(
+            legacy, retained,
+            "saved metadata is never stripped or rewritten"
+        );
 
         let mut geometry = legacy.clone();
         geometry["rotation"] = json!(1.0);
