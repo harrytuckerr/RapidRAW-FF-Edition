@@ -8,9 +8,9 @@
 
 Camera profiles, creative colour tools and a growing Android workflow for Fujifilm photographers.
 
-[**Releases**](https://github.com/harrytuckerr/RapidRAW-FF-Edition/releases) · [**Start editing**](#start-editing-on-android) · [**Camera profiles**](#bring-your-own-camera-profiles) · [**Current status**](#where-things-stand) · [**Build & contribute**](#build--contribute)
+[**Download Android v1.6.19**](https://github.com/harrytuckerr/RapidRAW-FF-Edition/releases/download/v1.6.19/RapidRAW-Fujifilm-Edition-1.6.19-android-arm64-debug.apk) · [**Releases**](https://github.com/harrytuckerr/RapidRAW-FF-Edition/releases) · [**Start editing**](#start-editing-on-android) · [**Camera profiles**](#bring-your-own-camera-profiles) · [**Current status**](#where-things-stand) · [**Build & contribute**](#build--contribute)
 
-[![Android arm64 test builds](https://img.shields.io/badge/Android-arm64_test_builds-3c7657?style=flat-square)](https://github.com/harrytuckerr/RapidRAW-FF-Edition/releases)
+[![Android arm64 community builds](https://img.shields.io/badge/Android-arm64_community_builds-3c7657?style=flat-square)](https://github.com/harrytuckerr/RapidRAW-FF-Edition/releases)
 [![AGPL-3.0 license](https://img.shields.io/badge/License-AGPL--3.0-476584?style=flat-square)](LICENSE)
 
 </div>
@@ -38,7 +38,7 @@ Profiles set the starting colour. Your exposure, curves, masks, presets and crea
 
 ## Start editing on Android
 
-1. **Choose a build.** Find an available **Android arm64 APK** in [Releases](https://github.com/harrytuckerr/RapidRAW-FF-Edition/releases). Read its notes: these are debug prereleases.
+1. **Get v1.6.19.** [Download the Android ARM64 APK](https://github.com/harrytuckerr/RapidRAW-FF-Edition/releases/download/v1.6.19/RapidRAW-Fujifilm-Edition-1.6.19-android-arm64-debug.apk). This is a **debug-signed working community build**; read its [release notes](https://github.com/harrytuckerr/RapidRAW-FF-Edition/releases/tag/v1.6.19) before installing. GitHub marks this Android community build as a prerelease.
 2. **Install it.** Open the APK and allow installation from that app if Android asks. Use the offered update for an existing installation.
 3. **Open a photo.** Choose an image or folder through Android’s file picker. Wait for the full preview before sampling the photo.
 4. **Make your edit.** Explore the colour, crop and lens tools. Undo and redo let you revisit your choices.
@@ -60,8 +60,8 @@ See the [profile guide](docs/profiles.md) for pairing and controls; its platform
 
 This is an actively developed fork. Use the latest [release notes](https://github.com/harrytuckerr/RapidRAW-FF-Edition/releases) for the exact build contents and device checks.
 
-- **Android arm64** is the current testing focus; test APKs are debug prereleases.
-- On **1.6.10**, Fold user testing reported that earlier load errors were gone and sliders were responsive. Profile changes could still take **5–10 seconds**; consistently instant profile switching is not promised.
+- **v1.6.19** is a working **Android ARM64 community build**, debug-signed and tested on a **Samsung Fold**. It is published as a prerelease while validation remains Fold-scoped.
+- **User-reported on v1.6.19:** editing and repeated zooming now feel responsive again, with the other reported lag seemingly gone. Initial DCP selection and switching profiles still have noticeable latency and remain a [lower-priority follow-up](https://github.com/harrytuckerr/RapidRAW-FF-Edition/issues/17).
 - The source includes upstream RapidRAW changes through `6e2631ad`, alongside the Fuji RAW path, profiles, Point Colour and guarded preview editing. Each release records its own build, test and device checks.
 
 Recent device validation is **Android-focused**. Desktop features are inherited from upstream; this fork has not received equivalent current desktop validation.
@@ -70,11 +70,14 @@ Auto straighten is a helpful starting point, not a guarantee of a level horizon.
 
 **GPU demosaicing/GPU1 is not accepted.** Capture One performance/quality parity and Adobe Camera Raw parity are unverified; matching their rendering or speed is not promised.
 
+On the later list: [give the white-balance template dropdown the same styling as the editor](https://github.com/harrytuckerr/RapidRAW-FF-Edition/issues/18).
+
 Found something unexpected? [Open an issue](https://github.com/harrytuckerr/RapidRAW-FF-Edition/issues) with the build version, camera, device and steps that reproduce it.
 
 ## Build & contribute
 
 - [Build instructions](docs/BUILD.md) — desktop and isolated Android workflows.
+- [Known CI baseline](https://github.com/harrytuckerr/RapidRAW-FF-Edition/issues/1) — inherited checks remain unresolved; release notes record the scoped local validation.
 - [Profile pipeline](docs/dcp-pipeline.md) — rendering design and known limitations.
 - [Documentation](docs/) — background guides; check dated status notes against this README.
 - [Notices and attribution](NOTICE.md) · [Source license](LICENSE).
