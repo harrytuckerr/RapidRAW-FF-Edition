@@ -53,6 +53,39 @@ const getTransformAdjustments = (adj: Adjustments) => ({
   lensVignetteEnabled: adj.lensVignetteEnabled,
 });
 
+// Native generation returns PNG produced by encode_to_base64_png; verify its
+// bounded envelope here without allocating a second full-photo browser raster.
+function generatedBitmapFields(kind: string, value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid generated bitmap result');
+  const result = value as Record<string, unknown>;
+  const payload = result.maskDataBase64;
+  const prefix = 'data:image/png;base64,';
+  if (typeof payload !== 'string' || !payload.startsWith(prefix) ||
+      !/^iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(payload.slice(prefix.length)) ||
+      payload.slice(prefix.length).length % 4 !== 0 ||
+      (result.mask_data_base64 != null && result.mask_data_base64 !== payload)) {
+    throw new Error('Invalid generated bitmap payload');
+  }
+  if (typeof result.rotation !== 'number' || !Number.isFinite(result.rotation) ||
+      typeof result.flipHorizontal !== 'boolean' || typeof result.flipVertical !== 'boolean' ||
+      typeof result.orientationSteps !== 'number' || !Number.isInteger(result.orientationSteps) ||
+      result.orientationSteps < 0 || result.orientationSteps > 3) {
+    throw new Error('Invalid generated bitmap orientation');
+  }
+  const fields: Record<string, unknown> = {
+    maskDataBase64: payload, rotation: result.rotation,
+    flipHorizontal: result.flipHorizontal, flipVertical: result.flipVertical,
+    orientationSteps: result.orientationSteps,
+  };
+  if (kind === 'ai-subject') {
+    for (const key of ['startX', 'startY', 'endX', 'endY']) {
+      if (typeof result[key] !== 'number' || !Number.isFinite(result[key])) throw new Error('Invalid generated Subject coordinates');
+      fields[key] = result[key];
+    }
+  }
+  return fields;
+}
+
 export function useAiMasking() {
   const { setAdjustments } = useEditorActions();
   const setEditor = useEditorStore((state) => state.setEditor);
@@ -77,20 +110,57 @@ export function useAiMasking() {
     [setAdjustments],
   );
 
+  const completeOrdinaryBitmapMask = (
+    id: string, kind: string, fields: Record<string, unknown>, stillCurrent: () => boolean,
+  ) => {
+    setAdjustments((prev: Adjustments) => {
+      if (!stillCurrent()) return prev;
+      let found = false;
+      const masks = (prev.masks || []).map((container: MaskContainer) => ({
+        ...container,
+        subMasks: container.subMasks.map((sub: SubMask) => {
+          if (sub.id !== id || sub.type !== kind) return sub;
+          found = true;
+          // Merge current user controls, not the request-start snapshot. Replacing
+          // generated data removes old snake/camel aliases atomically.
+          const parameters = { ...(sub.parameters || {}) };
+          delete parameters.mask_data_base64;
+          delete parameters.maskDataBase64;
+          const { bitmapState: _draft, ...completed } = sub;
+          return { ...completed, parameters: { ...parameters, ...fields } };
+        }),
+      }));
+      return found ? { ...prev, masks } : prev; // Never recreate a deleted mask.
+    });
+  };
+
   const handleCancelAiTask = useCallback(
     async (taskId: string) => {
+      const ordinary = useEditorStore.getState().adjustments.masks?.some((container: MaskContainer) =>
+        container.subMasks.some((sub: SubMask) => sub.id === taskId &&
+          ['ai-subject', 'ai-foreground', 'ai-sky', 'ai-depth'].includes(sub.type)),
+      );
+      // Revoke completion ownership at admission, before the native IPC await.
+      // Native cancellation remains ID-addressed, not generation-addressed.
+      const cancelled = useProcessStore.getState().activeAiTasks[taskId];
+      if (ordinary && cancelled && useProcessStore.getState().activeAiTasks[taskId] === cancelled) {
+        unregisterAiTask(taskId);
+      }
       try {
         await invoke(Invokes.CancelAiTask, { taskId });
       } catch (e) {
         console.error('Failed to cancel AI task:', e);
       } finally {
-        unregisterAiTask(taskId);
-        setAdjustments((prev: Adjustments) => ({
-          ...prev,
-          aiPatches: (prev.aiPatches || []).map((p: AiPatch) =>
-            p.id === taskId || p.subMasks.some((sm) => sm.id === taskId) ? { ...p, isLoading: false } : p,
-          ),
-        }));
+        // Ordinary ownership was revoked synchronously; never remove a replacement.
+        if (!ordinary) {
+          unregisterAiTask(taskId);
+          setAdjustments((prev: Adjustments) => ({
+            ...prev,
+            aiPatches: (prev.aiPatches || []).map((p: AiPatch) =>
+              p.id === taskId || p.subMasks.some((sm) => sm.id === taskId) ? { ...p, isLoading: false } : p,
+            ),
+          }));
+        }
       }
     },
     [unregisterAiTask, setAdjustments],
@@ -375,6 +445,11 @@ export function useAiMasking() {
     const binding = captureEditorSource();
     if (!binding || binding.path !== selectedImage.path) return;
     registerAiTask(subMaskId, 'subject');
+    const ordinary = adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId);
+    const generation = ordinary ? useProcessStore.getState().activeAiTasks[subMaskId] : undefined;
+    const ownsGeneration = () => !ordinary || useProcessStore.getState().activeAiTasks[subMaskId] === generation;
+    const isCurrentGeneration = () => isEditorSourceCurrent(binding) && ownsGeneration();
+
 
     try {
       const transformAdjustments = getTransformAdjustments(adjustments);
@@ -394,7 +469,14 @@ export function useAiMasking() {
         taskId: subMaskId,
         ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
       });
-      if (!isEditorSourceCurrent(binding)) return;
+      if (!isCurrentGeneration()) return;
+
+      if (ordinary) {
+        const fields = generatedBitmapFields(ordinary.type, newParameters);
+        completeOrdinaryBitmapMask(subMaskId, ordinary.type, fields, isCurrentGeneration);
+        patchesSentToBackend.delete(subMaskId);
+        return;
+      }
 
       const subMask =
         adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId) ||
@@ -404,12 +486,12 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
-      if (!isEditorSourceCurrent(binding)) return;
+      if (!isCurrentGeneration()) return;
       if (!String(error).includes('cancelled')) {
         toast.error(`AI Mask Failed: ${error}`);
       }
     } finally {
-      unregisterAiTask(subMaskId);
+      if (ownsGeneration()) unregisterAiTask(subMaskId);
     }
   };
 
@@ -419,6 +501,11 @@ export function useAiMasking() {
     const binding = captureEditorSource();
     if (!binding || binding.path !== selectedImage.path) return;
     registerAiTask(subMaskId, 'depth');
+    const ordinary = adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId);
+    const generation = ordinary ? useProcessStore.getState().activeAiTasks[subMaskId] : undefined;
+    const ownsGeneration = () => !ordinary || useProcessStore.getState().activeAiTasks[subMaskId] === generation;
+    const isCurrentGeneration = () => isEditorSourceCurrent(binding) && ownsGeneration();
+
 
     try {
       const transformAdjustments = getTransformAdjustments(adjustments);
@@ -437,7 +524,14 @@ export function useAiMasking() {
         taskId: subMaskId,
         ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
       });
-      if (!isEditorSourceCurrent(binding)) return;
+      if (!isCurrentGeneration()) return;
+
+      if (ordinary) {
+        const fields = generatedBitmapFields(ordinary.type, newParameters);
+        completeOrdinaryBitmapMask(subMaskId, ordinary.type, fields, isCurrentGeneration);
+        patchesSentToBackend.delete(subMaskId);
+        return;
+      }
 
       const subMask =
         adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId) ||
@@ -447,12 +541,12 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
-      if (!isEditorSourceCurrent(binding)) return;
+      if (!isCurrentGeneration()) return;
       if (!String(error).includes('cancelled')) {
         toast.error(`AI Depth Mask Failed: ${error}`);
       }
     } finally {
-      unregisterAiTask(subMaskId);
+      if (ownsGeneration()) unregisterAiTask(subMaskId);
     }
   };
 
@@ -462,6 +556,11 @@ export function useAiMasking() {
     const binding = captureEditorSource();
     if (!binding || binding.path !== selectedImage.path) return;
     registerAiTask(subMaskId, 'foreground');
+    const ordinary = adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId);
+    const generation = ordinary ? useProcessStore.getState().activeAiTasks[subMaskId] : undefined;
+    const ownsGeneration = () => !ordinary || useProcessStore.getState().activeAiTasks[subMaskId] === generation;
+    const isCurrentGeneration = () => isEditorSourceCurrent(binding) && ownsGeneration();
+
 
     try {
       const transformAdjustments = getTransformAdjustments(adjustments);
@@ -474,7 +573,14 @@ export function useAiMasking() {
         taskId: subMaskId,
         ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
       });
-      if (!isEditorSourceCurrent(binding)) return;
+      if (!isCurrentGeneration()) return;
+
+      if (ordinary) {
+        const fields = generatedBitmapFields(ordinary.type, newParameters);
+        completeOrdinaryBitmapMask(subMaskId, ordinary.type, fields, isCurrentGeneration);
+        patchesSentToBackend.delete(subMaskId);
+        return;
+      }
 
       const subMask =
         adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId) ||
@@ -484,12 +590,12 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
-      if (!isEditorSourceCurrent(binding)) return;
+      if (!isCurrentGeneration()) return;
       if (!String(error).includes('cancelled')) {
         toast.error(`AI Foreground Mask Failed: ${error}`);
       }
     } finally {
-      unregisterAiTask(subMaskId);
+      if (ownsGeneration()) unregisterAiTask(subMaskId);
     }
   };
 
@@ -499,6 +605,11 @@ export function useAiMasking() {
     const binding = captureEditorSource();
     if (!binding || binding.path !== selectedImage.path) return;
     registerAiTask(subMaskId, 'sky');
+    const ordinary = adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId);
+    const generation = ordinary ? useProcessStore.getState().activeAiTasks[subMaskId] : undefined;
+    const ownsGeneration = () => !ordinary || useProcessStore.getState().activeAiTasks[subMaskId] === generation;
+    const isCurrentGeneration = () => isEditorSourceCurrent(binding) && ownsGeneration();
+
 
     try {
       const transformAdjustments = getTransformAdjustments(adjustments);
@@ -511,7 +622,14 @@ export function useAiMasking() {
         taskId: subMaskId,
         ...(binding.openKey ? { expectedOpenKey: binding.openKey } : {}),
       });
-      if (!isEditorSourceCurrent(binding)) return;
+      if (!isCurrentGeneration()) return;
+
+      if (ordinary) {
+        const fields = generatedBitmapFields(ordinary.type, newParameters);
+        completeOrdinaryBitmapMask(subMaskId, ordinary.type, fields, isCurrentGeneration);
+        patchesSentToBackend.delete(subMaskId);
+        return;
+      }
 
       const subMask =
         adjustments.masks?.flatMap((m: MaskContainer) => m.subMasks).find((sm: SubMask) => sm.id === subMaskId) ||
@@ -521,12 +639,12 @@ export function useAiMasking() {
       patchesSentToBackend.delete(subMaskId);
       updateSubMask(subMaskId, { parameters: mergedParameters });
     } catch (error) {
-      if (!isEditorSourceCurrent(binding)) return;
+      if (!isCurrentGeneration()) return;
       if (!String(error).includes('cancelled')) {
         toast.error(`AI Sky Mask Failed: ${error}`);
       }
     } finally {
-      unregisterAiTask(subMaskId);
+      if (ownsGeneration()) unregisterAiTask(subMaskId);
     }
   };
 

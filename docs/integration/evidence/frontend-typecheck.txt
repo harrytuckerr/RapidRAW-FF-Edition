@@ -1,1 +1,0 @@
-Fail (pre-existing baseline debt): 70 TypeScript errors. Compared normalized file/error messages against prior integration baseline; identical diagnostics, no new errors.

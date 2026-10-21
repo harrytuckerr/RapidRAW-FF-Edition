@@ -1,5 +1,5 @@
-> **Current integration contract (15 October 2026):** See
-> [the integration report](integration/STATUS-2026-10-15.md). Production selection
+> **Implementation contract:** See the [current checkpoint notes](releases/1.6.27.md)
+> for validation scope and limitations. Production selection
 > uses the shared CPU pipeline; its input is un-white-balanced camera RGB and
 > its output is linear sRGB. Native RGB Looks use the explicitly bounded
 > non-HDR evaluator. Older workstream notes below are historical and do not

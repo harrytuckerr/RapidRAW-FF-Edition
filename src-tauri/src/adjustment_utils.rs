@@ -344,6 +344,65 @@ fn snapshot_validate_ai_parameters(sub: &serde_json::Value) -> Result<(), Snapsh
     result.map_err(|e| SnapshotHydrationError::Invalid(format!("Visible bitmap parameters: {e}")))
 }
 
+// Explicit ordinary-mask draft provenance, never inferred from missing data.
+// The caller removes only validated entries from its request-local clone.
+fn snapshot_is_bitmap_draft(sub: &serde_json::Value) -> Result<bool, SnapshotHydrationError> {
+    let Some(state) = sub.get("bitmapState") else { return Ok(false) };
+    if state.as_str() != Some("draft") {
+        return Err(snapshot_invalid("Invalid bitmap draft state"));
+    }
+    if snapshot_id(sub).is_empty() || !snapshot_bitmap_kind(sub)?
+        || !matches!(sub["type"].as_str(), Some("ai-subject" | "ai-foreground" | "ai-sky" | "ai-depth"))
+    {
+        return Err(snapshot_invalid("Invalid ordinary bitmap draft"));
+    }
+    snapshot_visible(sub)?;
+    if !sub["opacity"].as_f64().is_some_and(|v| v.is_finite() && (0.0..=100.0).contains(&v)) {
+        return Err(snapshot_invalid("Invalid bitmap draft opacity"));
+    }
+    if snapshot_alias(sub)?.is_some() {
+        return Err(snapshot_invalid("Bitmap draft contains completed payload"));
+    }
+    let params = sub["parameters"].as_object().unwrap();
+    let kind = sub["type"].as_str().unwrap();
+    for (key, value) in params {
+        if matches!(key.as_str(), "maskDataBase64" | "mask_data_base64") {
+            // Only absent/null payloads are drafts; even empty strings are errors.
+            if !value.is_null() { return Err(snapshot_invalid("Invalid draft payload")) }
+            continue;
+        }
+        let allowed = match key.as_str() {
+            "grow" | "feather" => true,
+            "startX" | "startY" | "endX" | "endY" => kind == "ai-subject",
+            "minDepth" | "maxDepth" | "minFade" | "maxFade" => kind == "ai-depth",
+            _ => false,
+        };
+        if !allowed || !value.as_f64().is_some_and(|v| v.is_finite() && (v as f32).is_finite()) {
+            return Err(snapshot_invalid("Invalid or completed bitmap draft parameters"));
+        }
+    }
+    Ok(true)
+}
+
+fn snapshot_omit_ordinary_bitmap_drafts(value: &mut serde_json::Value) -> Result<(), SnapshotHydrationError> {
+    if let Some(masks) = value.get_mut("masks").and_then(|v| v.as_array_mut()) {
+        for mask in masks {
+            let hidden_parent = mask["visible"].as_bool() == Some(false);
+            if let Some(subs) = mask.get_mut("subMasks").and_then(|v| v.as_array_mut()) {
+                for index in (0..subs.len()).rev() {
+                    let hidden = hidden_parent || subs[index]["visible"].as_bool() == Some(false);
+                    let draft = snapshot_is_bitmap_draft(&subs[index]);
+                    // Valid hidden drafts are empty too. Other hidden content keeps
+                    // the existing visitor/pruning policy, never new draft errors.
+                    let omit = if hidden { matches!(draft, Ok(true)) } else { draft? };
+                    if omit { subs.remove(index); }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Fresh map for this exact snapshot only. No state/cache/path is accepted.
 /// Canonical camelCase is written because actual AI parameter serde uses it;
 /// a supplied snake alias is preserved and filled with the identical payload.
@@ -362,6 +421,7 @@ pub(crate) fn hydrate_snapshot_adjustments(
             }
         }
     }
+    snapshot_omit_ordinary_bitmap_drafts(&mut value)?;
     if let Some(masks) = value.get_mut("masks").and_then(|v| v.as_array_mut()) {
         masks.retain(|m| {
             m["visible"].as_bool() != Some(false)

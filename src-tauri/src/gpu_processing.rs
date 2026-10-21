@@ -832,6 +832,38 @@ struct GpuProcessorReusable {
     dcp_dummy_tc_view: wgpu::TextureView,
 }
 
+// Single-use fit-to-editor handoff: programs only, never fit data or display.
+pub(crate) struct FitGpuPrograms {
+    device: Arc<wgpu::Device>,
+    queue: Arc<wgpu::Queue>,
+    limits: wgpu::Limits,
+    blur_bgl: wgpu::BindGroupLayout,
+    h_blur_pipeline: wgpu::ComputePipeline,
+    v_blur_pipeline: wgpu::ComputePipeline,
+    flare_bgl_0: wgpu::BindGroupLayout,
+    flare_bgl_1: wgpu::BindGroupLayout,
+    flare_threshold_pipeline: wgpu::ComputePipeline,
+    flare_ghosts_pipeline: wgpu::ComputePipeline,
+    gf_bgl: wgpu::BindGroupLayout,
+    gf_downsample_pipeline: wgpu::ComputePipeline,
+    gf_box_down_pipeline: wgpu::ComputePipeline,
+    gf_blur_h_pipeline: wgpu::ComputePipeline,
+    gf_blur_v_pipeline: wgpu::ComputePipeline,
+    gf_coeffs_pipeline: wgpu::ComputePipeline,
+    gf_pack_pipeline: wgpu::ComputePipeline,
+    main_bgl: wgpu::BindGroupLayout,
+    main_pipeline: wgpu::ComputePipeline,
+    high_precision_entries: Vec<wgpu::BindGroupLayoutEntry>,
+    high_precision_pipeline: std::sync::OnceLock<HighPrecisionPipeline>,
+}
+impl FitGpuPrograms {
+    fn matches_context(&self, context: &GpuContext) -> bool {
+        Arc::ptr_eq(&self.device, &context.device)
+            && Arc::ptr_eq(&self.queue, &context.queue)
+            && self.limits == context.limits
+    }
+}
+
 struct HighPrecisionPipeline {
     bgl: wgpu::BindGroupLayout,
     pipeline: wgpu::ComputePipeline,
@@ -861,15 +893,9 @@ pub(crate) fn high_precision_shader_source() -> String {
 
 const FLARE_MAP_SIZE: u32 = 512;
 
-impl GpuProcessor {
-    pub fn new(context: GpuContext, max_width: u32, max_height: u32) -> Result<Self, String> {
-        #[cfg(debug_assertions)]
-        let _gpu_diag_span = GpuDiagnosticSpan::new("GpuProcessor::new");
-        // Also reject contexts created outside get_or_init_gpu_context before
-        // constructing invalid layouts/pipelines (which wgpu would only log).
-        required_processing_limits(&context.device.limits())?;
+impl FitGpuPrograms {
+    fn new(context: &GpuContext) -> Self {
         let device = &context.device;
-        let queue = &context.queue;
         const MAX_MASK_BINDINGS: u32 = 1;
 
         let blur_shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -942,13 +968,6 @@ impl GpuProcessor {
                 cache: None,
             })
         );
-
-        let blur_params_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Blur Params Buffer"),
-            size: std::mem::size_of::<BlurParams>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
 
         let flare_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Flare Shader"),
@@ -1059,44 +1078,6 @@ impl GpuProcessor {
                 cache: None,
             })
         );
-
-        let flare_params_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Flare Params Buffer"),
-            size: std::mem::size_of::<FlareParams>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let flare_tex_desc = wgpu::TextureDescriptor {
-            label: Some("Flare Tex"),
-            size: wgpu::Extent3d {
-                width: FLARE_MAP_SIZE,
-                height: FLARE_MAP_SIZE,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba16Float,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING,
-            view_formats: &[],
-        };
-
-        let flare_threshold_texture = device.create_texture(&flare_tex_desc);
-        let flare_threshold_view = flare_threshold_texture.create_view(&Default::default());
-        let flare_ghosts_texture = device.create_texture(&flare_tex_desc);
-        let flare_ghosts_view = flare_ghosts_texture.create_view(&Default::default());
-        let flare_final_texture = device.create_texture(&flare_tex_desc);
-        let flare_final_view = flare_final_texture.create_view(&Default::default());
-
-        let flare_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("Flare Sampler"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
 
         let gf_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Guided Filter Shader"),
@@ -1386,6 +1367,119 @@ impl GpuProcessor {
             format: wgpu::TextureFormat::Rgba16Float,
             view_dimension: wgpu::TextureViewDimension::D2,
         };
+        let high_precision_entries = bind_group_layout_entries;
+        let high_precision_pipeline = std::sync::OnceLock::new();
+        Self {
+            device: Arc::clone(&context.device),
+            queue: Arc::clone(&context.queue),
+            limits: context.limits.clone(),
+            blur_bgl,
+            h_blur_pipeline,
+            v_blur_pipeline,
+            flare_bgl_0,
+            flare_bgl_1,
+            flare_threshold_pipeline,
+            flare_ghosts_pipeline,
+            gf_bgl,
+            gf_downsample_pipeline,
+            gf_box_down_pipeline,
+            gf_blur_h_pipeline,
+            gf_blur_v_pipeline,
+            gf_coeffs_pipeline,
+            gf_pack_pipeline,
+            main_bgl,
+            main_pipeline,
+            high_precision_entries,
+            high_precision_pipeline,
+        }
+    }
+}
+
+impl GpuProcessor {
+    pub fn new(context: GpuContext, max_width: u32, max_height: u32) -> Result<Self, String> {
+        Self::with_programs(context, max_width, max_height, None)
+    }
+
+    fn with_programs(
+        context: GpuContext,
+        max_width: u32,
+        max_height: u32,
+        programs: Option<FitGpuPrograms>,
+    ) -> Result<Self, String> {
+        #[cfg(debug_assertions)]
+        let _gpu_diag_span = GpuDiagnosticSpan::new("GpuProcessor::new");
+        // Also reject contexts created outside get_or_init_gpu_context before
+        // constructing invalid layouts/pipelines (which wgpu would only log).
+        required_processing_limits(&context.device.limits())?;
+        let device = &context.device;
+        let queue = &context.queue;
+        let programs = programs.unwrap_or_else(|| FitGpuPrograms::new(&context));
+        let FitGpuPrograms {
+            device: _, queue: _, limits: _,
+            blur_bgl,
+            h_blur_pipeline,
+            v_blur_pipeline,
+            flare_bgl_0,
+            flare_bgl_1,
+            flare_threshold_pipeline,
+            flare_ghosts_pipeline,
+            gf_bgl,
+            gf_downsample_pipeline,
+            gf_box_down_pipeline,
+            gf_blur_h_pipeline,
+            gf_blur_v_pipeline,
+            gf_coeffs_pipeline,
+            gf_pack_pipeline,
+            main_bgl,
+            main_pipeline,
+            high_precision_entries,
+            high_precision_pipeline,
+        } = programs;
+        let blur_params_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Blur Params Buffer"),
+            size: std::mem::size_of::<BlurParams>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let flare_params_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Flare Params Buffer"),
+            size: std::mem::size_of::<FlareParams>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let flare_tex_desc = wgpu::TextureDescriptor {
+            label: Some("Flare Tex"),
+            size: wgpu::Extent3d {
+                width: FLARE_MAP_SIZE,
+                height: FLARE_MAP_SIZE,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba16Float,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING,
+            view_formats: &[],
+        };
+
+        let flare_threshold_texture = device.create_texture(&flare_tex_desc);
+        let flare_threshold_view = flare_threshold_texture.create_view(&Default::default());
+        let flare_ghosts_texture = device.create_texture(&flare_tex_desc);
+        let flare_ghosts_view = flare_ghosts_texture.create_view(&Default::default());
+        let flare_final_texture = device.create_texture(&flare_tex_desc);
+        let flare_final_view = flare_final_texture.create_view(&Default::default());
+
+        let flare_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Flare Sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
         let adjustments_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Adjustments Buffer"),
             size: std::mem::size_of::<AllAdjustments>() as u64,
@@ -1481,8 +1575,8 @@ impl GpuProcessor {
             gf_pack_pipeline,
             main_bgl,
             main_pipeline,
-            high_precision_entries: bind_group_layout_entries,
-            high_precision_pipeline: std::sync::OnceLock::new(),
+            high_precision_entries,
+            high_precision_pipeline,
             adjustments_buffer,
             dummy_blur_view,
             dummy_lut_view,
@@ -1679,6 +1773,56 @@ impl GpuProcessor {
             output_texture,
             output_texture_view,
         })
+    }
+
+    fn into_fit_programs(self) -> FitGpuPrograms {
+        let Self {
+            context,
+            blur_bgl,
+            h_blur_pipeline,
+            v_blur_pipeline,
+            flare_bgl_0,
+            flare_bgl_1,
+            flare_threshold_pipeline,
+            flare_ghosts_pipeline,
+            gf_bgl,
+            gf_downsample_pipeline,
+            gf_box_down_pipeline,
+            gf_blur_h_pipeline,
+            gf_blur_v_pipeline,
+            gf_coeffs_pipeline,
+            gf_pack_pipeline,
+            main_bgl,
+            main_pipeline,
+            high_precision_entries,
+            high_precision_pipeline,
+            ..
+        } = self;
+        // All remaining fields (including fixed textures, uniforms and HP tile)
+        // are dropped before this consuming call returns. Only handles escape.
+        FitGpuPrograms {
+            device: Arc::clone(&context.device),
+            queue: Arc::clone(&context.queue),
+            limits: context.limits.clone(),
+            blur_bgl,
+            h_blur_pipeline,
+            v_blur_pipeline,
+            flare_bgl_0,
+            flare_bgl_1,
+            flare_threshold_pipeline,
+            flare_ghosts_pipeline,
+            gf_bgl,
+            gf_downsample_pipeline,
+            gf_box_down_pipeline,
+            gf_blur_h_pipeline,
+            gf_blur_v_pipeline,
+            gf_coeffs_pipeline,
+            gf_pack_pipeline,
+            main_bgl,
+            main_pipeline,
+            high_precision_entries,
+            high_precision_pipeline,
+        }
     }
 
     fn resized(self, max_width: u32, max_height: u32) -> Result<Self, String> {
@@ -2149,12 +2293,21 @@ impl GpuProcessor {
         let out_width = bounds.width;
         let out_height = bounds.height;
         let mask_layer_count = request.mask_bitmaps.len().clamp(2, MAX_MASKS) as u32;
+        // No shader mask load occurs at count zero. Keep a fresh two-layer
+        // binding, but avoid full-image storage only when no bitmaps exist.
+        let (mask_width, mask_height) =
+            if request.mask_bitmaps.is_empty() && request.adjustments.mask_count == 0 {
+                (1, 1)
+            } else {
+                (width, height)
+            };
         let full_texture_size = wgpu::Extent3d {
-            width,
-            height,
+            width: mask_width,
+            height: mask_height,
             depth_or_array_layers: mask_layer_count,
         };
-        let buffer_size = (width as usize) * (height as usize) * (mask_layer_count as usize);
+        let buffer_size =
+            (mask_width as usize) * (mask_height as usize) * (mask_layer_count as usize);
         let mut mask_texture_data = Vec::with_capacity(buffer_size);
         if request.mask_bitmaps.is_empty() {
             mask_texture_data.resize(buffer_size, 0);
@@ -3737,6 +3890,7 @@ fn isolated_readback_image(
 /// A mutable borrow admits only one render through this owner at a time.
 pub(crate) struct IsolatedCreativeRenderer {
     context: GpuContext,
+    fit_programs: Option<FitGpuPrograms>,
     processor: Option<GpuProcessor>,
     capacity: [u32; 2],
     #[cfg(test)]
@@ -3758,6 +3912,7 @@ impl IsolatedCreativeRenderer {
         };
         Self {
             context: isolated_context,
+            fit_programs: None,
             processor: None,
             capacity: [0, 0],
             #[cfg(test)]
@@ -3766,6 +3921,28 @@ impl IsolatedCreativeRenderer {
             program_builds: 0,
         }
     }
+
+    #[cfg(test)]
+    pub(crate) fn display_retirement_witness_for_test(
+        &self,
+    ) -> std::sync::Weak<std::sync::Mutex<Option<WgpuDisplay>>> {
+        Arc::downgrade(&self.context.display)
+    }
+
+    pub(crate) fn from_fit_programs(context: &GpuContext, programs: Option<FitGpuPrograms>) -> Self {
+        let mut owner = Self::new(context);
+        owner.fit_programs = programs.filter(|programs| programs.matches_context(context));
+        #[cfg(test)]
+        { owner.program_builds = usize::from(owner.fit_programs.is_some()); }
+        owner
+    }
+
+    pub(crate) fn into_fit_programs(self) -> Option<FitGpuPrograms> {
+        self.processor.map(GpuProcessor::into_fit_programs)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn program_build_count(&self) -> usize { self.program_builds }
 
     pub(crate) fn matches_context(&self, context: &GpuContext) -> bool {
         Arc::ptr_eq(&self.context.device, &context.device)
@@ -3856,15 +4033,17 @@ impl IsolatedCreativeRenderer {
             // Same-context growth retains programs/fixed resources, but retires
             // all old sized resources before replacement, outside app locks.
             let previous = self.processor.take();
-            let programs_reused = previous.is_some();
+            let programs = self.fit_programs.take();
+            let programs_reused = previous.is_some() || programs.is_some();
             self.capacity = [0, 0];
             let start = std::time::Instant::now();
             let created = match previous {
                 Some(previous) => previous.resized(layout.padded_width, layout.padded_height),
-                None => GpuProcessor::new(
+                None => GpuProcessor::with_programs(
                     self.context.clone(),
                     layout.padded_width,
                     layout.padded_height,
+                    programs,
                 ),
             };
             log::info!(
@@ -4511,6 +4690,54 @@ mod isolated_creative_tests {
     }
 
     #[test]
+    #[ignore = "requires explicit real GPU inactive-mask parity gate; source-only definition"]
+    fn isolated_empty_zero_mask_matches_full_zero_layers_cold_both_precisions() {
+        let (context, errors) = hardware_context();
+        let image = pattern_image(0);
+        let original = image.as_bytes().to_vec();
+        let (width, height) = image.dimensions();
+        let zero_masks = vec![
+            ImageBuffer::from_pixel(width, height, Luma([0u8])),
+            ImageBuffer::from_pixel(width, height, Luma([0u8])),
+        ];
+        for precision in [
+            RenderOutputPrecision::EightBit,
+            RenderOutputPrecision::SixteenBit,
+        ] {
+            let scope = context
+                .device
+                .push_error_scope(wgpu::ErrorFilter::Validation);
+            let full_request = actual_request(&zero_masks, false);
+            let tiny_request = actual_request(&[], false);
+            assert_eq!(full_request.adjustments.mask_count, 0);
+            assert_eq!(tiny_request.adjustments.mask_count, 0);
+            assert_eq!(full_request.mask_bitmaps.len(), 2);
+            assert!(tiny_request.mask_bitmaps.is_empty());
+            // The existing direct-engine helper constructs a cold processor.
+            // Supplied full-size zero layers force the unchanged allocation path.
+            let expected = reference_engine(&context, &image, full_request, precision);
+            let mut cold = IsolatedCreativeRenderer::new(&context);
+            assert_eq!(cold.processor_build_count(), 0);
+            let result = cold.render(&image, tiny_request, precision);
+            let validation = pollster::block_on(scope.pop());
+            assert!(validation.is_none(), "GPU validation: {validation:?}");
+            let actual = result.unwrap();
+            assert_eq!(cold.processor_build_count(), 1);
+            assert_eq!(actual.color(), expected.color());
+            assert_eq!(actual.dimensions(), expected.dimensions());
+            assert_eq!(actual.as_bytes(), expected.as_bytes());
+            assert_eq!(image.as_bytes(), original);
+            assert!(
+                zero_masks
+                    .iter()
+                    .all(|mask| mask.as_raw().iter().all(|value| *value == 0))
+            );
+            drop(cold); // Next precision also starts without a retained processor.
+        }
+        finish_hardware(&context, &errors);
+    }
+
+    #[test]
     #[ignore = "requires explicit actual GPU allocation/reuse/changed-input gate; source-only definition"]
     fn isolated_processor_reuse_updates_curve_mask_lut_and_grows() {
         let (context, errors) = hardware_context();
@@ -4724,6 +4951,30 @@ mod isolated_creative_tests {
             );
             assert_ne!(p.tile_output_size, small_tile);
         }
+        // A second owner receives only immutable programs; all data resources
+        // from the first owner are consumed/dropped before this constructor.
+        let programs = owner.into_fit_programs().expect("actual rendered processor");
+        let mut adopted = IsolatedCreativeRenderer::from_fit_programs(&context, Some(programs));
+        assert!(adopted.processor.is_none());
+        assert_eq!(adopted.capacity, [0, 0]);
+        let next = DynamicImage::ImageRgb32F(image::Rgb32FImage::from_fn(2305, 37, |x, y| {
+            image::Rgb([0.13 + (y % 9) as f32 / 30.0, 0.07 + (x % 19) as f32 / 40.0, 0.31])
+        }));
+        let next_before = next.as_bytes().to_vec();
+        let mut next_cold = IsolatedCreativeRenderer::new(&context);
+        for precision in [RenderOutputPrecision::EightBit, RenderOutputPrecision::SixteenBit] {
+            let actual = adopted.render(&next, changed(), precision).unwrap();
+            let expected = next_cold.render(&next, changed(), precision).unwrap();
+            let neutral = next_cold.render(&next, actual_request(&[], false), precision).unwrap();
+            assert_eq!(actual.dimensions(), expected.dimensions());
+            assert_eq!(actual.color(), expected.color());
+            assert_eq!(actual.as_bytes(), expected.as_bytes());
+            assert_ne!(actual.as_bytes(), neutral.as_bytes());
+            assert_eq!(adopted.program_builds, 1, "one cumulative program construction");
+            assert_eq!(adopted.processor_build_count(), 1, "fresh data allocated once");
+            assert_eq!(program_handles(adopted.processor.as_ref().unwrap()), before);
+        }
+        assert_eq!(next.as_bytes(), next_before);
         assert_eq!(larger.as_bytes(), input_before);
         let validation = pollster::block_on(scope.pop());
         assert!(validation.is_none(), "GPU validation: {validation:?}");

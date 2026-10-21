@@ -2,7 +2,7 @@
 
 This edition combines the fork's Cobalt and Fuji work with upstream RapidRAW through `6e2631ad0885fcc7622c95d1d18a6f9146b96b91`. The RAW dependency is pinned to the public [Fuji RAW source](https://github.com/harrytuckerr/RapidRAW-DngLab/tree/43457211d28f11362932ec3e5602d7142a174722), revision `43457211d28f11362932ec3e5602d7142a174722`; no private checkout override is required.
 
-Use the source archive and checksums attached to an APK release for that build's exact inputs and validation scope. Dated files in `docs/integration/` describe earlier checkpoints and are not current release acceptance.
+Use the source archive and checksums attached to an APK release for that build's exact inputs and validation scope. Internal operational receipts are not part of the public source bundle. Release notes distinguish fresh validation, retained checks and known failures.
 
 All shell blocks below start from the repository root. Run Rust commands from `src-tauri`, or prefix them with `cargo +1.98`; `--manifest-path` alone does not select the nested toolchain in `src-tauri/rust-toolchain.toml`. Each Rust block changes into `src-tauri` once, so start the next block again from the repository root.
 
@@ -56,7 +56,7 @@ python3 scripts/android-build.py build \
 
 `prepare` copies the source and the reviewed lock bundle into the isolated workspace. Review its source and lock receipts before building. Do not use `resolve` for routine builds: use it only for a deliberate dependency-lock update that will be reviewed and frozen. Do not run Cargo dependency updates against the desktop lockfile to make Android resolve.
 
-The build script does not install the APK. Runtime evidence must record the device ID, Android/API and WebView versions, renderer/backend where available, APK hash, and the actions actually exercised. Physical Fold launch, visible UI and basic adjustments are **Pass — user-reported**. Physical profile import/use, persistence and export are **Not exercised**. The API 33 SwiftShader preview hang remains a historical emulator failure in the [integration status](integration/STATUS-2026-10-15.md); it is not a physical-device result. Never clear app data to hide a migration failure.
+The build script does not install the APK. Runtime evidence must record the device ID, Android/API and WebView versions, renderer/backend where available, APK hash, and the actions actually exercised. Record only actions actually exercised for the build being distributed. A successful package build or install does not establish profile import, persistence, export, speed or crash acceptance. A historical API 33 SwiftShader preview hang is an emulator result, not a physical-device result. See the current [checkpoint notes](releases/1.6.27.md) for the Fold-scoped validation and unresolved limitations. Never clear app data to hide a migration failure.
 
 ## Synthetic profile fixture
 

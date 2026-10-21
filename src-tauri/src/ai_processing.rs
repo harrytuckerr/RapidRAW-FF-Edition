@@ -67,12 +67,9 @@ const NORMAL_MAX_SIZE: u32 = 768;
 const NORMAL_NUM_TOKENS: i64 = 2500;
 const NORMAL_SHA256: &str = "24eacb5dc7a2c54c7bc98f7de085ffbed79ad006ea5b664c2c2cdc02ff3a52f0";
 
-pub struct AiModels {
+pub struct SamModels {
     pub sam_encoder: Mutex<Session>,
     pub sam_decoder: Mutex<Session>,
-    pub u2netp: Mutex<Session>,
-    pub sky_seg: Mutex<Session>,
-    pub depth_anything: Mutex<Session>,
 }
 
 pub struct ClipModels {
@@ -95,7 +92,10 @@ pub struct CachedDepthMap {
 }
 
 pub struct AiState {
-    pub models: Option<Arc<AiModels>>,
+    pub models: Option<Arc<SamModels>>,
+    pub foreground_model: Option<Arc<Mutex<Session>>>,
+    pub sky_model: Option<Arc<Mutex<Session>>>,
+    pub depth_model: Option<Arc<Mutex<Session>>>,
     pub denoise_model: Option<Arc<Mutex<Session>>>,
     pub clip_models: Option<Arc<ClipModels>>,
     pub lama_model: Option<Arc<Mutex<Session>>>,
@@ -252,6 +252,8 @@ pub fn fast_guided_filter(
             *ii_out = i_val * i_val;
         });
 
+    drop(guide_lr);
+
     let mut temp1 = vec![0.0; area];
     let mut temp2 = vec![0.0; area];
 
@@ -261,9 +263,13 @@ pub fn fast_guided_filter(
     let mut mean_ii = vec![0.0; area];
 
     box_filter_opt(&i_lr, &mut mean_i, &mut temp1, &mut temp2, w, h, r);
+    drop(i_lr);
     box_filter_opt(&p_lr, &mut mean_p, &mut temp1, &mut temp2, w, h, r);
+    drop(p_lr);
     box_filter_opt(&ip_lr, &mut mean_ip, &mut temp1, &mut temp2, w, h, r);
+    drop(ip_lr);
     box_filter_opt(&ii_lr, &mut mean_ii, &mut temp1, &mut temp2, w, h, r);
+    drop(ii_lr);
 
     let mut a = vec![0.0; area];
     let mut b = vec![0.0; area];
@@ -282,17 +288,23 @@ pub fn fast_guided_filter(
             *b_out = m_p - a_val * m_i;
         });
 
+    drop((mean_i, mean_p, mean_ip, mean_ii));
+
     let mut mean_a = vec![0.0; area];
     let mut mean_b = vec![0.0; area];
 
     box_filter_opt(&a, &mut mean_a, &mut temp1, &mut temp2, w, h, r);
+    drop(a);
     box_filter_opt(&b, &mut mean_b, &mut temp1, &mut temp2, w, h, r);
+    drop((b, temp1, temp2));
 
     let mean_a_img = ImageBuffer::<Luma<f32>, Vec<f32>>::from_raw(lr_w, lr_h, mean_a).unwrap();
     let mean_b_img = ImageBuffer::<Luma<f32>, Vec<f32>>::from_raw(lr_w, lr_h, mean_b).unwrap();
 
     let mean_a_hr = imageops::resize(&mean_a_img, hr_w, hr_h, FilterType::Triangle);
+    drop(mean_a_img);
     let mean_b_hr = imageops::resize(&mean_b_img, hr_w, hr_h, FilterType::Triangle);
+    drop(mean_b_img);
 
     let mean_a_hr_raw = mean_a_hr.as_raw();
     let mean_b_hr_raw = mean_b_hr.as_raw();
@@ -452,17 +464,98 @@ async fn download_and_verify_model(
     Ok(())
 }
 
-pub async fn get_or_init_ai_models(
+// Diagnostic-only Subject stages. No source identifiers or pixel owners are retained.
+// All call sites pass closed literals. Zero dimensions mean unavailable.
+pub(crate) struct SubjectStage {
+    #[cfg(debug_assertions)]
+    data: Option<(u64, &'static str, u8, u32, u32, &'static str, std::time::Instant)>,
+}
+impl SubjectStage {
+    pub(crate) fn sequence() -> Option<u64> {
+        #[cfg(debug_assertions)]
+        {
+            static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+            Some(NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+        }
+        #[cfg(not(debug_assertions))]
+        { None }
+    }
+    pub(crate) fn enter(seq: Option<u64>, stage: &'static str, dims: (u32, u32), iteration: u8) -> Self {
+        #[cfg(debug_assertions)]
+        {
+            let value = Self { data: seq.map(|seq| (seq, stage, iteration, dims.0, dims.1, "incomplete", std::time::Instant::now())) };
+            value.record("enter", "pending");
+            value
+        }
+        #[cfg(not(debug_assertions))]
+        { let _ = (seq, stage, dims, iteration); Self {} }
+    }
+    pub(crate) fn mark(&mut self, outcome: &'static str, dims: (u32, u32)) {
+        #[cfg(debug_assertions)]
+        if let Some(data) = self.data.as_mut() { data.3 = dims.0; data.4 = dims.1; data.5 = outcome; }
+        #[cfg(not(debug_assertions))]
+        let _ = (outcome, dims);
+    }
+    #[cfg(debug_assertions)]
+    fn record(&self, boundary: &'static str, outcome: &'static str) {
+        let Some((seq, stage, iteration, width, height, _, start)) = self.data.as_ref() else { return };
+        let (rss, swap) = Self::memory();
+        log::info!("[subject-stage] seq={} stage={} boundary={} outcome={} elapsed_ns={} width={} height={} iteration={} vmrss_kb={} vmswap_kb={}",
+            seq, stage, boundary, outcome, start.elapsed().as_nanos(), width, height, iteration,
+            rss.map(|v| v.to_string()).unwrap_or_else(|| "unavailable".into()),
+            swap.map(|v| v.to_string()).unwrap_or_else(|| "unavailable".into()));
+    }
+    #[cfg(debug_assertions)]
+    fn memory() -> (Option<u64>, Option<u64>) {
+        #[cfg(target_os = "android")]
+        {
+            let Ok(mut file) = std::fs::File::open("/proc/self/status") else { return (None, None) };
+            let mut bytes = [0u8; 8192];
+            let Ok(len) = std::io::Read::read(&mut file, &mut bytes) else { return (None, None) };
+            let Ok(text) = std::str::from_utf8(&bytes[..len]) else { return (None, None) };
+            let field = |name: &str| text.lines().find_map(|line| {
+                let rest = line.strip_prefix(name)?;
+                let mut parts = rest.split_whitespace();
+                let value = parts.next()?.parse::<u64>().ok()?;
+                (parts.next() == Some("kB") && parts.next().is_none()).then_some(value)
+            });
+            (field("VmRSS:"), field("VmSwap:"))
+        }
+        #[cfg(not(target_os = "android"))]
+        { (None, None) }
+    }
+}
+impl Drop for SubjectStage {
+    fn drop(&mut self) {
+        #[cfg(debug_assertions)]
+        if let Some(data) = self.data.as_ref() {
+            self.record("exit", if std::thread::panicking() { "unwinding" } else { data.5 });
+        }
+    }
+}
+
+pub async fn get_or_init_sam_models(
     app_handle: &tauri::AppHandle,
     ai_state_mutex: &Mutex<Option<AiState>>,
     ai_init_lock: &TokioMutex<()>,
-) -> Result<Arc<AiModels>> {
+) -> Result<Arc<SamModels>> {
+    get_or_init_sam_models_traced(app_handle, ai_state_mutex, ai_init_lock, None).await
+}
+
+pub(crate) async fn get_or_init_sam_models_traced(
+    app_handle: &tauri::AppHandle,
+    ai_state_mutex: &Mutex<Option<AiState>>,
+    ai_init_lock: &TokioMutex<()>,
+    subject_trace: Option<u64>,
+) -> Result<Arc<SamModels>> {
+    let mut subject_models = SubjectStage::enter(subject_trace, "models", (0, 0), 0);
     if let Some(models) = ai_state_mutex
         .lock()
         .unwrap()
         .as_ref()
         .and_then(|state| state.models.clone())
     {
+        subject_models.mark("reused", (0, 0));
         return Ok(models);
     }
 
@@ -474,6 +567,7 @@ pub async fn get_or_init_ai_models(
         .as_ref()
         .and_then(|state| state.models.clone())
     {
+        subject_models.mark("reused", (0, 0));
         return Ok(models);
     }
 
@@ -497,56 +591,26 @@ pub async fn get_or_init_ai_models(
         "SAM Decoder",
     )
     .await?;
-    download_and_verify_model(
-        app_handle,
-        &models_dir,
-        U2NETP_FILENAME,
-        U2NETP_URL,
-        U2NETP_SHA256,
-        "Foreground Model",
-    )
-    .await?;
-    download_and_verify_model(
-        app_handle,
-        &models_dir,
-        SKYSEG_FILENAME,
-        SKYSEG_URL,
-        SKYSEG_SHA256,
-        "Sky Model",
-    )
-    .await?;
-    download_and_verify_model(
-        app_handle,
-        &models_dir,
-        DEPTH_FILENAME,
-        DEPTH_URL,
-        DEPTH_SHA256,
-        "Depth Model",
-    )
-    .await?;
 
     let _ = ort::init().with_name("AI").commit();
 
     let encoder_path = models_dir.join(ENCODER_FILENAME);
     let decoder_path = models_dir.join(DECODER_FILENAME);
-    let u2netp_path = models_dir.join(U2NETP_FILENAME);
-    let sky_seg_path = models_dir.join(SKYSEG_FILENAME);
-    let depth_path = models_dir.join(DEPTH_FILENAME);
 
+    let mut subject_load = SubjectStage::enter(subject_trace, "load_sam_encoder", (0, 0), 0);
     let sam_encoder = Session::builder()?.commit_from_file(encoder_path)?;
+    subject_load.mark("completed", (0, 0));
+    drop(subject_load);
+    let mut subject_load = SubjectStage::enter(subject_trace, "load_sam_decoder", (0, 0), 0);
     let sam_decoder = Session::builder()?.commit_from_file(decoder_path)?;
-    let u2netp = Session::builder()?.commit_from_file(u2netp_path)?;
-    let sky_seg = Session::builder()?.commit_from_file(sky_seg_path)?;
-    let depth_anything = Session::builder()?.commit_from_file(depth_path)?;
+    subject_load.mark("completed", (0, 0));
+    drop(subject_load);
 
     crate::register_exit_handler();
 
-    let models = Arc::new(AiModels {
+    let models = Arc::new(SamModels {
         sam_encoder: Mutex::new(sam_encoder),
         sam_decoder: Mutex::new(sam_decoder),
-        u2netp: Mutex::new(u2netp),
-        sky_seg: Mutex::new(sky_seg),
-        depth_anything: Mutex::new(depth_anything),
     });
 
     let mut ai_state_lock = ai_state_mutex.lock().unwrap();
@@ -555,6 +619,9 @@ pub async fn get_or_init_ai_models(
     } else {
         *ai_state_lock = Some(AiState {
             models: Some(models.clone()),
+            foreground_model: None,
+            sky_model: None,
+            depth_model: None,
             denoise_model: None,
             clip_models: None,
             lama_model: None,
@@ -564,7 +631,84 @@ pub async fn get_or_init_ai_models(
         });
     }
 
+    subject_models.mark("cold_completed", (0, 0));
     Ok(models)
+}
+
+#[derive(Clone, Copy)]
+pub enum AiMaskModelFamily {
+    Foreground,
+    Sky,
+    Depth,
+}
+
+pub async fn get_or_init_mask_model(
+    app_handle: &tauri::AppHandle,
+    ai_state_mutex: &Mutex<Option<AiState>>,
+    ai_init_lock: &TokioMutex<()>,
+    family: AiMaskModelFamily,
+) -> Result<Arc<Mutex<Session>>> {
+    let cached = |state: &AiState| match family {
+        AiMaskModelFamily::Foreground => state.foreground_model.clone(),
+        AiMaskModelFamily::Sky => state.sky_model.clone(),
+        AiMaskModelFamily::Depth => state.depth_model.clone(),
+    };
+    if let Some(model) = ai_state_mutex.lock().unwrap().as_ref().and_then(&cached) {
+        return Ok(model);
+    }
+
+    let _guard = ai_init_lock.lock().await;
+    if let Some(model) = ai_state_mutex.lock().unwrap().as_ref().and_then(&cached) {
+        return Ok(model);
+    }
+
+    let (filename, url, sha256, label) = match family {
+        AiMaskModelFamily::Foreground => (
+            U2NETP_FILENAME,
+            U2NETP_URL,
+            U2NETP_SHA256,
+            "Foreground Model",
+        ),
+        AiMaskModelFamily::Sky => (
+            SKYSEG_FILENAME,
+            SKYSEG_URL,
+            SKYSEG_SHA256,
+            "Sky Model",
+        ),
+        AiMaskModelFamily::Depth => (
+            DEPTH_FILENAME,
+            DEPTH_URL,
+            DEPTH_SHA256,
+            "Depth Model",
+        ),
+    };
+    let models_dir = get_models_dir(app_handle)?;
+    download_and_verify_model(app_handle, &models_dir, filename, url, sha256, label).await?;
+    let _ = ort::init().with_name("AI").commit();
+    let session = Session::builder()?.commit_from_file(models_dir.join(filename))?;
+    let model = Arc::new(Mutex::new(session));
+    crate::register_exit_handler();
+
+    let mut ai_state_lock = ai_state_mutex.lock().unwrap();
+    let state = ai_state_lock.get_or_insert_with(|| AiState {
+        models: None,
+        foreground_model: None,
+        sky_model: None,
+        depth_model: None,
+        denoise_model: None,
+        clip_models: None,
+        lama_model: None,
+        normal_model: None,
+        embeddings: None,
+        depth_map: None,
+    });
+    let slot = match family {
+        AiMaskModelFamily::Foreground => &mut state.foreground_model,
+        AiMaskModelFamily::Sky => &mut state.sky_model,
+        AiMaskModelFamily::Depth => &mut state.depth_model,
+    };
+    *slot = Some(Arc::clone(&model));
+    Ok(model)
 }
 
 pub async fn get_or_init_denoise_model(
@@ -616,6 +760,9 @@ pub async fn get_or_init_denoise_model(
     } else {
         *ai_state_lock = Some(AiState {
             models: None,
+            foreground_model: None,
+            sky_model: None,
+            depth_model: None,
             denoise_model: Some(denoise_model.clone()),
             clip_models: None,
             lama_model: None,
@@ -689,6 +836,9 @@ pub async fn get_or_init_clip_models(
     } else {
         *ai_state_lock = Some(AiState {
             models: None,
+            foreground_model: None,
+            sky_model: None,
+            depth_model: None,
             denoise_model: None,
             clip_models: Some(clip_models.clone()),
             lama_model: None,
@@ -750,6 +900,9 @@ pub async fn get_or_init_lama_model(
     } else {
         *ai_state_lock = Some(AiState {
             models: None,
+            foreground_model: None,
+            sky_model: None,
+            depth_model: None,
             denoise_model: None,
             clip_models: None,
             lama_model: Some(lama_model.clone()),
@@ -811,6 +964,9 @@ pub async fn get_or_init_normal_model(
     } else {
         *ai_state_lock = Some(AiState {
             models: None,
+            foreground_model: None,
+            sky_model: None,
+            depth_model: None,
             denoise_model: None,
             clip_models: None,
             lama_model: None,
@@ -1147,6 +1303,15 @@ pub fn generate_image_embeddings(
     image: &DynamicImage,
     encoder: &Mutex<Session>,
 ) -> Result<ImageEmbeddings> {
+    generate_image_embeddings_traced(image, encoder, None)
+}
+
+pub(crate) fn generate_image_embeddings_traced(
+    image: &DynamicImage,
+    encoder: &Mutex<Session>,
+    subject_trace: Option<u64>,
+) -> Result<ImageEmbeddings> {
+    let mut subject_encoder = SubjectStage::enter(subject_trace, "encoder", (image.width(), image.height()), 0);
     let (orig_width, orig_height) = image.dimensions();
 
     let long_side = orig_width.max(orig_height) as f32;
@@ -1180,6 +1345,8 @@ pub fn generate_image_embeddings(
 
     let embeddings = outputs[0].try_extract_array::<f32>()?.to_owned();
 
+    // Drop logs after the later-declared encoder session guard has been released.
+    subject_encoder.mark("completed", (actual_width, actual_height));
     Ok(ImageEmbeddings {
         path_hash: "".to_string(),
         embeddings: embeddings.into_dyn(),
@@ -1193,6 +1360,17 @@ pub fn run_sam_decoder(
     start_point: (f64, f64),
     end_point: (f64, f64),
     original_image: Option<&DynamicImage>,
+) -> Result<GrayImage> {
+    run_sam_decoder_traced(decoder, embeddings, start_point, end_point, original_image, None)
+}
+
+pub(crate) fn run_sam_decoder_traced(
+    decoder: &Mutex<Session>,
+    embeddings: &ImageEmbeddings,
+    start_point: (f64, f64),
+    end_point: (f64, f64),
+    original_image: Option<&DynamicImage>,
+    subject_trace: Option<u64>,
 ) -> Result<GrayImage> {
     let (orig_width, orig_height) = embeddings.original_size;
     let long_side = orig_width.max(orig_height) as f64;
@@ -1260,6 +1438,7 @@ pub fn run_sam_decoder(
         let t_orig_im_size =
             Tensor::from_array(orig_im_size.clone().as_standard_layout().into_owned())?;
 
+        let mut subject_iteration = SubjectStage::enter(subject_trace, "decoder_iteration", (orig_width, orig_height), i as u8 + 1);
         let mask_tensor = {
             let mut session = decoder.lock().unwrap();
             let outputs = session.run(ort::inputs![
@@ -1277,6 +1456,8 @@ pub fn run_sam_decoder(
         let h = mask_dims[2];
         let w = mask_dims[3];
         let area = h * w;
+        subject_iteration.mark("completed", (w as u32, h as u32));
+        drop(subject_iteration); // The existing inner decoder session guard is already gone.
 
         let mask_slice = mask_tensor.as_slice().unwrap();
         let first_mask_slice = &mask_slice[0..area];
@@ -1416,6 +1597,7 @@ pub fn run_sam_decoder(
 
     if let Some(img) = original_image {
         let (orig_width, orig_height) = img.dimensions();
+        let mut subject_refinement = SubjectStage::enter(subject_trace, "refinement", (orig_width, orig_height), 0);
         let guide_hr = img.to_luma8();
 
         let long_edge = orig_width.max(orig_height) as f32;
@@ -1426,14 +1608,18 @@ pub fn run_sam_decoder(
 
         let feathered_coarse_mask = image::imageops::blur(&resized_coarse_mask, radius / 3.0);
 
+        let mut subject_guided = SubjectStage::enter(subject_trace, "guided_filter", (orig_width, orig_height), 0);
         let mut refined_mask =
             fast_guided_filter(&guide_hr, &feathered_coarse_mask, radius as usize, 0.01);
+        subject_guided.mark("completed", (orig_width, orig_height));
+        drop(subject_guided);
 
         for p in refined_mask.pixels_mut() {
             let v = p[0] as f32 / 255.0;
             p[0] = (((v - 0.03) / 0.94).clamp(0.0, 1.0) * 255.0).round() as u8;
         }
 
+        subject_refinement.mark("completed", (orig_width, orig_height));
         Ok(refined_mask)
     } else {
         let feathered_mask = image::imageops::blur(&gray_mask, 2.0);
@@ -1880,4 +2066,135 @@ pub struct AiDepthMaskParameters {
     pub flip_vertical: Option<bool>,
     #[serde(default)]
     pub orientation_steps: Option<u8>,
+}
+
+#[cfg(test)]
+mod subject_guided_memory_tests {
+    use super::*;
+
+    // Frozen shipped2a7 implementation: independent old-output oracle.
+    fn shipped_reference(
+        guide_hr: &GrayImage,
+        mask_lr: &GrayImage,
+        r: usize,
+        eps: f32,
+    ) -> GrayImage {
+        let (hr_w, hr_h) = guide_hr.dimensions();
+        let (lr_w, lr_h) = mask_lr.dimensions();
+
+        let w = lr_w as usize;
+        let h = lr_h as usize;
+        let area = w * h;
+
+        let guide_lr = imageops::resize(guide_hr, lr_w, lr_h, FilterType::Triangle);
+
+        let mut i_lr = vec![0.0; area];
+        let mut p_lr = vec![0.0; area];
+        let mut ip_lr = vec![0.0; area];
+        let mut ii_lr = vec![0.0; area];
+
+        let guide_lr_raw = guide_lr.as_raw();
+        let mask_lr_raw = mask_lr.as_raw();
+
+        i_lr.par_iter_mut()
+            .zip(p_lr.par_iter_mut())
+            .zip(ip_lr.par_iter_mut())
+            .zip(ii_lr.par_iter_mut())
+            .zip(guide_lr_raw.par_iter())
+            .zip(mask_lr_raw.par_iter())
+            .for_each(|(((((i_out, p_out), ip_out), ii_out), &g_val), &m_val)| {
+                let i_val = g_val as f32 / 255.0;
+                let p_val = m_val as f32 / 255.0;
+                *i_out = i_val;
+                *p_out = p_val;
+                *ip_out = i_val * p_val;
+                *ii_out = i_val * i_val;
+            });
+
+        let mut temp1 = vec![0.0; area];
+        let mut temp2 = vec![0.0; area];
+
+        let mut mean_i = vec![0.0; area];
+        let mut mean_p = vec![0.0; area];
+        let mut mean_ip = vec![0.0; area];
+        let mut mean_ii = vec![0.0; area];
+
+        box_filter_opt(&i_lr, &mut mean_i, &mut temp1, &mut temp2, w, h, r);
+        box_filter_opt(&p_lr, &mut mean_p, &mut temp1, &mut temp2, w, h, r);
+        box_filter_opt(&ip_lr, &mut mean_ip, &mut temp1, &mut temp2, w, h, r);
+        box_filter_opt(&ii_lr, &mut mean_ii, &mut temp1, &mut temp2, w, h, r);
+
+        let mut a = vec![0.0; area];
+        let mut b = vec![0.0; area];
+
+        a.par_iter_mut()
+            .zip(b.par_iter_mut())
+            .zip(mean_i.par_iter())
+            .zip(mean_p.par_iter())
+            .zip(mean_ip.par_iter())
+            .zip(mean_ii.par_iter())
+            .for_each(|(((((a_out, b_out), &m_i), &m_p), &m_ip), &m_ii)| {
+                let cov_ip = m_ip - m_i * m_p;
+                let var_i = m_ii - m_i * m_i;
+                let a_val = cov_ip / (var_i + eps);
+                *a_out = a_val;
+                *b_out = m_p - a_val * m_i;
+            });
+
+        let mut mean_a = vec![0.0; area];
+        let mut mean_b = vec![0.0; area];
+
+        box_filter_opt(&a, &mut mean_a, &mut temp1, &mut temp2, w, h, r);
+        box_filter_opt(&b, &mut mean_b, &mut temp1, &mut temp2, w, h, r);
+
+        let mean_a_img = ImageBuffer::<Luma<f32>, Vec<f32>>::from_raw(lr_w, lr_h, mean_a).unwrap();
+        let mean_b_img = ImageBuffer::<Luma<f32>, Vec<f32>>::from_raw(lr_w, lr_h, mean_b).unwrap();
+
+        let mean_a_hr = imageops::resize(&mean_a_img, hr_w, hr_h, FilterType::Triangle);
+        let mean_b_hr = imageops::resize(&mean_b_img, hr_w, hr_h, FilterType::Triangle);
+
+        let mean_a_hr_raw = mean_a_hr.as_raw();
+        let mean_b_hr_raw = mean_b_hr.as_raw();
+        let guide_hr_raw = guide_hr.as_raw();
+
+        let mut final_mask_raw = vec![0u8; (hr_w * hr_h) as usize];
+
+        final_mask_raw
+            .par_iter_mut()
+            .zip(mean_a_hr_raw.par_iter())
+            .zip(mean_b_hr_raw.par_iter())
+            .zip(guide_hr_raw.par_iter())
+            .for_each(|(((out, &a_val), &b_val), &i_val)| {
+                let i_v = i_val as f32 / 255.0;
+                let q = a_val * i_v + b_val;
+                *out = (q.clamp(0.0, 1.0) * 255.0).round() as u8;
+            });
+
+        GrayImage::from_raw(hr_w, hr_h, final_mask_raw).unwrap()
+    }
+
+    #[test]
+    fn guided_filter_early_drops_match_shipped_bytes() {
+        for (gw, gh, mw, mh, radius) in [
+            (37, 29, 37, 29, 3),
+            (37, 29, 17, 13, 4),
+            (19, 23, 19, 23, 8),
+        ] {
+            let guide = GrayImage::from_fn(gw, gh, |x, y| {
+                Luma([((x * 37 + y * 19 + x * y * 3) % 256) as u8])
+            });
+            let mask = GrayImage::from_fn(mw, mh, |x, y| {
+                Luma([((x * 11 + y * 53 + (x ^ y) * 7) % 256) as u8])
+            });
+            let guide_before = guide.clone();
+            let mask_before = mask.clone();
+            let expected = shipped_reference(&guide, &mask, radius, 0.01);
+            let actual = fast_guided_filter(&guide, &mask, radius, 0.01);
+            assert_eq!(actual.dimensions(), guide.dimensions());
+            assert_eq!(actual.dimensions(), expected.dimensions());
+            assert_eq!(actual.as_raw(), expected.as_raw());
+            assert_eq!(guide, guide_before);
+            assert_eq!(mask, mask_before);
+        }
+    }
 }

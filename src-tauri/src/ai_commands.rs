@@ -7,8 +7,9 @@ use image::{GrayImage, ImageFormat};
 
 use crate::ai_connector;
 use crate::ai_processing::{
-    AiDepthMaskParameters, AiForegroundMaskParameters, AiSkyMaskParameters,
-    AiSubjectMaskParameters, CachedDepthMap, generate_image_embeddings, get_or_init_ai_models,
+    AiDepthMaskParameters, AiForegroundMaskParameters, AiMaskModelFamily, AiSkyMaskParameters,
+    AiSubjectMaskParameters, CachedDepthMap, generate_image_embeddings, get_or_init_mask_model,
+    get_or_init_sam_models,
     run_depth_anything_model, run_sam_decoder, run_sky_seg_model, run_u2netp_model,
 };
 use crate::app_settings::load_settings;
@@ -76,9 +77,14 @@ pub async fn generate_ai_foreground_mask(
         return Err("Task cancelled".to_string());
     }
 
-    let models_result = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
-        .await
-        .map_err(|e| e.to_string());
+    let models_result = get_or_init_mask_model(
+        &app_handle,
+        &state.ai_state,
+        &state.ai_init_lock,
+        AiMaskModelFamily::Foreground,
+    )
+    .await
+    .map_err(|e| e.to_string());
     request.check()?;
     let models = models_result?;
 
@@ -95,7 +101,7 @@ pub async fn generate_ai_foreground_mask(
     }
 
     let full_mask_result =
-        run_u2netp_model(warped_image.as_ref(), &models.u2netp).map_err(|e| e.to_string());
+        run_u2netp_model(warped_image.as_ref(), models.as_ref()).map_err(|e| e.to_string());
     request.check()?;
     let full_mask_image = full_mask_result?;
 
@@ -145,9 +151,14 @@ pub async fn generate_ai_sky_mask(
         return Err("Task cancelled".to_string());
     }
 
-    let models_result = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
-        .await
-        .map_err(|e| e.to_string());
+    let models_result = get_or_init_mask_model(
+        &app_handle,
+        &state.ai_state,
+        &state.ai_init_lock,
+        AiMaskModelFamily::Sky,
+    )
+    .await
+    .map_err(|e| e.to_string());
     request.check()?;
     let models = models_result?;
 
@@ -164,7 +175,7 @@ pub async fn generate_ai_sky_mask(
     }
 
     let full_mask_result =
-        run_sky_seg_model(warped_image.as_ref(), &models.sky_seg).map_err(|e| e.to_string());
+        run_sky_seg_model(warped_image.as_ref(), models.as_ref()).map_err(|e| e.to_string());
     request.check()?;
     let full_mask_image = full_mask_result?;
 
@@ -220,9 +231,14 @@ pub async fn generate_ai_depth_mask(
         return Err("Task cancelled".to_string());
     }
 
-    let models_result = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
-        .await
-        .map_err(|e| e.to_string());
+    let models_result = get_or_init_mask_model(
+        &app_handle,
+        &state.ai_state,
+        &state.ai_init_lock,
+        AiMaskModelFamily::Depth,
+    )
+    .await
+    .map_err(|e| e.to_string());
     request.check()?;
     let models = models_result?;
 
@@ -252,7 +268,7 @@ pub async fn generate_ai_depth_mask(
             return Err("Task cancelled".to_string());
         }
 
-        let depth_result = run_depth_anything_model(warped_image.as_ref(), &models.depth_anything)
+        let depth_result = run_depth_anything_model(warped_image.as_ref(), models.as_ref())
             .map_err(|e| e.to_string());
         request.check()?;
         let depth_image = depth_result?;
@@ -283,7 +299,7 @@ pub async fn generate_ai_depth_mask(
             }
 
             let depth_result =
-                run_depth_anything_model(warped_image.as_ref(), &models.depth_anything)
+                run_depth_anything_model(warped_image.as_ref(), models.as_ref())
                     .map_err(|e| e.to_string());
             request.check()?;
             let depth_image = depth_result?;
@@ -349,10 +365,11 @@ pub async fn generate_full_image_depth_map(
         None,
         load_settings(app_handle.clone()).unwrap_or_default(),
     )?;
-    let models_result = crate::ai_processing::get_or_init_ai_models(
+    let models_result = crate::ai_processing::get_or_init_mask_model(
         &app_handle,
         &state.ai_state,
         &state.ai_init_lock,
+        AiMaskModelFamily::Depth,
     )
     .await
     .map_err(|e| e.to_string());
@@ -367,7 +384,7 @@ pub async fn generate_full_image_depth_map(
 
     let depth_result = crate::ai_processing::run_depth_anything_model(
         source_image.as_ref(),
-        &models.depth_anything,
+        models.as_ref(),
     )
     .map_err(|e| e.to_string());
     request.check()?;
@@ -440,6 +457,8 @@ pub async fn generate_ai_subject_mask(
     state: tauri::State<'_, AppState>,
     app_handle: tauri::AppHandle,
 ) -> Result<AiSubjectMaskParameters, String> {
+    let subject_trace = crate::ai_processing::SubjectStage::sequence();
+    let mut subject_command = crate::ai_processing::SubjectStage::enter(subject_trace, "command", (0, 0), 0);
     let _guard = task_id
         .as_ref()
         .map(|id| AiTaskGuard::new(&state.active_ai_tasks, id.clone()));
@@ -452,13 +471,17 @@ pub async fn generate_ai_subject_mask(
     )?;
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
+        subject_command.mark("cancelled", (0, 0));
         return Err("Task cancelled".to_string());
     }
 
-    let models_result = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
+    let models_result = crate::ai_processing::get_or_init_sam_models_traced(&app_handle, &state.ai_state, &state.ai_init_lock, subject_trace)
         .await
         .map_err(|e| e.to_string());
-    request.check()?;
+    request.check().map_err(|e| {
+        subject_command.mark("stale_or_cancelled", (0, 0));
+        e
+    })?;
     let models = models_result?;
 
     let path_hash = {
@@ -476,25 +499,39 @@ pub async fn generate_ai_subject_mask(
     };
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
+        subject_command.mark("cancelled", (0, 0));
         return Err("Task cancelled".to_string());
     }
 
+    let mut subject_reference = crate::ai_processing::SubjectStage::enter(subject_trace, "full_reference", (0, 0), 0);
     let warped_result = full_reference_for_ai_consumer(&state, &request, &js_adjustments);
-    request.check()?;
+    request.check().map_err(|e| {
+        subject_command.mark("stale_or_cancelled", (0, 0));
+        e
+    })?;
     let warped_image = warped_result?;
+    subject_reference.mark("completed", (warped_image.width(), warped_image.height()));
+    drop(subject_reference);
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
+        subject_command.mark("cancelled", (0, 0));
         return Err("Task cancelled".to_string());
     }
 
     let embeddings = if request.is_keyed() {
         let embeddings_result =
-            generate_image_embeddings(warped_image.as_ref(), &models.sam_encoder)
+            crate::ai_processing::generate_image_embeddings_traced(warped_image.as_ref(), &models.sam_encoder, subject_trace)
                 .map_err(|e| e.to_string());
-        request.check()?;
+        request.check().map_err(|e| {
+            subject_command.mark("stale_or_cancelled", (0, 0));
+            e
+        })?;
         let mut new_embeddings = embeddings_result?;
         new_embeddings.path_hash = path_hash.clone();
-        request.check()?;
+        request.check().map_err(|e| {
+            subject_command.mark("stale_or_cancelled", (0, 0));
+            e
+        })?;
         new_embeddings
     } else {
         let cached_embeddings = {
@@ -506,17 +543,26 @@ pub async fn generate_ai_subject_mask(
                 .filter(|cached| cached.path_hash == path_hash)
                 .cloned()
         };
-        request.check()?;
+        request.check().map_err(|e| {
+            subject_command.mark("stale_or_cancelled", (0, 0));
+            e
+        })?;
         if let Some(cached_embeddings) = cached_embeddings {
             cached_embeddings
         } else {
             let embeddings_result =
-                generate_image_embeddings(warped_image.as_ref(), &models.sam_encoder)
+                crate::ai_processing::generate_image_embeddings_traced(warped_image.as_ref(), &models.sam_encoder, subject_trace)
                     .map_err(|e| e.to_string());
-            request.check()?;
+            request.check().map_err(|e| {
+                subject_command.mark("stale_or_cancelled", (0, 0));
+                e
+            })?;
             let mut new_embeddings = embeddings_result?;
             new_embeddings.path_hash = path_hash.clone();
-            request.check()?;
+            request.check().map_err(|e| {
+                subject_command.mark("stale_or_cancelled", (0, 0));
+                e
+            })?;
             let cache_copy = new_embeddings.clone();
             let displaced = {
                 let mut ai_state_lock = state.ai_state.lock().unwrap();
@@ -524,12 +570,16 @@ pub async fn generate_ai_subject_mask(
                 std::mem::replace(&mut ai_state.embeddings, Some(cache_copy))
             };
             drop(displaced);
-            request.check()?;
+            request.check().map_err(|e| {
+                subject_command.mark("stale_or_cancelled", (0, 0));
+                e
+            })?;
             new_embeddings
         }
     };
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
+        subject_command.mark("cancelled", (0, 0));
         return Err("Task cancelled".to_string());
     }
 
@@ -605,7 +655,8 @@ pub async fn generate_ai_subject_mask(
     let unrotated_start_point = (min_x, min_y);
     let unrotated_end_point = (max_x, max_y);
 
-    let mask_result = run_sam_decoder(
+    let mut subject_decoder = crate::ai_processing::SubjectStage::enter(subject_trace, "decoder", embeddings.original_size, 0);
+    let mask_result = crate::ai_processing::run_sam_decoder_traced(
         &models.sam_decoder,
         &embeddings,
         unrotated_start_point,
@@ -615,20 +666,34 @@ pub async fn generate_ai_subject_mask(
         } else {
             Some(warped_image.as_ref())
         },
+        subject_trace,
     )
     .map_err(|e| e.to_string());
-    request.check()?;
+    request.check().map_err(|e| {
+        subject_command.mark("stale_or_cancelled", (0, 0));
+        e
+    })?;
     let mask_bitmap = mask_result?;
+    subject_decoder.mark("completed", (mask_bitmap.width(), mask_bitmap.height()));
+    drop(subject_decoder);
 
     if cancel_flag.as_ref().is_some_and(|t| t.is_cancelled()) {
+        subject_command.mark("cancelled", (0, 0));
         return Err("Task cancelled".to_string());
     }
 
     let encoded_result = encode_to_base64_png(&mask_bitmap);
-    request.check()?;
+    request.check().map_err(|e| {
+        subject_command.mark("stale_or_cancelled", (0, 0));
+        e
+    })?;
     let base64_data = encoded_result?;
-    request.check()?;
+    request.check().map_err(|e| {
+        subject_command.mark("stale_or_cancelled", (0, 0));
+        e
+    })?;
 
+    subject_command.mark("completed", (mask_bitmap.width(), mask_bitmap.height()));
     Ok(AiSubjectMaskParameters {
         start_x: start_point.0,
         start_y: start_point.1,
@@ -656,7 +721,13 @@ pub async fn precompute_ai_subject_mask(
         Some(js_adjustments.clone()),
         load_settings(app_handle.clone()).unwrap_or_default(),
     )?;
-    let models_result = get_or_init_ai_models(&app_handle, &state.ai_state, &state.ai_init_lock)
+    // Keyed warm-up has no reusable output; actual generation owns inference
+    // errors. Keep captured source/currentness validation before this no-op.
+    if request.is_keyed() {
+        request.check()?;
+        return Ok(());
+    }
+    let models_result = get_or_init_sam_models(&app_handle, &state.ai_state, &state.ai_init_lock)
         .await
         .map_err(|e| e.to_string());
     request.check()?;

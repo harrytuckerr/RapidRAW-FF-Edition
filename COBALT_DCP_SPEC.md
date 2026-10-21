@@ -3,7 +3,7 @@
 
 > **Integration correction — 15 October 2026:** This is the historical planning brief.
 > For current implementation contracts and acceptance status, read
-> `docs/integration/STATUS-2026-10-15.md` and `docs/android-integration-2026-10-15.md`.
+> the [pipeline guide](docs/dcp-pipeline.md) and [current checkpoint notes](docs/releases/1.6.27.md).
 > In particular, RAW WB coefficients are RGBE; `render_pixel` returns ProPhoto;
 > native Look tables are RGB tables, not HSV maps; source/synthetic validation is
 > not Adobe or device acceptance. Earlier speculative format/math statements

@@ -721,7 +721,7 @@ fn sample_table(table: &HsvTable, hue_coord: f32, sat_coord: f32, val_coord: f32
     let h0 = (hfl as i32).rem_euclid(hue_div) as usize;
     let h1 = (h0 + 1) % hue_div as usize;
 
-    let sf = (sat_coord * (sat_div - 1) as f32).clamp(0.0, (sat_div - 1) as f32);
+    let sf = sat_coord.clamp(0.0, (sat_div - 1) as f32);
     let s0 = sf.floor() as usize;
     let s1 = (s0 + 1).min(sat_div as usize - 1);
     let fs = sf - s0 as f32;
@@ -729,7 +729,7 @@ fn sample_table(table: &HsvTable, hue_coord: f32, sat_coord: f32, val_coord: f32
     let (v0, v1, fv) = if val_div <= 1 {
         (0usize, 0usize, 0.0f32)
     } else {
-        let vf = (val_coord * (val_div - 1) as f32).clamp(0.0, (val_div - 1) as f32);
+        let vf = val_coord.clamp(0.0, (val_div - 1) as f32);
         let v0 = vf.floor() as usize;
         (v0, (v0 + 1).min(val_div as usize - 1), vf - v0 as f32)
     };
@@ -1469,5 +1469,86 @@ mod tests {
     /// Build an RGB colour with the given hue (max saturation, unit value).
     fn rgb_from_hue(hue: f32) -> [f32; 3] {
         hsv_to_rgb([hue, 1.0, 1.0])
+    }
+
+    fn assert_rgb_close(actual: [f32; 3], expected: [f32; 3], label: &str) {
+        for i in 0..3 {
+            assert!(
+                (actual[i] - expected[i]).abs() < 1e-5,
+                "{label}: got {actual:?}, expected {expected:?}"
+            );
+        }
+    }
+
+    // Known-answer cell-coordinate regression, realistic saturation axis.
+    // Table: hue_div 1, sat_div 30, val_div 1; cell i = [0, 1, 1 + 0.01*i].
+    // The valScale is affine in the cell index, so trilinear interpolation at
+    // saturation s is exactly 1 + 0.01 * (s * 29), and hue/saturation stay
+    // unchanged. Only the value (and therefore every RGB channel) scales.
+    #[test]
+    fn hsv_sat30_cell_coordinate_known_answer() {
+        let data: Vec<[f32; 3]> = (0..30).map(|i| [0.0, 1.0, 1.0 + 0.01 * i as f32]).collect();
+        let table = HsvTable {
+            hue_div: 1,
+            sat_div: 30,
+            val_div: 1,
+            data,
+        };
+        // [0.5, 0.45, 0.45]: hue 0, s = 0.1, v = 0.5 -> cell 2.9 -> x1.029.
+        let out = apply_hsv_table([0.5, 0.45, 0.45], &table, TableEncoding::Linear);
+        assert_rgb_close(
+            out,
+            [0.5145, 0.46305, 0.46305],
+            "s=0.1 interpolates cells 2..3",
+        );
+        // Endpoints are unchanged by the repair: s = 1 is the last cell (x1.29),
+        // a neutral s = 0 is cell 0 (x1.0).
+        let top = apply_hsv_table([0.5, 0.0, 0.0], &table, TableEncoding::Linear);
+        assert_rgb_close(top, [0.645, 0.0, 0.0], "s=1 uses the last cell");
+        let neutral = apply_hsv_table([0.3, 0.3, 0.3], &table, TableEncoding::Linear);
+        assert_rgb_close(neutral, [0.3, 0.3, 0.3], "s=0 uses cell 0");
+    }
+
+    // Known-answer cell-coordinate regression, realistic value axis.
+    // Table: hue_div 1, sat_div 1, val_div 16; cell v = [0, 1, 1 + 0.02*v].
+    // Interpolated valScale at linear value v is 1 + 0.02 * (v * 15).
+    #[test]
+    fn hsv_val16_cell_coordinate_known_answer() {
+        let data: Vec<[f32; 3]> = (0..16).map(|v| [0.0, 1.0, 1.0 + 0.02 * v as f32]).collect();
+        let table = HsvTable {
+            hue_div: 1,
+            sat_div: 1,
+            val_div: 16,
+            data,
+        };
+        // [0.5, 0.45, 0.45]: v = 0.5 -> cell 7.5 -> x1.15.
+        let out = apply_hsv_table([0.5, 0.45, 0.45], &table, TableEncoding::Linear);
+        assert_rgb_close(
+            out,
+            [0.575, 0.5175, 0.5175],
+            "v=0.5 interpolates cells 7..8",
+        );
+    }
+
+    // Two-division axes have a (div - 1) multiplier of 1, so their result is
+    // identical before and after the repair. Bilinear on an affine table:
+    // valScale = 1 + 0.1*s_cell + 0.2*v_cell with s_cell = s, v_cell = v.
+    #[test]
+    fn hsv_two_division_axes_unchanged_known_answer() {
+        let mut data = Vec::new();
+        for v in 0..2 {
+            for s in 0..2 {
+                data.push([0.0, 1.0, 1.0 + 0.1 * s as f32 + 0.2 * v as f32]);
+            }
+        }
+        let table = HsvTable {
+            hue_div: 1,
+            sat_div: 2,
+            val_div: 2,
+            data,
+        };
+        // s = 0.1, v = 0.5 -> 1 + 0.01 + 0.1 = x1.11.
+        let out = apply_hsv_table([0.5, 0.45, 0.45], &table, TableEncoding::Linear);
+        assert_rgb_close(out, [0.555, 0.4995, 0.4995], "two-division axes");
     }
 }

@@ -262,6 +262,102 @@ mod capture_tests {
     }
 
     #[test]
+    fn explicit_ordinary_bitmap_drafts_roundtrip_omit_and_remain_strict() {
+        let png = inline([20, 80, 140, 255]);
+        for kind in ["ai-subject", "ai-foreground", "ai-sky", "ai-depth"] {
+            let mut draft = sub("new", kind, json!({"maskDataBase64":null,"feather":0.0}));
+            draft["bitmapState"] = json!("draft");
+            let mut empty_parent = mask("ordinary",json!([draft.clone()]));
+            empty_parent["invert"] = json!(true);
+            let input = json!({"masks":[empty_parent]});
+            let before = input.clone();
+            let saved = serde_json::to_string(&input).unwrap();
+            let reopened: Value = serde_json::from_str(&saved).unwrap();
+            let captured = capture(&reopened).unwrap();
+            assert!(captured.masks().is_empty());
+            assert!(captured.adjustments()["masks"][0]["subMasks"].as_array().unwrap().is_empty());
+            assert_eq!(input, before); // Omission is request-local, never destructive.
+            let empty: crate::mask_generation::MaskDefinition = serde_json::from_value(
+                captured.adjustments()["masks"][0].clone(),
+            ).unwrap();
+            assert!(crate::mask_generation::generate_mask_bitmap_checked(
+                &empty, 2, 2, 1.0, (0.0, 0.0), None,
+            ).unwrap().is_none()); // Inverted empty draft is NOT a global zero-mask inversion.
+
+            let mut completed = draft.clone();
+            completed.as_object_mut().unwrap().remove("bitmapState");
+            completed["parameters"] = json!({
+                "maskDataBase64":png,"startX":0.0,"startY":0.0,"endX":1.0,"endY":1.0,
+                "rotation":0.0,"flipHorizontal":false,"flipVertical":false,"orientationSteps":0
+            });
+            assert_eq!(capture(&json!({"masks":[mask("ordinary",json!([completed.clone()]))]})).unwrap().masks().len(), 1);
+            for bad in [
+                { let mut v = draft.clone(); v["parameters"]["rotation"] = json!(0); v },
+                { let mut v = draft.clone(); v["parameters"]["maskDataBase64"] = json!(png); v },
+                { let mut v = draft.clone(); v["parameters"]["feather"] = json!("bad"); v },
+                { let mut v = draft.clone(); v["bitmapState"] = json!("complete"); v },
+            ] {
+                assert!(capture(&json!({"masks":[mask("ordinary",json!([bad]))]})).is_err());
+            }
+            // Hidden parents/children retain the pre-existing no-op boundary.
+            // A valid hidden draft is omitted even under an inverted parent.
+            for hidden_parent in [false, true] {
+                let mut hidden_draft = draft.clone();
+                if !hidden_parent { hidden_draft["visible"] = json!(false); }
+                let mut parent = mask("hidden", json!([hidden_draft.clone()]));
+                parent["invert"] = json!(true);
+                if hidden_parent { parent["visible"] = json!(false); }
+                let hidden_capture = capture(&json!({"masks":[parent.clone()]})).unwrap();
+                assert!(hidden_capture.masks().is_empty());
+                assert!(hidden_capture.adjustments()["masks"][0]["subMasks"].as_array().unwrap().is_empty());
+                let empty: crate::mask_generation::MaskDefinition = serde_json::from_value(
+                    hidden_capture.adjustments()["masks"][0].clone(),
+                ).unwrap();
+                assert!(crate::mask_generation::generate_mask_bitmap_checked(
+                    &empty, 2, 2, 1.0, (0.0, 0.0), None,
+                ).unwrap().is_none());
+                for bad in [
+                    { let mut v = hidden_draft.clone(); v["parameters"]["rotation"] = json!(0); v },
+                    { let mut v = hidden_draft.clone(); v["parameters"]["maskDataBase64"] = json!("corrupt"); v },
+                    { let mut v = hidden_draft.clone(); v["bitmapState"] = json!("invalid"); v },
+                ] {
+                    parent["subMasks"] = json!([bad.clone()]);
+                    let hidden_capture = capture(&json!({"masks":[parent.clone()]})).unwrap();
+                    // A visible parent still retains its typed hidden child;
+                    // a hidden parent is excluded from captured render masks.
+                    assert_eq!(hidden_capture.masks().len(), if hidden_parent { 0 } else { 1 });
+                    assert_eq!(hidden_capture.adjustments()["masks"][0]["subMasks"][0], bad);
+                }
+                let mut malformed = hidden_draft;
+                malformed["id"] = json!(42);
+                parent["subMasks"] = json!([malformed]);
+                let hidden_capture = capture(&json!({"masks":[parent]})).unwrap();
+                assert!(hidden_capture.masks().is_empty());
+                if hidden_parent {
+                    assert!(hidden_capture.adjustments()["masks"].as_array().unwrap().is_empty());
+                } else {
+                    assert!(hidden_capture.adjustments()["masks"][0]["subMasks"].as_array().unwrap().is_empty());
+                }
+            }
+            let mut missing = completed.clone();
+            missing["parameters"]["maskDataBase64"] = Value::Null;
+            assert!(matches!(capture(&json!({"masks":[mask("old",json!([missing]))]})),
+                Err(CreativeCaptureError::Hydration(SnapshotHydrationError::MissingPayload { .. }))));
+            let mut corrupt = completed.clone();
+            corrupt["parameters"]["maskDataBase64"] = json!("not-an-image");
+            assert!(capture(&json!({"masks":[mask("old",json!([corrupt]))]})).is_err());
+            let mut conflict = draft.clone();
+            conflict["parameters"]["maskDataBase64"] = json!(png);
+            conflict["parameters"]["mask_data_base64"] = json!("different");
+            assert!(matches!(capture(&json!({"masks":[mask("ordinary",json!([conflict]))]})),
+                Err(CreativeCaptureError::Hydration(SnapshotHydrationError::ConflictingAliases { .. }))));
+            // Parent patch lifecycle stays strict; an ordinary draft marker
+            // cannot suppress missing patch color or bitmap errors there.
+            assert!(capture(&json!({"aiPatches":[{"id":"patch","visible":true,"patchData":null,"subMasks":[draft]}]})).is_err());
+        }
+    }
+
+    #[test]
     fn c01_capture_immutability_and_independent_hydration() {
         let png = inline([10, 20, 30, 40]);
         let mut settings = AppSettings::default();

@@ -193,7 +193,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 globalThis.document = {
   addEventListener() {},
   removeEventListener() {},
-  documentElement: {},
+  documentElement: { style: { setProperty() {} } },
   body: { appendChild() {}, removeChild() {} },
 };
 globalThis.window = {
@@ -3380,4 +3380,171 @@ test('queued preview dispatch uses the current viewport and ROI after an in-flig
     if (root) await trackedUnmount(root);
     browser.restore();
   }
+});
+
+
+test('ordinary bitmap drafts retain state on failure and fence superseded completion without losing current controls', async () => {
+  resetStores();
+  const draft = {
+    id: 'draft-subject', type: 'ai-subject', visible: true, invert: false,
+    opacity: 100, mode: 'additive', bitmapState: 'draft',
+    parameters: { maskDataBase64: null, grow: 0, feather: 0 },
+  };
+  const input = { ...INITIAL_ADJUSTMENTS, masks: [{
+    id: 'ordinary', name: 'ordinary', visible: true, invert: false, opacity: 100,
+    adjustments: {}, subMasks: [draft],
+  }] };
+  setAccurateImage(ticketA, keyA, '/A.raf', input);
+  useEditorStore.setState({ adjustments: input, history: [input], historyIndex: 0 });
+  const probe = useTestHooks({ withAiMasking: true });
+  let root;
+  await act(async () => { root = trackedCreate(React.createElement(probe.Probe)); });
+  // Exercise the real ordinary MasksPanel constructor, not just a fixture draft.
+  await act(async () => { probe.values.actions.setAdjustments((prev) => ({ ...prev, masks: [] })); });
+  invokeHandler = async () => [];
+  let panel;
+  await act(async () => { panel = trackedCreate(React.createElement(MasksPanel)); });
+  const subjectTool = panel.root.findAll((node) =>
+    node.props.maskType?.type === 'ai-subject' && typeof node.props.onClick === 'function',
+  );
+  assert.equal(subjectTool.length, 1);
+  await act(async () => { subjectTool[0].props.onClick(); });
+  const created = useEditorStore.getState().adjustments.masks[0].subMasks[0];
+  assert.equal(created.type, 'ai-subject');
+  assert.equal(created.bitmapState, 'draft');
+  assert.equal(created.parameters.maskDataBase64 ?? null, null);
+  await trackedUnmount(panel);
+  await act(async () => { probe.values.actions.setAdjustments(() => structuredClone(input)); });
+  const current = () => useEditorStore.getState().adjustments.masks[0].subMasks[0];
+  const original = structuredClone(current());
+  invokeHandler = async (command) => {
+    if (command === Invokes.GenerateAiSubjectMask) throw new Error('controlled generation failure');
+    return null;
+  };
+  await act(async () => { await probe.values.ai.handleGenerateAiMask(draft.id, { x: 1, y: 2 }, { x: 3, y: 4 }); });
+  assert.deepEqual(current(), original);
+
+  invokeHandler = async (command) => command === Invokes.GenerateAiSubjectMask ? { maskDataBase64: 'bad' } : null;
+  await act(async () => { await probe.values.ai.handleGenerateAiMask(draft.id, { x: 1, y: 2 }, { x: 3, y: 4 }); });
+  assert.deepEqual(current(), original);
+
+  const first = deferred();
+  const second = deferred();
+  let issued = 0;
+  invokeHandler = async (command) => command === Invokes.GenerateAiSubjectMask ? (++issued === 1 ? first.promise : second.promise) : null;
+  let a, b;
+  await act(async () => {
+    a = probe.values.ai.handleGenerateAiMask(draft.id, { x: 1, y: 2 }, { x: 3, y: 4 });
+    b = probe.values.ai.handleGenerateAiMask(draft.id, { x: 5, y: 6 }, { x: 7, y: 8 });
+  });
+  // Native encoder response envelope; this mounted test mocks transport,
+  // not actual PNG/model execution (native capture tests validate real PNGs).
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=';
+  const result = { maskDataBase64: png, rotation: 0, flipHorizontal: false,
+    flipVertical: false, orientationSteps: 0, startX: 5, startY: 6, endX: 7, endY: 8 };
+  await act(async () => { first.resolve(result); await a; });
+  assert.equal(current().bitmapState, 'draft');
+  assert.ok(useProcessStore.getState().activeAiTasks[draft.id]);
+  await act(async () => {
+    probe.values.actions.setAdjustments((prev) => ({ ...prev, masks: prev.masks.map((c) => ({
+      ...c, subMasks: c.subMasks.map((sm) => ({ ...sm, parameters: { ...sm.parameters, feather: 37 } })),
+    })) }));
+    second.resolve(result);
+    await b;
+  });
+  assert.equal(current().bitmapState, undefined);
+  assert.equal(current().parameters.feather, 37);
+  assert.equal(current().parameters.maskDataBase64, png);
+  // Cancel revokes A immediately; a late A result cannot complete the draft.
+  await act(async () => { probe.values.actions.setAdjustments(() => structuredClone(input)); });
+  const cancelGate = deferred();
+  const cancelledResult = deferred();
+  const replacementResult = deferred();
+  let cancelIssued = 0;
+  invokeHandler = async (command) => {
+    if (command === Invokes.CancelAiTask) return cancelGate.promise;
+    if (command === Invokes.GenerateAiSubjectMask) return ++cancelIssued === 1 ? cancelledResult.promise : replacementResult.promise;
+    return null;
+  };
+  let cancelledJob, cancellation, replacementJob;
+  await act(async () => { cancelledJob = probe.values.ai.handleGenerateAiMask(draft.id, { x: 1, y: 2 }, { x: 3, y: 4 }); });
+  await act(async () => {
+    cancellation = probe.values.ai.handleCancelAiTask(draft.id);
+    assert.equal(useProcessStore.getState().activeAiTasks[draft.id], undefined);
+  });
+  await act(async () => { cancelledResult.resolve(result); await cancelledJob; });
+  assert.deepEqual(current(), original);
+  // B registers before cancel-A's finally; A must not unregister B.
+  await act(async () => { replacementJob = probe.values.ai.handleGenerateAiMask(draft.id, { x: 5, y: 6 }, { x: 7, y: 8 }); });
+  const replacementTask = useProcessStore.getState().activeAiTasks[draft.id];
+  assert.ok(replacementTask);
+  await act(async () => { cancelGate.resolve(null); await cancellation; });
+  assert.equal(useProcessStore.getState().activeAiTasks[draft.id], replacementTask);
+  await act(async () => { replacementResult.resolve(result); await replacementJob; });
+  assert.equal(current().bitmapState, undefined);
+  assert.equal(current().parameters.maskDataBase64, png);
+  const complete = structuredClone(current());
+  invokeHandler = async (command) => {
+    if (command === Invokes.GenerateAiSubjectMask) throw new Error('controlled regeneration failure');
+    return null;
+  };
+  await act(async () => { await probe.values.ai.handleGenerateAiMask(draft.id, { x: 1, y: 2 }, { x: 3, y: 4 }); });
+  assert.deepEqual(current(), complete);
+
+  const pending = deferred();
+  invokeHandler = async (command) => command === Invokes.GenerateAiSubjectMask ? pending.promise : null;
+  let deleted;
+  await act(async () => { deleted = probe.values.ai.handleGenerateAiMask(draft.id, { x: 1, y: 2 }, { x: 3, y: 4 }); });
+  await act(async () => {
+    probe.values.actions.setAdjustments((prev) => ({ ...prev, masks: [] }));
+    pending.resolve(result);
+    await deleted;
+  });
+  assert.deepEqual(useEditorStore.getState().adjustments.masks, []);
+
+  const depth = { ...draft, id: 'draft-depth', type: 'ai-depth', parameters: {
+    minDepth: 20, maxDepth: 80, minFade: 15, maxFade: 15, feather: 10,
+  } };
+  await act(async () => { probe.values.actions.setAdjustments((prev) => ({ ...prev,
+    masks: [{ ...input.masks[0], subMasks: [depth] }],
+  })); });
+  const depthGate = deferred();
+  invokeHandler = async (command) => command === 'generate_ai_depth_mask' ? depthGate.promise : null;
+  let depthJob;
+  await act(async () => { depthJob = probe.values.ai.handleGenerateAiDepthMask(depth.id, depth.parameters); });
+  await act(async () => {
+    probe.values.actions.setAdjustments((prev) => ({ ...prev, masks: prev.masks.map((c) => ({
+      ...c, subMasks: c.subMasks.map((sm) => ({ ...sm, parameters: { ...sm.parameters, minDepth: 42, feather: 17 } })),
+    })) }));
+    depthGate.resolve({ ...result, minDepth: 20, maxDepth: 80, minFade: 15, maxFade: 15, feather: 10 });
+    await depthJob;
+  });
+  assert.equal(current().bitmapState, undefined);
+  assert.equal(current().parameters.minDepth, 42);
+  assert.equal(current().parameters.feather, 17);
+
+  for (const change of ['type', 'source']) {
+    await act(async () => { probe.values.actions.setAdjustments((prev) => ({ ...prev,
+      masks: [{ ...input.masks[0], subMasks: [structuredClone(draft)] }],
+    })); });
+    const gate = deferred();
+    invokeHandler = async (command) => command === Invokes.GenerateAiSubjectMask ? gate.promise : null;
+    let job;
+    await act(async () => { job = probe.values.ai.handleGenerateAiMask(draft.id, { x: 1, y: 2 }, { x: 3, y: 4 }); });
+    await act(async () => {
+      if (change === 'type') {
+        probe.values.actions.setAdjustments((prev) => ({ ...prev, masks: prev.masks.map((c) => ({
+          ...c, subMasks: c.subMasks.map((sm) => ({ ...sm, type: 'ai-sky' })),
+        })) }));
+      } else {
+        setAccurateImage('a341a113-25b4-4f8c-9271-672764dbdf75', { ticket: 'a341a113-25b4-4f8c-9271-672764dbdf75', generation: '42' }, '/A.raf', input);
+        useEditorStore.setState({ adjustments: structuredClone(input) });
+      }
+      gate.resolve(result);
+      await job;
+    });
+    assert.equal(current().bitmapState, 'draft');
+    assert.equal(current().parameters.maskDataBase64, null);
+  }
+  await trackedUnmount(root);
 });

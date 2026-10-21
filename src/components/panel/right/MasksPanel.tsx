@@ -452,8 +452,13 @@ export default function MasksPanel() {
   };
 
   const createMaskLogic = (type: Mask, mode: SubMaskMode = SubMaskMode.Additive) => {
-    if (!selectedImage) return createSubMask(type, {} as any, mode);
-    const subMask = createSubMask(type, selectedImage, mode);
+    const subMask: SubMask = createSubMask(type, selectedImage || ({} as any), mode);
+    // Only ordinary-mask creation declares a draft. Shared AI-patch creators
+    // keep their independent strict lifecycle.
+    if ([Mask.AiSubject, Mask.AiForeground, Mask.AiSky, Mask.AiDepth].includes(type)) {
+      subMask.bitmapState = 'draft';
+    }
+    if (!selectedImage) return subMask;
 
     const steps = adjustments?.orientationSteps || 0;
     const isRotated = steps === 1 || steps === 3;

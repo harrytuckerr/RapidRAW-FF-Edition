@@ -143,6 +143,15 @@ impl OwnedPreviewPixels {
         assets: &CapturedCreativeAssets,
         as_shot: AsShot,
     ) -> Result<RenderRequest<'a>, ComposeError> {
+        self.request_with_masks(assets, as_shot, &self.masks)
+    }
+
+    pub(crate) fn request_with_masks<'a>(
+        &'a self,
+        assets: &CapturedCreativeAssets,
+        as_shot: AsShot,
+        masks: &'a [GrayImage],
+    ) -> Result<RenderRequest<'a>, ComposeError> {
         let render = crate::image_processing::resolve_render_options(assets.settings(), true);
         let uniforms = crate::image_processing::get_all_adjustments_from_json(
             assets.adjustments(),
@@ -150,7 +159,7 @@ impl OwnedPreviewPixels {
             as_shot,
             render,
         );
-        if uniforms.mask_count as usize != self.masks.len() {
+        if uniforms.mask_count as usize != masks.len() {
             return Err(ComposeError::MaskOrderMismatch);
         }
         if uniforms.global.has_dcp != 0 {
@@ -158,7 +167,7 @@ impl OwnedPreviewPixels {
         }
         Ok(RenderRequest {
             adjustments: uniforms,
-            mask_bitmaps: &self.masks,
+            mask_bitmaps: masks,
             lut: assets.lut().cloned(),
             roi: None,
             dcp_textures: None,
@@ -167,6 +176,26 @@ impl OwnedPreviewPixels {
 
     pub(crate) fn geometry(&self) -> (f32, (f32, f32)) {
         (self.scale_for_gpu, self.unscaled_crop_offset)
+    }
+
+    pub(crate) fn take_mask_bitmaps(&mut self) -> Vec<GrayImage> {
+        std::mem::take(&mut self.masks)
+    }
+
+    // Only reference-independent masks reach retained-pixel lookup. Geometry
+    // comes from the actual retained/derived raster, not the requested edge.
+    pub(crate) fn fresh_mask_bitmaps(
+        &self,
+        assets: &CapturedCreativeAssets,
+        cancel: &RawCancel,
+    ) -> Result<Vec<GrayImage>, ComposeError> {
+        checked_mask_bitmaps(
+            assets.masks(), self.pixels.width(), self.pixels.height(),
+            self.scale_for_gpu,
+            (self.unscaled_crop_offset.0 * self.scale_for_gpu,
+             self.unscaled_crop_offset.1 * self.scale_for_gpu),
+            None, cancel,
+        )
     }
 
     // The caller proves this is a matching final entry. Keep it retained and
@@ -380,6 +409,7 @@ pub(crate) fn compose_full_accuracy<'a, 'owner>(
 // Fresh uniforms and the current captured LUT are rebuilt by OwnedPreviewPixels::request.
 // Unknown schema fields bypass retention: future CPU inputs never become GPU-only by default.
 const PREVIEW_FRESH_RENDER_FIELDS: &[&str] = &[
+    "masks",
     "baselineExposure",
     "blacks",
     "brightness",
@@ -477,7 +507,6 @@ const PREVIEW_RETAINED_CPU_FIELDS: &[&str] = &[
     "fogTemperature",
     "fogTint",
     "lensCorrectionMode",
-    "masks",
     "orientationSteps",
     "profile",
     "rotation",
@@ -684,6 +713,34 @@ fn resize_interactive_pixels(
         ))
     })
 }
+// The same strict bitmap loop serves cold composition and fresh masks on hits.
+fn checked_mask_bitmaps(
+    masks: &[crate::mask_generation::MaskDefinition],
+    width: u32,
+    height: u32,
+    scale_for_gpu: f32,
+    scaled_crop_offset: (f32, f32),
+    reference: Option<&DynamicImage>,
+    cancel: &RawCancel,
+) -> Result<Vec<GrayImage>, ComposeError> {
+    if masks.len() > MAX_MASKS {
+        return Err(ComposeError::TooManyMasks(masks.len()));
+    }
+    let mut bitmaps = Vec::with_capacity(masks.len());
+    for mask in masks {
+        check_cancel(cancel)?;
+        let bitmap = generate_mask_bitmap_checked(
+            mask, width, height, scale_for_gpu, scaled_crop_offset, reference,
+        );
+        check_cancel(cancel)?;
+        let bitmap = bitmap
+            .map_err(ComposeError::Mask)?
+            .ok_or(ComposeError::MaskOrderMismatch)?;
+        bitmaps.push(bitmap);
+    }
+    Ok(bitmaps)
+}
+
 fn compose_output<'a, 'owner>(
     base: &'a PreparedAppearanceBase<'owner>,
     assets: &'a CapturedCreativeAssets,
@@ -793,23 +850,10 @@ fn compose_output<'a, 'owner>(
     } else {
         None
     };
-    let mut bitmaps = Vec::with_capacity(masks.len());
-    for mask in masks {
-        check_cancel(&cancel)?;
-        let bitmap = generate_mask_bitmap_checked(
-            mask,
-            pixels.width(),
-            pixels.height(),
-            scale_for_gpu,
-            scaled_crop_offset,
-            reference.as_ref(),
-        );
-        check_cancel(&cancel)?;
-        let bitmap = bitmap
-            .map_err(ComposeError::Mask)?
-            .ok_or(ComposeError::MaskOrderMismatch)?;
-        bitmaps.push(bitmap);
-    }
+    let bitmaps = checked_mask_bitmaps(
+        masks, pixels.width(), pixels.height(), scale_for_gpu,
+        scaled_crop_offset, reference.as_ref(), &cancel,
+    )?;
     let uniforms = stage(&cancel, "uniforms", || {
         let render = crate::image_processing::resolve_render_options(assets.settings(), true);
         Ok::<_, std::convert::Infallible>(crate::image_processing::get_all_adjustments_from_json(

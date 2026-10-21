@@ -64,6 +64,7 @@ export interface MaskType {
 }
 
 export interface SubMask {
+  bitmapState?: 'draft';
   id: string;
   invert: boolean;
   mode: SubMaskMode;

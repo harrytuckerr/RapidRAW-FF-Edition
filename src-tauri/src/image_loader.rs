@@ -443,6 +443,29 @@ impl PreparedOpenAppearance {
     }
 }
 
+// Only the selected accurate opening owns this freshly developed base.
+// Absent/empty patches are the established no-composition case. Unknown shapes
+// and every nonempty array keep the exact historical borrowed compositor.
+fn composite_selected_open_base(
+    base: PreparedAppearanceBase<'_>,
+    adjustments: &Value,
+    cancel: &crate::raw_processing::RawCancel,
+) -> Result<DynamicImage> {
+    let no_patches = match adjustments.get("aiPatches") {
+        None => true,
+        Some(Value::Array(patches)) => patches.is_empty(),
+        _ => false,
+    };
+    if no_patches && matches!(&base.image, std::borrow::Cow::Owned(_)) {
+        check_prepared_cancel(cancel)?;
+        let image = base.image.into_owned();
+        check_prepared_cancel(cancel)?;
+        Ok(image)
+    } else {
+        composite_prepared_base(base.pixels(), adjustments, cancel)
+    }
+}
+
 // The exact historical patch/check sequence, shared with the captured producer.
 fn composite_prepared_base(
     base: &DynamicImage,
@@ -3035,6 +3058,57 @@ mod prepared_appearance_tests {
             .unwrap();
         assert_eq!(repeat.pixels().as_bytes(), before);
         assert_eq!(first.pixels().as_bytes(), before);
+
+        // Real selected RAW/DCP owner: absent/empty patches move its actual
+        // RGB allocation; the old compositor remains the byte/geometry oracle.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("base.dcp");
+        write_synthetic_dcp(&path, "RapidRAW Integration Camera", "Composition base");
+        let selected_registry = registry();
+        let entry = crate::dcp::registry::parse_dcp_entry(
+            &path, crate::dcp::registry::ProfileSource::Managed,
+        ).unwrap();
+        let id = entry.id.to_hex();
+        selected_registry.insert_dcp(entry);
+        let input = json!({"profile":{"base":id,"look":null,"amount":100}});
+        let selected = compose_owner(&input, &settings(), &selected_registry);
+        assert!(selected.assets.is_some());
+        for shape in [None, Some(json!([])), Some(Value::Null), Some(json!({}))] {
+            let mut current = input.clone();
+            if let Some(value) = shape { current["aiPatches"] = value; }
+            let base = selected.render_unpatched_base(AppearancePass::AccurateOne, None).unwrap();
+            assert!(matches!(base.pixels(), DynamicImage::ImageRgb32F(_)));
+            let backing = base.pixels().as_bytes().as_ptr();
+            let expected = composite_prepared_base(base.pixels(), &current, &None).unwrap();
+            let actual = composite_selected_open_base(base, &current, &None).unwrap();
+            assert_eq!(actual.dimensions(), expected.dimensions());
+            assert_eq!(actual.color(), expected.color());
+            assert_eq!(actual.as_bytes(), expected.as_bytes());
+            if current.get("aiPatches").is_none() || current["aiPatches"] == json!([]) {
+                assert_eq!(actual.as_bytes().as_ptr(), backing, "owned no-patch pixels moved");
+            } else {
+                assert_ne!(actual.as_bytes().as_ptr(), backing, "uncertain shape uses old clone path");
+            }
+        }
+        // Nonempty valid/corrupt patches still execute the old composition;
+        // cancellation precedes either branch and cannot publish moved pixels.
+        let mut current = adjustments.clone();
+        current["profile"] = input["profile"].clone();
+        let base = selected.render_unpatched_base(AppearancePass::AccurateOne, None).unwrap();
+        let expected = composite_prepared_base(base.pixels(), &current, &None).unwrap();
+        let actual = composite_selected_open_base(base, &current, &None).unwrap();
+        assert_eq!(actual.as_bytes(), expected.as_bytes());
+        assert_eq!(actual.dimensions(), expected.dimensions());
+        let mut corrupt = adjustments.clone();
+        corrupt["aiPatches"][0]["patchData"]["color"] = json!("not-base64");
+        let base = selected.render_unpatched_base(AppearancePass::AccurateOne, None).unwrap();
+        let expected = composite_prepared_base(base.pixels(), &corrupt, &None).unwrap_err().to_string();
+        assert_eq!(composite_selected_open_base(base, &corrupt, &None).unwrap_err().to_string(), expected);
+        for current in [&input, &adjustments] {
+            let base = selected.render_unpatched_base(AppearancePass::AccurateOne, None).unwrap();
+            let cancelled = Some((Arc::new(AtomicUsize::new(1)), 0));
+            assert!(composite_selected_open_base(base, current, &cancelled).is_err());
+        }
     }
 
     #[test]
@@ -3463,6 +3537,222 @@ mod prepared_appearance_tests {
                 seen[index].fetch_add(1, Ordering::SeqCst);
             }));
             counts
+        }
+
+        #[tokio::test]
+        async fn opening_activity_fences_background_through_actual_owner_retirement() {
+            // Controlled worker exits exercise the production adapter and owner,
+            // not a replacement scheduler. All waits and release channels are bounded.
+            struct Exited(Arc<AtomicBool>);
+            impl Drop for Exited {
+                fn drop(&mut self) {
+                    self.0.store(true, Ordering::SeqCst);
+                }
+            }
+            for mode in ["abort", "cancel", "error", "unwind"] {
+                let owner = owner();
+                let manager = crate::app_state::ThumbnailManager::new();
+                let path = file(&black_dng(), "dng");
+                let a = owner.reserve(A, path.clone()).unwrap();
+                tokio::time::timeout(
+                    Duration::from_secs(3),
+                    execute_open_with_thumbnail_activity(
+                        &owner,
+                        &manager,
+                        a,
+                        JobKind::Snapshot,
+                        |c| c.capture_snapshot(metadata(json!({})), settings()),
+                        |c, p| c.finish_captured_snapshot(p),
+                    ),
+                )
+                .await
+                .unwrap()
+                .unwrap();
+                manager.request_library(vec!["queued-background".into()]);
+                let exited = Arc::new(AtomicBool::new(false));
+                let witness = Arc::clone(&exited);
+                let (entered, entered_rx) = oneshot::channel();
+                let (release, wait) = mpsc::sync_channel(1);
+                let runner = Arc::clone(&owner);
+                let worker_manager = Arc::clone(&manager);
+                let mut a_job = Some(tokio::spawn(async move {
+                    execute_open_with_thumbnail_activity(
+                        &runner,
+                        &worker_manager,
+                        a,
+                        JobKind::Pixels,
+                        move |c| {
+                            let _exited = Exited(witness);
+                            entered.send(()).unwrap();
+                            wait.recv_timeout(Duration::from_secs(3)).unwrap();
+                            match mode {
+                                "error" => Err(OpenError::DevelopmentFailed),
+                                "unwind" => panic!("controlled opening worker unwind"),
+                                _ => {
+                                    c.check()?;
+                                    Ok(())
+                                }
+                            }
+                        },
+                        |_, ()| -> std::result::Result<(), OpenError> {
+                            panic!("obsolete or failed A must not commit")
+                        },
+                    )
+                    .await
+                }));
+                tokio::time::timeout(Duration::from_secs(3), entered_rx)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                let (waiting, waiting_rx) = mpsc::sync_channel(1);
+                let (admitted, admitted_rx) = mpsc::sync_channel(1);
+                let background_manager = Arc::clone(&manager);
+                let background = std::thread::spawn(move || {
+                    waiting.send(()).unwrap();
+                    let work = background_manager.next();
+                    assert!(background_manager.wait_for_render_admission(&work));
+                    admitted.send(work.path.clone()).unwrap();
+                    drop(work);
+                });
+                waiting_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+                if mode == "abort" {
+                    a_job.as_ref().unwrap().abort();
+                    assert!(
+                        tokio::time::timeout(Duration::from_secs(3), a_job.take().unwrap())
+                            .await
+                            .unwrap()
+                            .unwrap_err()
+                            .is_cancelled()
+                    );
+                } else if mode == "cancel" {
+                    assert_eq!(
+                        owner.cancel(a).unwrap(),
+                        crate::progressive_open::CancelResult::Cancelled
+                    );
+                }
+                // Crucially before B owns any activity: caller loss/cancellation
+                // alone must not release A's still-blocked physical worker.
+                assert!(!exited.load(Ordering::SeqCst));
+                // Exceed the existing 350 ms quiet period: otherwise a wrongly
+                // dropped activity could be hidden by its delayed admission.
+                assert!(
+                    admitted_rx
+                        .recv_timeout(Duration::from_millis(450))
+                        .is_err()
+                );
+                let b = owner.reserve(B, path.clone()).unwrap();
+                let (queued, queued_rx) = oneshot::channel();
+                let (b_entered, b_entered_rx) = oneshot::channel();
+                let (b_release, b_wait) = mpsc::sync_channel(1);
+                let b_started = Arc::new(AtomicBool::new(false));
+                let seen = Arc::clone(&b_started);
+                let runner = Arc::clone(&owner);
+                let worker_manager = Arc::clone(&manager);
+                let b_job = tokio::spawn(async move {
+                    let execution = execute_open_with_thumbnail_activity(
+                        &runner,
+                        &worker_manager,
+                        b,
+                        JobKind::Snapshot,
+                        move |c| {
+                            assert!(exited.load(Ordering::SeqCst));
+                            seen.store(true, Ordering::SeqCst);
+                            b_entered.send(()).unwrap();
+                            b_wait.recv_timeout(Duration::from_secs(3)).unwrap();
+                            c.capture_snapshot(metadata(json!({})), settings())
+                        },
+                        |c, p| c.finish_captured_snapshot(p),
+                    );
+                    queued.send(()).unwrap();
+                    execution.await
+                });
+                tokio::time::timeout(Duration::from_secs(3), queued_rx)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert!(!b_started.load(Ordering::SeqCst));
+                assert!(admitted_rx.recv_timeout(Duration::from_millis(30)).is_err());
+                release.send(()).unwrap();
+                if let Some(job) = a_job.take() {
+                    let result = tokio::time::timeout(Duration::from_secs(3), job)
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    match mode {
+                        "error" => assert_eq!(result, Err(OpenError::DevelopmentFailed)),
+                        "unwind" => assert_eq!(result, Err(OpenError::WorkerFailed)),
+                        _ => assert!(result.is_err()),
+                    }
+                }
+                tokio::time::timeout(Duration::from_secs(3), b_entered_rx)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert!(admitted_rx.recv_timeout(Duration::from_millis(30)).is_err());
+                // Completing older A and then B cannot clear an unrelated live
+                // consumer token. Last-drop resumes without another save/request.
+                let other_consumer = manager.begin_preview();
+                b_release.send(()).unwrap();
+                let admission = tokio::time::timeout(Duration::from_secs(3), b_job)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(admission.open_key, b);
+                assert!(owner.check_current(a).is_err());
+                if mode == "abort" {
+                    // Reuse the old/current genuine-native candidate byte oracle.
+                    // This is a successful Pixels control, not a fabricated raster.
+                    let result = tokio::time::timeout(
+                        Duration::from_secs(3),
+                        execute_open_with_thumbnail_activity(
+                            &owner,
+                            &manager,
+                            b,
+                            JobKind::Pixels,
+                            move |c| {
+                                let bytes = fs::read(&path).unwrap();
+                                let r = registry();
+                                let old = prepare_keyed_candidate(
+                                    &bytes,
+                                    &path,
+                                    c.pixels_spec()?,
+                                    &r,
+                                    c.raw_cancel(),
+                                )?;
+                                let actual = read_keyed_candidate(c, &r)?;
+                                assert_eq!(
+                                    old.images_for_test().0.as_bytes(),
+                                    actual.images_for_test().0.as_bytes()
+                                );
+                                assert_eq!(
+                                    old.images_for_test().1.as_bytes(),
+                                    actual.images_for_test().1.as_bytes()
+                                );
+                                Ok(actual)
+                            },
+                            finish,
+                        ),
+                    )
+                    .await
+                    .unwrap()
+                    .unwrap();
+                    assert!(result.1.0.prepared_source.is_some());
+                    drop(result);
+                }
+                assert!(
+                    admitted_rx
+                        .recv_timeout(Duration::from_millis(450))
+                        .is_err()
+                );
+                drop(other_consumer);
+                assert_eq!(
+                    admitted_rx.recv_timeout(Duration::from_secs(3)).unwrap(),
+                    "queued-background"
+                );
+                background.join().unwrap();
+                assert_eq!(manager.progress(), (0, 0));
+            }
         }
 
         #[tokio::test]
@@ -6444,6 +6734,181 @@ mod prepared_appearance_tests {
             }
 
             #[tokio::test]
+            async fn masked_preview_reuses_noninitial_dcp_pixels_with_fresh_masks_and_cold_parity() {
+                fn assert_hit_matches_cold(
+                    q: &ConsumerRequest,
+                    cache: &mut Option<PreviewPixelsEntry>,
+                    edge: u32,
+                    divisor: Option<f32>,
+                    cold_edge: u32,
+                    retained: bool,
+                ) -> (Vec<image::GrayImage>, crate::image_processing::AllAdjustments) {
+                    let before = preview_base_development_count();
+                    let (bytes, dimensions, geometry, masks, uniforms);
+                    {
+                        let frame = q.prepare_preview_pixels(cache, Some(edge), divisor).unwrap();
+                        assert_eq!(frame.hit, retained);
+                        assert_eq!(matches!(&frame.storage, PreviewPixelsStorage::Retained(_)), retained);
+                        bytes = frame.pixels().pixels().as_bytes().to_vec();
+                        dimensions = frame.pixels().pixels().dimensions();
+                        geometry = frame.pixels().geometry();
+                        let draw = frame.request(q.creative().unwrap(), q.appearance().unwrap().as_shot()).unwrap();
+                        masks = draw.mask_bitmaps.to_vec();
+                        uniforms = draw.adjustments;
+                        assert_eq!(uniforms.mask_count as usize, masks.len());
+                        for bitmap in &masks { assert_eq!(bitmap.dimensions(), dimensions); }
+                    }
+                    assert_eq!(preview_base_development_count().wrapping_sub(before), 0);
+                    // Cold work is deliberately separate from the zero-development hit.
+                    let before_cold = preview_base_development_count();
+                    let cold = cold_preview_pixels(q, cold_edge, divisor);
+                    assert_eq!(preview_base_development_count().wrapping_sub(before_cold), 1);
+                    assert_eq!(bytes, cold.pixels().as_bytes());
+                    assert_eq!(dimensions, cold.pixels().dimensions());
+                    assert_eq!(geometry, cold.geometry());
+                    let draw = cold.request(q.creative().unwrap(), q.appearance().unwrap().as_shot()).unwrap();
+                    assert_eq!(masks.as_slice(), draw.mask_bitmaps);
+                    assert_eq!(bytemuck::bytes_of(&uniforms), bytemuck::bytes_of(&draw.adjustments));
+                    (masks, uniforms)
+                }
+
+                let (r, id, _, _) = selected();
+                // Selection after opening forces the genuine noninitial selected producer.
+                let (o, k, _) = ready(&patterned_composition_dng(), json!({}), Arc::clone(&r)).await;
+                let input = json!({"profile":{"base":id,"look":"composition-look","amount":100}});
+                let warm = request(&o, k, Some(input.clone()), settings(), &r).unwrap();
+                let mut cache = None;
+                let before_warm = preview_base_development_count();
+                drop(warm.prepare_preview_pixels(&mut cache, Some(32), None).unwrap());
+                assert_eq!(preview_base_development_count().wrapping_sub(before_warm), 1);
+                let backing = cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr();
+                let warm_bytes = cache.as_ref().unwrap().pixels.pixels().as_bytes().to_vec();
+                let (width, height) = warm.loaded().image.dimensions();
+                let png_a = patch_contract_png(DynamicImage::ImageLuma8(image::GrayImage::from_fn(
+                    width, height, |x, _| image::Luma([if x < width / 2 { 255 } else { 0 }]),
+                )));
+                let png_b = patch_contract_png(DynamicImage::ImageLuma8(image::GrayImage::from_fn(
+                    width, height, |_, y| image::Luma([if y < height / 2 { 0 } else { 255 }]),
+                )));
+                let container = |id: &str, payload: &str, local_exposure: f64| json!({
+                    "id":id,"name":id,"visible":true,"invert":false,"opacity":100.0,
+                    "adjustments":{"exposure":local_exposure},
+                    "subMasks":[{"id":format!("{id}-subject"),"type":"ai-subject","visible":true,
+                        "invert":false,"opacity":100.0,"mode":"additive","parameters":{
+                            "maskDataBase64":payload,"grow":0.0,"feather":0.0,
+                            "startX":0.0,"startY":0.0,"endX":1.0,"endY":1.0,
+                            "rotation":0.0,"flipHorizontal":false,"flipVertical":false,"orientationSteps":0
+                        }}]
+                });
+                let mut edited = input.clone();
+                edited["exposure"] = json!(1.25);
+                edited["masks"] = json!([container("mask-a", &png_a, 0.5), container("mask-b", &png_b, -0.5)]);
+                let first = request(&o, k, Some(edited.clone()), settings(), &r).unwrap();
+                let (first_masks, first_uniforms) = assert_hit_matches_cold(&first, &mut cache, 32, None, 32, true);
+                assert_eq!(first_masks.len(), 2);
+                assert_ne!(first_masks[0], first_masks[1]);
+                assert_eq!(cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr(), backing);
+                assert_eq!(cache.as_ref().unwrap().pixels.pixels().as_bytes(), warm_bytes);
+
+                edited["exposure"] = json!(-0.75);
+                edited["masks"][0]["adjustments"]["exposure"] = json!(2.0);
+                edited["masks"][0]["subMasks"][0]["parameters"]["maskDataBase64"] = json!(png_b);
+                edited["masks"][0]["subMasks"][0]["parameters"]["grow"] = json!(3.0);
+                edited["masks"][0]["subMasks"][0]["parameters"]["feather"] = json!(2.0);
+                let changed = request(&o, k, Some(edited.clone()), settings(), &r).unwrap();
+                let (changed_masks, changed_uniforms) = assert_hit_matches_cold(&changed, &mut cache, 32, None, 32, true);
+                assert_ne!(first_masks[0], changed_masks[0]);
+                assert_ne!(bytemuck::bytes_of(&first_uniforms), bytemuck::bytes_of(&changed_uniforms));
+                edited["masks"].as_array_mut().unwrap().swap(0, 1);
+                let reordered = request(&o, k, Some(edited.clone()), settings(), &r).unwrap();
+                let (reordered_masks, _) = assert_hit_matches_cold(&reordered, &mut cache, 32, None, 32, true);
+                assert_eq!(reordered_masks[0], changed_masks[1]);
+                assert_eq!(reordered_masks[1], changed_masks[0]);
+                // A derived drag uses its own raster; a smaller final uses the
+                // retained larger raster and must generate masks at THAT size.
+                assert_hit_matches_cold(&reordered, &mut cache, 32, Some(1.4), 32, false);
+                assert_hit_matches_cold(&reordered, &mut cache, 16, None, 32, true);
+                assert_hit_matches_cold(&reordered, &mut cache, 32, None, 32, true);
+                assert_eq!(cache.as_ref().unwrap().pixels.pixels().as_bytes().as_ptr(), backing);
+
+                // A masked cold eligible miss moves its already-produced Vec into
+                // the frame; retention is pixel-only and the current draw stays complete.
+                let mut cold_cache = None;
+                let before_cold_miss = preview_base_development_count();
+                {
+                    let frame = reordered.prepare_preview_pixels(&mut cold_cache, Some(32), None).unwrap();
+                    assert!(!frame.hit);
+                    assert!(frame.masks.is_some());
+                    let draw = frame.request(reordered.creative().unwrap(), reordered.appearance().unwrap().as_shot()).unwrap();
+                    assert_eq!(draw.mask_bitmaps, reordered_masks.as_slice());
+                }
+                assert_eq!(preview_base_development_count().wrapping_sub(before_cold_miss), 1);
+                assert!(cold_cache.as_ref().unwrap().pixels.within_retention_budget(PREVIEW_PIXELS_BUDGET));
+
+                // Hidden empty ordinary containers no longer force blanket bypass.
+                let mut hidden = input.clone();
+                hidden["masks"] = json!([{"id":"hidden","name":"hidden","visible":false,
+                    "invert":false,"opacity":100.0,"adjustments":{},"subMasks":[]}]);
+                let hidden = request(&o, k, Some(hidden), settings(), &r).unwrap();
+                let (hidden_masks, _) = assert_hit_matches_cold(&hidden, &mut cache, 32, None, 32, true);
+                assert!(hidden_masks.is_empty());
+
+                for mode in ["amount", "settings", "geometry", "resolution_growth"] {
+                    // Restore the genuine matching baseline before each negative.
+                    drop(warm.prepare_preview_pixels(&mut cache, Some(32), None).unwrap());
+                    let mut candidate = edited.clone();
+                    let mut config = settings();
+                    let mut edge = 32;
+                    match mode {
+                        "amount" => candidate["profile"]["amount"] = json!(50),
+                        "settings" => config.theme = Some("mask-reuse-negative".into()),
+                        "geometry" => candidate["orientationSteps"] = json!(1),
+                        "resolution_growth" => edge = 64,
+                        _ => unreachable!(),
+                    }
+                    let negative = request(&o, k, Some(candidate), config, &r).unwrap();
+                    let before = preview_base_development_count();
+                    assert!(!negative.prepare_preview_pixels(&mut cache, Some(edge), None).unwrap().hit, "{mode}");
+                    assert_eq!(preview_base_development_count().wrapping_sub(before), 1, "{mode}");
+                }
+                for kind in ["color", "luminance"] {
+                    let mut reference_mask = input.clone();
+                    reference_mask["masks"] = json!([{"id":"reference","name":"reference","visible":true,
+                        "invert":false,"opacity":100.0,"adjustments":{},"subMasks":[{
+                            "id":"reference-child","type":kind,"visible":true,"invert":false,
+                            "opacity":100.0,"mode":"additive","parameters":{"targetX":0.0,"targetY":0.0}
+                        }]}]);
+                    let reference_mask = request(&o, k, Some(reference_mask), settings(), &r).unwrap();
+                    let (descriptor, reason) = reference_mask.preview_descriptor_diagnostic(Some(32), None).unwrap();
+                    assert!(descriptor.is_none());
+                    assert_eq!(reason, "masks");
+                    assert!(!reference_mask.prepare_preview_pixels(&mut cache, Some(32), None).unwrap().hit);
+                    assert!(cache.is_none());
+                }
+                for kind in ["corrupt", "unknown"] {
+                    let mut invalid = edited.clone();
+                    if kind == "corrupt" {
+                        invalid["masks"][0]["subMasks"][0]["parameters"]["maskDataBase64"] = json!("not-an-image");
+                    } else {
+                        invalid["masks"][0]["subMasks"][0]["type"] = json!("unknown-visible");
+                    }
+                    let before = preview_base_development_count();
+                    assert!(request(&o, k, Some(invalid), settings(), &r).is_err());
+                    assert_eq!(preview_base_development_count(), before);
+                }
+                drop(warm.prepare_preview_pixels(&mut cache, Some(32), None).unwrap());
+                let (other_owner, other_key, _) = ready(&patterned_composition_dng(), json!({}), Arc::clone(&r)).await;
+                let other = request(&other_owner, other_key, Some(edited), settings(), &r).unwrap();
+                let before_source = preview_base_development_count();
+                assert!(!other.prepare_preview_pixels(&mut cache, Some(32), None).unwrap().hit);
+                assert_eq!(preview_base_development_count().wrapping_sub(before_source), 1);
+                reordered.cancel();
+                assert!(reordered.prepare_preview_pixels(&mut cache, Some(32), None).is_err());
+                o.close();
+                other_owner.close();
+            }
+
+            #[tokio::test]
             async fn preview_pixels_cancel_aba_and_lifetimes_are_fenced() {
                 let r = Arc::new(registry());
                 let (o, k, images) =
@@ -6458,7 +6923,6 @@ mod prepared_appearance_tests {
                 let weak_source = Arc::downgrade(&q.appearance().unwrap().source);
                 for unsupported in [
                     json!({"aiPatches":[{"visible":false}]}),
-                    json!({"masks":[{"id":"hidden-valid-mask","name":"Hidden valid mask","visible":false,"invert":false,"opacity":100.0,"adjustments":{},"subMasks":[]}]}),
                 ] {
                     let candidate = request(&o, k, Some(unsupported), settings(), &r).unwrap();
                     assert!(
@@ -6879,6 +7343,7 @@ mod prepared_appearance_tests {
                                 retained: Arc::new(RetainedOpenAppearance {
                                     spec: foreign,
                                     appearance: appearance.unwrap(),
+                                    fit_programs: std::sync::Mutex::new(None),
                                 }),
                             };
                             assert!(matches!(
@@ -7083,6 +7548,64 @@ mod prepared_appearance_tests {
                     );
                 }
             }
+            #[tokio::test]
+            async fn subject_reference_borrow_preserves_full_pixels_encoder_and_guide() {
+                let (r, id, _, _) = selected();
+                let selected_edit = json!({"profile":{"base":id,"look":"composition-look","amount":100}});
+                let (o, k, _) = ready(
+                    &patterned_composition_dng(), selected_edit.clone(), Arc::clone(&r),
+                ).await;
+                for (profile, borrowed) in [
+                    (json!({}), true),
+                    (selected_edit.clone(), true),
+                    (json!({"profile":{"base":id,"look":"composition-look","amount":50}}), false),
+                ] {
+                    for geometry in [
+                        json!({}),
+                        json!({"crop":{"x":2,"y":3,"width":12,"height":11}}),
+                        json!({"transformDistortion":8,"transformRotate":3,
+                            "crop":{"x":2,"y":3,"width":12,"height":11}}),
+                    ] {
+                        let mut edit = profile.clone();
+                        for (name, value) in geometry.as_object().unwrap() {
+                            edit[name] = value.clone();
+                        }
+                        let q = request(&o, k, Some(edit), settings(), &r).unwrap();
+                        let base = q.request_base().unwrap();
+                        assert_eq!(matches!(&base.image, Cow::Borrowed(_)), borrowed);
+                        let source_dimensions = base.pixels().dimensions();
+                        let source_bytes = base.pixels().as_bytes().to_vec();
+                        drop(base);
+                        // Frozen former full_reference sequence, using real production helpers.
+                        let expected = q.stage(|| {
+                            let base = q.unpatched()?;
+                            Ok(crate::mask_generation::build_full_warped_image(
+                                &base, true, q.creative()?.adjustments(),
+                            ).into_owned())
+                        }).unwrap();
+                        let actual = q.full_reference().unwrap();
+                        assert_eq!(actual.dimensions(), source_dimensions);
+                        assert_eq!(actual.color(), expected.color());
+                        assert_eq!(actual.as_bytes(), expected.as_bytes());
+                        assert_eq!(actual.to_luma8().as_raw(), expected.to_luma8().as_raw());
+                        let (w, h) = expected.dimensions();
+                        let scale = 1024.0 / w.max(h) as f32;
+                        let ew = (w as f32 * scale).round() as u32;
+                        let eh = (h as f32 * scale).round() as u32;
+                        assert_eq!(
+                            actual.resize(ew, eh, imageops::FilterType::Triangle).into_rgb8(),
+                            expected.resize(ew, eh, imageops::FilterType::Triangle).into_rgb8(),
+                        );
+                        let after = q.request_base().unwrap();
+                        assert_eq!(after.pixels().as_bytes(), source_bytes.as_slice());
+                        drop(after);
+                        q.cancel();
+                        assert!(q.full_reference().is_err());
+                    }
+                }
+                o.close();
+            }
+
             #[tokio::test]
             async fn strict_separate_mask_uses_full_reference_and_reports_errors() {
                 let r = Arc::new(registry());
@@ -7980,7 +8503,7 @@ mod prepared_appearance_tests {
             #[ignore = "requires actual offscreen GPU; genuine C3c fit/JPEG/event then accurate production"]
             async fn genuine_fit_then_accurate_pipeline() {
                 let (hardware, errors) = offscreen();
-                for selected_profile in [false, true] {
+                for (selected_profile, with_patch) in [(false, true), (true, true), (true, false)] {
                     let (r, id, dcp, look) = selected();
                     let bytes = patterned_composition_dng();
                     let path = file(&bytes, "dng");
@@ -7991,6 +8514,9 @@ mod prepared_appearance_tests {
                     if selected_profile {
                         input["profile"] =
                             json!({"base":id,"look":"composition-look","amount":100});
+                    }
+                    if !with_patch {
+                        input["aiPatches"] = json!([]);
                     }
                     let original = input.clone();
                     let mut s = settings();
@@ -8117,6 +8643,55 @@ mod prepared_appearance_tests {
                         ]
                     );
                     assert_eq!(Arc::strong_count(&hardware.display), display_refs);
+                    // The only intentional surviving fit owner is immutable
+                    // programs: one device/queue Arc and no display Arc/data.
+                    assert_eq!(Arc::strong_count(&hardware.device), device_refs + 1);
+                    assert_eq!(Arc::strong_count(&hardware.queue), queue_refs + 1);
+                    let request = ConsumerRequest::capture(
+                        crate::app_state::ConsumerSource::Accurate(o.accurate_snapshot(Some(&key)).unwrap()),
+                        None, settings(), &registry(),
+                    ).unwrap();
+                    let crate::app_state::ConsumerSource::Accurate(snapshot) = &request.source else { panic!("accurate source") };
+                    let retired = Arc::downgrade(snapshot.retained().unwrap());
+                    assert!(snapshot.retained().unwrap().fit_programs.lock().unwrap().is_some());
+                    let cancelled = ConsumerRequest::capture(
+                        crate::app_state::ConsumerSource::Accurate(o.accurate_snapshot(Some(&key)).unwrap()),
+                        None, settings(), &registry(),
+                    ).unwrap();
+                    cancelled.cancel();
+                    assert!(cancelled.take_fit_programs().is_err());
+                    assert!(snapshot.retained().unwrap().fit_programs.lock().unwrap().is_some(),
+                        "cancelled request cannot consume the source token");
+                    drop(cancelled);
+                    let mut editor = PreviewRendererSession::default();
+                    let actual = editor.render(
+                        &request, &hardware, Some(64), None,
+                        crate::gpu_processing::RenderOutputPrecision::EightBit, None,
+                    ).unwrap();
+                    assert!(snapshot.retained().unwrap().fit_programs.lock().unwrap().is_none());
+                    assert!(request.take_fit_programs().unwrap().is_none(), "single claim");
+                    assert_eq!(editor.entry.as_ref().unwrap().1.program_build_count(), 1);
+                    let mut cold = PreviewRendererSession::default();
+                    let expected = cold.render(
+                        &request, &hardware, Some(64), None,
+                        crate::gpu_processing::RenderOutputPrecision::EightBit, None,
+                    ).unwrap();
+                    assert_eq!(actual.0.as_bytes(), expected.0.as_bytes());
+                    assert_eq!((actual.1, actual.2), (expected.1, expected.2));
+                    drop(cold);
+                    request.cancel();
+                    assert!(request.take_fit_programs().is_err());
+                    assert!(editor.render(
+                        &request, &hardware, Some(64), None,
+                        crate::gpu_processing::RenderOutputPrecision::EightBit, None,
+                    ).is_err());
+                    assert!(editor.entry.is_none());
+                    o.reserve(B, "replacement.dng".into()).unwrap();
+                    assert!(snapshot.retained().is_err(), "stale source cannot claim");
+                    drop(editor);
+                    drop(request);
+                    drop(o);
+                    assert!(retired.upgrade().is_none());
                     assert_eq!(Arc::strong_count(&hardware.device), device_refs);
                     assert_eq!(Arc::strong_count(&hardware.queue), queue_refs);
                     assert!(hardware.display.lock().unwrap().is_none());
@@ -8206,6 +8781,54 @@ mod prepared_appearance_tests {
     // END C3b fixed eight preparation groups.
 }
 
+// One existing activity token follows the caller, actual blocking worker and
+// completion closure. OpenOwner keeps the latter in its supervisor until join,
+// including errors; a dropped caller therefore cannot admit background work
+// while the opening worker is still running. No admission/render lock is held.
+fn execute_open_with_thumbnail_activity<'a, T, R, W, C>(
+    owner: &'a crate::progressive_open::OpenOwner,
+    thumbnails: &Arc<crate::app_state::ThumbnailManager>,
+    key: crate::progressive_open::OpenKey,
+    kind: crate::progressive_open::JobKind,
+    work: W,
+    complete: C,
+) -> impl std::future::Future<Output = std::result::Result<R, crate::progressive_open::OpenError>> + 'a
+where
+    T: Send + 'static,
+    R: Send + 'static,
+    W: FnOnce(
+            &crate::progressive_open::WorkerContext,
+        ) -> std::result::Result<T, crate::progressive_open::OpenError>
+        + Send
+        + 'static,
+    C: FnOnce(
+            &crate::progressive_open::WorkerContext,
+            T,
+        ) -> std::result::Result<R, crate::progressive_open::OpenError>
+        + Send
+        + 'static,
+{
+    let activity = thumbnails.begin_preview();
+    let worker_activity = Arc::clone(&activity);
+    let completion_activity = Arc::clone(&activity);
+    let execution = owner.execute(
+        key,
+        kind,
+        move |context| {
+            let _activity = worker_activity;
+            work(context)
+        },
+        move |context, value| {
+            let _activity = completion_activity;
+            complete(context, value)
+        },
+    );
+    async move {
+        let _activity = activity;
+        execution.await
+    }
+}
+
 /// Inactive admission adapter. Root supplies the managed owner/policy and later
 /// registration; existing public load_image remains wholly on its legacy route.
 pub(crate) async fn begin_keyed_image_open(
@@ -8221,8 +8844,9 @@ pub(crate) async fn begin_keyed_image_open(
         .load_image_generation
         .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| n.checked_add(1))
         .map_err(|_| OpenError::Exhausted)?;
-    owner
-        .execute(
+    execute_open_with_thumbnail_activity(
+            owner,
+            &state.thumbnail_manager,
             key,
             JobKind::Snapshot,
             move |context| {
@@ -8531,6 +9155,15 @@ impl KeyedPreparation {
         context: &crate::progressive_open::WorkerContext,
         bytes: &[u8],
     ) -> Result<crate::progressive_open::OpenCandidate, crate::progressive_open::OpenError> {
+        self.into_candidate_with_fit_programs(context, bytes, None)
+    }
+
+    fn into_candidate_with_fit_programs(
+        self,
+        context: &crate::progressive_open::WorkerContext,
+        bytes: &[u8],
+        fit_programs: Option<crate::gpu_processing::FitGpuPrograms>,
+    ) -> Result<crate::progressive_open::OpenCandidate, crate::progressive_open::OpenError> {
         let (spec, decision) = match self {
             Self::Prepared(pair) => (
                 pair.spec,
@@ -8563,7 +9196,11 @@ impl KeyedPreparation {
             Some(appearance) => {
                 crate::progressive_open::OpenCandidate::from_retained(RetainedPreparedCandidate {
                     candidate,
-                    retained: Arc::new(RetainedOpenAppearance { spec, appearance }),
+                    retained: Arc::new(RetainedOpenAppearance {
+                        spec,
+                        appearance,
+                        fit_programs: std::sync::Mutex::new(fit_programs),
+                    }),
                 })
             }
             None => Ok(candidate),
@@ -8617,13 +9254,28 @@ fn read_keyed_candidate_with_fit_initialization(
             })?;
         }
     }
-    decision.offer_fit(context, owner, gpu, emit)?;
-    // Every fit buffer/renderer/offer is gone; this is the original accurate path.
-    decision.into_candidate(context, &bytes)
+    let programs = decision.offer_fit_programs(context, owner, gpu, emit)?;
+    // All fit data is gone; only immutable programs cross accurate production.
+    // Any error/stale/cancel/unwind drops this local token, never returns it.
+    decision.into_candidate_with_fit_programs(context, &bytes, programs)
 }
 
 impl KeyedPreparation {
+    #[cfg(test)]
     fn offer_fit(
+        &self,
+        context: &crate::progressive_open::WorkerContext,
+        owner: &crate::progressive_open::OpenOwner,
+        gpu: &std::sync::Mutex<Option<crate::image_processing::GpuContext>>,
+        emit: impl FnOnce(&crate::progressive_open::PlaceholderEvent)
+            -> std::result::Result<(), crate::progressive_open::OpenError>,
+    ) -> std::result::Result<(), crate::progressive_open::OpenError> {
+        self.offer_fit_programs(context, owner, gpu, emit).map(drop)
+    }
+}
+
+impl KeyedPreparation {
+    fn offer_fit_programs(
         &self,
         context: &crate::progressive_open::WorkerContext,
         owner: &crate::progressive_open::OpenOwner,
@@ -8631,12 +9283,12 @@ impl KeyedPreparation {
         emit: impl FnOnce(
             &crate::progressive_open::PlaceholderEvent,
         ) -> std::result::Result<(), crate::progressive_open::OpenError>,
-    ) -> std::result::Result<(), crate::progressive_open::OpenError> {
+    ) -> std::result::Result<Option<crate::gpu_processing::FitGpuPrograms>, crate::progressive_open::OpenError> {
         match self {
-            Self::Prepared(pair) => pair.offer_fit(context, owner, gpu, emit),
+            Self::Prepared(pair) => pair.offer_fit_programs(context, owner, gpu, emit),
             Self::DecodedLegacy { spec, .. } | Self::LegacyRequired { spec, .. } => {
                 // Real legacy classification ignores unused capture/GPU state.
-                check_fit_current(context, owner, spec)
+                check_fit_current(context, owner, spec).map(|()| None)
             }
         }
     }
@@ -8795,7 +9447,7 @@ impl PreparedKeyedOpen {
         result
     }
 
-    fn offer_fit(
+    fn offer_fit_programs(
         &self,
         context: &crate::progressive_open::WorkerContext,
         owner: &crate::progressive_open::OpenOwner,
@@ -8803,7 +9455,7 @@ impl PreparedKeyedOpen {
         emit: impl FnOnce(
             &crate::progressive_open::PlaceholderEvent,
         ) -> std::result::Result<(), crate::progressive_open::OpenError>,
-    ) -> std::result::Result<(), crate::progressive_open::OpenError> {
+    ) -> std::result::Result<Option<crate::gpu_processing::FitGpuPrograms>, crate::progressive_open::OpenError> {
         use crate::progressive_open::OpenError;
         fit_stage(
             context,
@@ -8822,7 +9474,7 @@ impl PreparedKeyedOpen {
             || snapshot_fit_gpu(gpu),
         )?
         else {
-            return Ok(()); // Only an actually absent optional GPU omits fit.
+            return Ok(None); // Only an actually absent optional GPU omits fit.
         };
         let mut renderer = fit_stage(
             context,
@@ -8837,6 +9489,8 @@ impl PreparedKeyedOpen {
             },
         )?;
         drop(snapshot);
+        #[cfg(test)]
+        let fit_display_witness = renderer.display_retirement_witness_for_test();
         let (pixels, limit) = self.with_current_fit(context, owner, |composed, limit| {
             fit_stage(
                 context,
@@ -8882,7 +9536,14 @@ impl PreparedKeyedOpen {
                 },
             )
         })?;
-        drop(renderer); // Real return, not a claim of driver-wide completion on Err.
+        // Consumes the owner and drops ALL fixed/sized data before encoding or
+        // accurate production; a token contains no fit uploads or display state.
+        let programs = renderer.into_fit_programs();
+        #[cfg(test)]
+        assert!(
+            fit_display_witness.upgrade().is_none(),
+            "actual isolated fit owner must retire before encoding/accurate production"
+        );
         let (width, height) = pixels.dimensions();
         let jpeg = fit_stage(
             context,
@@ -8914,7 +9575,9 @@ impl PreparedKeyedOpen {
             },
         )?;
         drop(jpeg);
-        offer_fit_event(context, owner, &self.spec, event, emit)
+        offer_fit_event(context, owner, &self.spec, event, emit)?;
+        check_fit_current(context, owner, &self.spec)?;
+        Ok(programs)
     }
 }
 
@@ -9178,7 +9841,7 @@ fn render_keyed_decision_owned(
                                 )
                             })
                             .map_err(failed)?;
-                        composite_prepared_base(base.pixels(), adjustments, &cancel)
+                        composite_selected_open_base(base, adjustments, &cancel)
                             .inspect_err(|_| {
                                 crate::progressive_open::log_open_failure(
                                     "accurate.captured_patches",
@@ -9301,9 +9964,9 @@ pub(crate) async fn load_keyed_image(
     state.progressive_open.check_path(open_key, &path)?;
     let registry = Arc::clone(&state.profile_registry);
     let worker_app = app_handle.clone();
-    state
-        .progressive_open
-        .execute(
+    execute_open_with_thumbnail_activity(
+            &state.progressive_open,
+            &state.thumbnail_manager,
             open_key,
             JobKind::Pixels,
             move |context| {
@@ -9355,6 +10018,7 @@ pub(crate) fn progressive_test_candidate(
 pub(crate) struct RetainedOpenAppearance {
     spec: Arc<crate::progressive_open::OpenSpec>,
     appearance: PreparedOpenAppearance,
+    fit_programs: std::sync::Mutex<Option<crate::gpu_processing::FitGpuPrograms>>,
 }
 impl RetainedOpenAppearance {
     pub(crate) fn spec(&self) -> &Arc<crate::progressive_open::OpenSpec> {
@@ -9512,6 +10176,24 @@ impl ConsumerRequest {
         }
         self.source.check().map_err(|e| e.to_string())
     }
+    // Only the serial preview renderer calls this. Edited views use the same
+    // genuinely checked source, never their independently prepared appearance.
+    fn take_fit_programs(&self) -> std::result::Result<Option<crate::gpu_processing::FitGpuPrograms>, String> {
+        self.check()?;
+        let programs = match &self.source {
+            crate::app_state::ConsumerSource::Accurate(snapshot) => {
+                let retained = snapshot.retained().map_err(|e| e.to_string())?;
+                // Option::take is the only operation under this short lock.
+                // Checks, disposal and resource creation are all outside it.
+                let mut slot = retained.fit_programs.lock().map_err(|_| "Fit programs unavailable")?;
+                slot.take()
+            }
+            crate::app_state::ConsumerSource::Legacy { .. } => None,
+        };
+        self.check()?;
+        Ok(programs)
+    }
+
     pub(crate) fn cancel(&self) {
         self.cancelled.store(1, Ordering::SeqCst);
     }
@@ -9777,10 +10459,12 @@ impl ConsumerRequest {
     }
     pub(crate) fn full_reference(&self) -> std::result::Result<Arc<DynamicImage>, String> {
         self.stage(|| {
-            let base = self.unpatched()?;
+            // Keep the same nested stage fences without cloning a borrowed base.
+            // The existing RAW helper owns its mutable working copy.
+            let base = self.stage(|| self.request_base())?;
             Ok(Arc::new(
                 crate::mask_generation::build_full_warped_image(
-                    &base,
+                    base.image.as_ref(),
                     true,
                     self.creative()?.adjustments(),
                 )
@@ -10098,9 +10782,23 @@ enum PreviewPixelsStorage<'a> {
 }
 struct PreparedPreviewPixels<'a> {
     storage: PreviewPixelsStorage<'a>,
+    // Eligible cold masks are moved here; hits generate CURRENT masks here.
+    // None preserves the original bundled-mask path for unsupported requests.
+    masks: Option<Vec<image::GrayImage>>,
     hit: bool,
 }
 impl PreparedPreviewPixels<'_> {
+    fn request(
+        &self,
+        assets: &crate::open_creative_snapshot::CapturedCreativeAssets,
+        as_shot: crate::as_shot::AsShot,
+    ) -> std::result::Result<crate::gpu_processing::RenderRequest<'_>, crate::open_composition::ComposeError> {
+        match &self.masks {
+            Some(masks) => self.pixels().request_with_masks(assets, as_shot, masks),
+            None => self.pixels().request(assets, as_shot),
+        }
+    }
+
     fn pixels(&self) -> &crate::open_composition::OwnedPreviewPixels {
         match &self.storage {
             PreviewPixelsStorage::Retained(p) => p,
@@ -10273,7 +10971,7 @@ impl ConsumerRequest {
         if !empty("aiPatches") {
             return Ok((None, "patches"));
         }
-        if !empty("masks") || !assets.masks().is_empty() {
+        if assets.masks().iter().any(|mask| mask.requires_warped_image()) {
             return Ok((None, "masks"));
         }
         if assets.relight_map().is_some()
@@ -10341,7 +11039,7 @@ impl ConsumerRequest {
                     appearance.source.policy.max_workers,
                     appearance.source.policy.scratch_budget_bytes,
                 ],
-                contract: "AccurateOne/linear-sRGB/FCS-v1/cpu-inputs-v2",
+                contract: "AccurateOne/linear-sRGB/FCS-v1/cpu-inputs-v3-fresh-masks",
                 settings,
                 selected: appearance.assets.as_ref().map(|a| a.content_identity()),
                 adjustments,
@@ -10383,6 +11081,14 @@ impl ConsumerRequest {
         })
     }
 
+    fn fresh_preview_mask_bitmaps(
+        &self,
+        pixels: &crate::open_composition::OwnedPreviewPixels,
+    ) -> std::result::Result<Vec<image::GrayImage>, String> {
+        self.stage(|| pixels.fresh_mask_bitmaps(self.creative()?, &self.raw_cancel())
+            .map_err(|e| e.to_string()))
+    }
+
     fn prepare_preview_pixels<'a>(
         &self,
         cache: &'a mut Option<PreviewPixelsEntry>,
@@ -10414,11 +11120,13 @@ impl ConsumerRequest {
         };
         self.check()?;
         if reason == "hit" {
+            let masks = self.fresh_preview_mask_bitmaps(&cache.as_ref().ok_or("Preview entry unavailable")?.pixels)?;
             log_preview_cache("hit", "matched", before);
             return Ok(PreparedPreviewPixels {
                 storage: PreviewPixelsStorage::Retained(
                     &cache.as_ref().ok_or("Preview entry unavailable")?.pixels,
                 ),
+                masks: Some(masks),
                 hit: true,
             });
         }
@@ -10431,11 +11139,13 @@ impl ConsumerRequest {
                 if current.divisor_bits.is_none() {
                     // Final and canonical unity requests keep the larger raster,
                     // its geometry and its descriptor. No lower-resolution relabel.
+                    let masks = self.fresh_preview_mask_bitmaps(&entry.pixels)?;
                     log_preview_cache("hit", "retained_larger", before);
                     return Ok(PreparedPreviewPixels {
                         storage: PreviewPixelsStorage::Retained(
                             &cache.as_ref().ok_or("Preview entry unavailable")?.pixels,
                         ),
+                        masks: Some(masks),
                         hit: true,
                     });
                 }
@@ -10448,9 +11158,11 @@ impl ConsumerRequest {
                     .inspect_err(|_| log_preview_cache("rejected", "currentness", before))?;
                 let pixels = produced.map_err(|e| e.to_string())
                     .inspect_err(|_| log_preview_cache("error", "composition", before))?;
+                let masks = self.fresh_preview_mask_bitmaps(&pixels)?;
                 log_preview_cache("hit", "derived_interactive", before);
                 return Ok(PreparedPreviewPixels {
                     storage: PreviewPixelsStorage::Transient(pixels),
+                    masks: Some(masks),
                     // CPU reuse, but not an exact retained output-geometry hit.
                     hit: false,
                 });
@@ -10465,8 +11177,10 @@ impl ConsumerRequest {
         let produced = self.compose_preview_pixels(resolution, divisor);
         self.check()
             .inspect_err(|_| log_preview_cache("rejected", "currentness", before))?; // authoritative even when development/composition failed
-        let pixels = produced.inspect_err(|_| log_preview_cache("error", "composition", before))?;
+        let mut pixels = produced.inspect_err(|_| log_preview_cache("error", "composition", before))?;
         let eligible = descriptor.is_some();
+        // Cold composition already generated the masks: move them, never decode twice.
+        let masks = eligible.then(|| pixels.take_mask_bitmaps());
         if let Some(descriptor) = descriptor {
             if pixels.within_retention_budget(PREVIEW_PIXELS_BUDGET) {
                 self.check()?;
@@ -10476,6 +11190,7 @@ impl ConsumerRequest {
                     storage: PreviewPixelsStorage::Retained(
                         &cache.as_ref().ok_or("Preview entry unavailable")?.pixels,
                     ),
+                    masks,
                     hit: false,
                 });
             }
@@ -10488,6 +11203,7 @@ impl ConsumerRequest {
         log_preview_cache("uncached", reason, before);
         Ok(PreparedPreviewPixels {
             storage: PreviewPixelsStorage::Transient(pixels),
+            masks,
             hit: false,
         })
     }
@@ -10513,7 +11229,7 @@ impl ConsumerRequest {
             let (width,height) = pixels.pixels().dimensions();
             let (scale, offset) = pixels.geometry();
             log::info!("[preview-stage] stage=cpu_preview_geometry width={} height={} scale={} offset_x={} offset_y={}",width,height,scale,offset.0,offset.1);
-            let mut request = pixels.request(self.creative()?, self.appearance()?.as_shot()).map_err(|e| e.to_string())?;
+            let mut request = prepared.request(self.creative()?, self.appearance()?.as_shot()).map_err(|e| e.to_string())?;
             request.roi = roi.map(|(x,y,w,h)|crate::gpu_processing::Roi { x:(x*width as f32).round() as u32, y:(y*height as f32).round() as u32, width:(w*width as f32).round() as u32, height:(h*height as f32).round() as u32 });
             let origin = request.roi.map_or((0,0),|r|(r.x,r.y));
             let result = self.preview_timed("gpu_render_readback",||renderer.render(pixels.pixels(),request,precision));
@@ -10579,7 +11295,10 @@ impl PreviewRendererSession {
                 self.clear();
                 self.entry = Some((
                     key,
-                    crate::gpu_processing::IsolatedCreativeRenderer::new(context),
+                    crate::gpu_processing::IsolatedCreativeRenderer::from_fit_programs(
+                        context,
+                        request.take_fit_programs()?,
+                    ),
                 ));
             }
             log::info!(
